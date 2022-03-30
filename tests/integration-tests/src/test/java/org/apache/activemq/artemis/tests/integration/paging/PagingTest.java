@@ -2044,55 +2044,64 @@ public class PagingTest extends ActiveMQTestBase {
       // this test only applies to file-based stores
       Assume.assumeTrue(storeType == StoreConfiguration.StoreType.FILE);
 
-      clearDataRecreateServerDirs();
+      AssertionLoggerHandler.startCapture();
 
-      Configuration config = createDefaultInVMConfig().setJournalSyncNonTransactional(false).setPagingDirectory("/" + UUID.randomUUID().toString());
+      try {
+         clearDataRecreateServerDirs();
 
-      server = createServer(true, config, PagingTest.PAGE_SIZE, PagingTest.PAGE_MAX);
+         Configuration config = createDefaultInVMConfig().setJournalSyncNonTransactional(false).setPagingDirectory("/" + UUID.randomUUID().toString());
 
-      server.start();
+         server = createServer(true, config, PagingTest.PAGE_SIZE, PagingTest.PAGE_MAX);
 
-      final int numberOfMessages = 100;
+         server.start();
 
-      locator = createInVMNonHALocator().setBlockOnNonDurableSend(true).setBlockOnDurableSend(true).setBlockOnAcknowledge(true);
+         final int numberOfMessages = 100;
 
-      sf = createSessionFactory(locator);
+         locator = createInVMNonHALocator().setBlockOnNonDurableSend(true).setBlockOnDurableSend(true).setBlockOnAcknowledge(true);
 
-      ClientSession session = sf.createSession(false, true, true);
+         sf = createSessionFactory(locator);
 
-      session.createQueue(new QueueConfiguration(PagingTest.ADDRESS));
+         ClientSession session = sf.createSession(false, true, true);
 
-      ClientProducer producer = session.createProducer(PagingTest.ADDRESS);
+         session.createQueue(new QueueConfiguration(PagingTest.ADDRESS));
 
-      ClientMessage message = null;
+         ClientProducer producer = session.createProducer(PagingTest.ADDRESS);
 
-      byte[] body = new byte[MESSAGE_SIZE];
+         ClientMessage message = null;
 
-      ByteBuffer bb = ByteBuffer.wrap(body);
+         byte[] body = new byte[MESSAGE_SIZE];
 
-      for (int j = 1; j <= MESSAGE_SIZE; j++) {
-         bb.put(getSamplebyte(j));
-      }
+         ByteBuffer bb = ByteBuffer.wrap(body);
 
-      for (int i = 0; i < numberOfMessages; i++) {
-         message = session.createMessage(true);
-
-         ActiveMQBuffer bodyLocal = message.getBodyBuffer();
-
-         bodyLocal.writeBytes(body);
-
-         message.putIntProperty(new SimpleString("id"), i);
-
-         try {
-            producer.send(message);
-         } catch (Exception e) {
-            // ignore
+         for (int j = 1; j <= MESSAGE_SIZE; j++) {
+            bb.put(getSamplebyte(j));
          }
+
+         for (int i = 0; i < numberOfMessages; i++) {
+            message = session.createMessage(true);
+
+            ActiveMQBuffer bodyLocal = message.getBodyBuffer();
+
+            bodyLocal.writeBytes(body);
+
+            message.putIntProperty(new SimpleString("id"), i);
+
+            try {
+               producer.send(message);
+            } catch (Exception e) {
+               // ignore
+            }
+         }
+         assertTrue(Wait.waitFor(() -> server.getState() == ActiveMQServer.SERVER_STATE.STOPPED, 5000, 200));
+         session.close();
+         sf.close();
+         locator.close();
+      } finally {
+         if (storeType != StoreConfiguration.StoreType.DATABASE) {
+            Assert.assertTrue(AssertionLoggerHandler.findText("AMQ144010"));
+         }
+         AssertionLoggerHandler.stopCapture();
       }
-      assertTrue(Wait.waitFor(() -> server.getState() == ActiveMQServer.SERVER_STATE.STOPPED, 5000, 200));
-      session.close();
-      sf.close();
-      locator.close();
    }
 
    /**

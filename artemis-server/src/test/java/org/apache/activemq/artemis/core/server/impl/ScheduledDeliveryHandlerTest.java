@@ -297,6 +297,16 @@ public class ScheduledDeliveryHandlerTest extends Assert {
    class FakeMessage implements Message {
 
       @Override
+      public Object getUserContext(Object key) {
+         return null;
+      }
+
+      @Override
+      public void setUserContext(Object key, Object value) {
+
+      }
+
+      @Override
       public String getProtocolName() {
          // should normally not be visible in GUI
          return getClass().getName();
@@ -1520,6 +1530,11 @@ public class ScheduledDeliveryHandlerTest extends Assert {
 
       @Override
       public SimpleString getExpiryAddress() {
+         return null;
+      }
+
+      @Override
+      public SimpleString getDeadLetterAddress() {
          return null;
       }
 

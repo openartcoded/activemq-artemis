@@ -40,7 +40,7 @@ import org.apache.activemq.artemis.core.persistence.OperationContext;
 import org.apache.activemq.artemis.core.protocol.core.Packet;
 import org.apache.activemq.artemis.core.protocol.core.impl.wireformat.BackupReplicationStartFailedMessage;
 import org.apache.activemq.artemis.core.remoting.impl.netty.TransportConstants;
-import org.apache.activemq.artemis.core.server.balancing.targets.Target;
+import org.apache.activemq.artemis.core.server.routing.targets.Target;
 import org.apache.activemq.artemis.core.server.cluster.Bridge;
 import org.apache.activemq.artemis.core.server.cluster.impl.BridgeImpl;
 import org.apache.activemq.artemis.core.server.cluster.impl.ClusterConnectionImpl;
@@ -216,11 +216,11 @@ public interface ActiveMQServerLogger extends BasicLogger {
 
    @LogMessage(level = Logger.Level.INFO)
    @Message(id = 221029, value = "stopped bridge {0}", format = Message.Format.MESSAGE_FORMAT)
-   void bridgeStopped(SimpleString name);
+   void bridgeStopped(String name);
 
    @LogMessage(level = Logger.Level.INFO)
    @Message(id = 221030, value = "paused bridge {0}", format = Message.Format.MESSAGE_FORMAT)
-   void bridgePaused(SimpleString name);
+   void bridgePaused(String name);
 
    @LogMessage(level = Logger.Level.INFO)
    @Message(id = 221031, value = "backup announced", format = Message.Format.MESSAGE_FORMAT)
@@ -288,8 +288,8 @@ public interface ActiveMQServerLogger extends BasicLogger {
    void switchingNIO();
 
    @LogMessage(level = Logger.Level.INFO)
-   @Message(id = 221046, value = "Unblocking message production on address ''{0}''; size is currently: {1} bytes; max-size-bytes: {2}", format = Message.Format.MESSAGE_FORMAT)
-   void unblockingMessageProduction(SimpleString addressName, long currentSize, long maxSize);
+   @Message(id = 221046, value = "Unblocking message production on address ''{0}''; {1}", format = Message.Format.MESSAGE_FORMAT)
+   void unblockingMessageProduction(SimpleString addressName, String sizeInfo);
 
    @LogMessage(level = Logger.Level.INFO)
    @Message(id = 221047, value = "Backup Server has scaled down to live server", format = Message.Format.MESSAGE_FORMAT)
@@ -454,12 +454,12 @@ public interface ActiveMQServerLogger extends BasicLogger {
    void requestedQuorumVotes(int vote);
 
    @LogMessage(level = Logger.Level.INFO)
-   @Message(id = 221085, value = "Redirect {0} to {1}", format = Message.Format.MESSAGE_FORMAT)
-   void redirectClientConnection(Connection connection, Target target);
+   @Message(id = 221085, value = "Route {0} to {1}", format = Message.Format.MESSAGE_FORMAT)
+   void routeClientConnection(Connection connection, Target target);
 
    @LogMessage(level = Logger.Level.INFO)
-   @Message(id = 221086, value = "Cannot redirect {0}", format = Message.Format.MESSAGE_FORMAT)
-   void cannotRedirectClientConnection(Connection connection);
+   @Message(id = 221086, value = "Cannot route {0}", format = Message.Format.MESSAGE_FORMAT)
+   void cannotRouteClientConnection(Connection connection);
 
    @LogMessage(level = Logger.Level.WARN)
    @Message(id = 222000, value = "ActiveMQServer is being finalized and has not been stopped. Please remember to stop the server before letting it go out of scope",
@@ -615,12 +615,12 @@ public interface ActiveMQServerLogger extends BasicLogger {
    void pageStoreStartIOError(@Cause Exception e);
 
    @LogMessage(level = Logger.Level.WARN)
-   @Message(id = 222038, value = "Starting paging on address ''{0}''; size is currently: {1} bytes; max-size-bytes: {2}; global-size-bytes: {3}", format = Message.Format.MESSAGE_FORMAT)
-   void pageStoreStart(SimpleString storeName, long addressSize, long maxSize, long globalMaxSize);
+   @Message(id = 222038, value = "Starting paging on address ''{0}''; {1}", format = Message.Format.MESSAGE_FORMAT)
+   void pageStoreStart(SimpleString storeName, String sizeInfo);
 
    @LogMessage(level = Logger.Level.WARN)
-   @Message(id = 222039, value = "Messages sent to address ''{0}'' are being dropped; size is currently: {1} bytes; max-size-bytes: {2}; global-size-bytes: {3}", format = Message.Format.MESSAGE_FORMAT)
-   void pageStoreDropMessages(SimpleString storeName, long addressSize, long maxSize, long globalMaxSize);
+   @Message(id = 222039, value = "Messages sent to address ''{0}'' are being dropped; {1}", format = Message.Format.MESSAGE_FORMAT)
+   void pageStoreDropMessages(SimpleString storeName, String sizeInfo);
 
    @LogMessage(level = Logger.Level.WARN)
    @Message(id = 222040, value = "Server is stopped", format = Message.Format.MESSAGE_FORMAT)
@@ -843,16 +843,16 @@ public interface ActiveMQServerLogger extends BasicLogger {
 
    @LogMessage(level = Logger.Level.WARN)
    @Message(id = 222096, value = "Error on querying binding on bridge {0}. Retrying in 100 milliseconds", format = Message.Format.MESSAGE_FORMAT)
-   void errorQueryingBridge(@Cause Throwable t, SimpleString name);
+   void errorQueryingBridge(@Cause Throwable t, String name);
 
    @LogMessage(level = Logger.Level.WARN)
    @Message(id = 222097, value = "Address {0} does not have any bindings, retry #({1})",
       format = Message.Format.MESSAGE_FORMAT)
-   void errorQueryingBridge(SimpleString address, Integer retryCount);
+   void errorQueryingBridge(String address, Integer retryCount);
 
    @LogMessage(level = Logger.Level.WARN)
    @Message(id = 222098, value = "Server is starting, retry to create the session for bridge {0}", format = Message.Format.MESSAGE_FORMAT)
-   void errorStartingBridge(SimpleString name);
+   void errorStartingBridge(String name);
 
    @LogMessage(level = Logger.Level.WARN)
    @Message(id = 222099, value = "Bridge {0} is unable to connect to destination. It will be disabled.", format = Message.Format.MESSAGE_FORMAT)
@@ -865,7 +865,7 @@ public interface ActiveMQServerLogger extends BasicLogger {
 
    @LogMessage(level = Logger.Level.WARN)
    @Message(id = 222101, value = "Bridge {0} achieved {1} maxattempts={2} it will stop retrying to reconnect", format = Message.Format.MESSAGE_FORMAT)
-   void bridgeAbortStart(SimpleString name, Integer retryCount, Integer reconnectAttempts);
+   void bridgeAbortStart(String name, Integer retryCount, Integer reconnectAttempts);
 
    @LogMessage(level = Logger.Level.WARN)
    @Message(id = 222102, value = "Unexpected exception while trying to reconnect", format = Message.Format.MESSAGE_FORMAT)
@@ -1218,8 +1218,8 @@ public interface ActiveMQServerLogger extends BasicLogger {
    void missingClusterConfigForScaleDown(String scaleDownCluster);
 
    @LogMessage(level = Logger.Level.WARN)
-   @Message(id = 222183, value = "Blocking message production on address ''{0}''; size is currently: {1} bytes; max-size-bytes on address: {2}, global-max-size is {3}", format = Message.Format.MESSAGE_FORMAT)
-   void blockingMessageProduction(SimpleString addressName, long currentSize, long maxSize, long globalMaxSize);
+   @Message(id = 222183, value = "Blocking message production on address ''{0}''; {1}", format = Message.Format.MESSAGE_FORMAT)
+   void blockingMessageProduction(SimpleString addressName, String pageInfo);
 
    @LogMessage(level = Logger.Level.WARN)
    @Message(id = 222184,
@@ -1711,15 +1711,11 @@ public interface ActiveMQServerLogger extends BasicLogger {
    void metricsPluginElementIgnored();
 
    @LogMessage(level = Logger.Level.WARN) // I really want emphasis on this logger, so adding the stars
-   @Message(id = 222294, value = "\n**************************************************************************************************************************************************************************************************************************************************************\n" +
-                                 "There is a possible split brain on nodeID {0}, coming from connectors {1}. Topology update ignored.\n" +
-                                 "**************************************************************************************************************************************************************************************************************************************************************", format = Message.Format.MESSAGE_FORMAT)
+   @Message(id = 222294, value = "There is a possible split brain on nodeID {0}, coming from connectors {1}. Topology update ignored.", format = Message.Format.MESSAGE_FORMAT)
    void possibleSplitBrain(String nodeID, String connectionPairInformation);
 
    @LogMessage(level = Logger.Level.WARN) // I really want emphasis on this logger, so adding the stars
-   @Message(id = 222295, value = "\n**************************************************************************************************************************************************************************************************************************************************************\n" +
-                                 "There is a possible split brain on nodeID {0}. Topology update ignored.\n" +
-                                 "**************************************************************************************************************************************************************************************************************************************************************", format = Message.Format.MESSAGE_FORMAT)
+   @Message(id = 222295, value = "There is a possible split brain on nodeID {0}. Topology update ignored", format = Message.Format.MESSAGE_FORMAT)
    void possibleSplitBrain(String nodeID);
 
 
@@ -1773,6 +1769,9 @@ public interface ActiveMQServerLogger extends BasicLogger {
       format = Message.Format.MESSAGE_FORMAT)
    void failedToLoadPreparedTX(@Cause Throwable e, String message);
 
+   @LogMessage(level = Logger.Level.WARN)
+   @Message(id = 222307, value = "The queues element is deprecated and replaced by the addresses element")
+   void queuesElementDeprecated();
 
 
 
@@ -2185,12 +2184,12 @@ public interface ActiveMQServerLogger extends BasicLogger {
    void enableTraceForCriticalAnalyzer();
 
    @LogMessage(level = Logger.Level.WARN)
-   @Message(id = 224108, value = "Stopped paging on address ''{0}''; size is currently: {1} bytes; max-size-bytes: {2}; global-size-bytes: {3}", format = Message.Format.MESSAGE_FORMAT)
-   void pageStoreStop(SimpleString storeName, long addressSize, long maxSize, long globalMaxSize);
+   @Message(id = 224108, value = "Stopped paging on address ''{0}''; {1}", format = Message.Format.MESSAGE_FORMAT)
+   void pageStoreStop(SimpleString storeName, String pageInfo);
 
    @LogMessage(level = Logger.Level.WARN)
-   @Message(id = 224109, value = "BrokerBalancer {0} not found", format = Message.Format.MESSAGE_FORMAT)
-   void brokerBalancerNotFound(String name);
+   @Message(id = 224109, value = "ConnectionRouter {0} not found", format = Message.Format.MESSAGE_FORMAT)
+   void connectionRouterNotFound(String name);
 
    @LogMessage(level = Logger.Level.WARN)
    @Message(id = 224110, value = "Configuration 'whitelist' is deprecated, please use the 'allowlist' configuration", format = Message.Format.MESSAGE_FORMAT)
@@ -2215,5 +2214,9 @@ public interface ActiveMQServerLogger extends BasicLogger {
    @LogMessage(level = Logger.Level.INFO)
    @Message(id = 224115, value = "Address control unblock of address ''{0}''. Clients will be granted credit as normal.", format = Message.Format.MESSAGE_FORMAT)
    void unblockingViaControl(SimpleString addressName);
+
+   @LogMessage(level = Logger.Level.WARN)
+   @Message(id = 224116, value = "The component {0} is not responsive during start up. The Server may be taking too long to start", format = Message.Format.MESSAGE_FORMAT)
+   void tooLongToStart(Object component);
 
 }

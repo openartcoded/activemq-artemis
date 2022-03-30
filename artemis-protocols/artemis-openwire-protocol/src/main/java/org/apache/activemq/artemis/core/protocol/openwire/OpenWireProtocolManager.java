@@ -83,7 +83,7 @@ import org.apache.activemq.util.LongSequenceGenerator;
 
 import static org.apache.activemq.artemis.core.protocol.openwire.util.OpenWireUtil.SELECTOR_AWARE_OPTION;
 
-public class OpenWireProtocolManager  extends AbstractProtocolManager<Command, OpenWireInterceptor, OpenWireConnection, OpenWireRedirectHandler> implements ClusterTopologyListener {
+public class OpenWireProtocolManager  extends AbstractProtocolManager<Command, OpenWireInterceptor, OpenWireConnection, OpenWireRoutingHandler> implements ClusterTopologyListener {
 
    private static final List<String> websocketRegistryNames = Collections.EMPTY_LIST;
 
@@ -136,6 +136,8 @@ public class OpenWireProtocolManager  extends AbstractProtocolManager<Command, O
    //to management service
    private boolean suppressInternalManagementObjects = true;
 
+   private int openWireDestinationCacheSize = 16;
+
    private final OpenWireFormat wireFormat;
 
    private final Map<SimpleString, RoutingType> prefixes = new HashMap<>();
@@ -143,7 +145,7 @@ public class OpenWireProtocolManager  extends AbstractProtocolManager<Command, O
    private final List<OpenWireInterceptor> incomingInterceptors = new ArrayList<>();
    private final List<OpenWireInterceptor> outgoingInterceptors = new ArrayList<>();
 
-   private final OpenWireRedirectHandler redirectHandler;
+   private final OpenWireRoutingHandler routingHandler;
 
    protected static class VirtualTopicConfig {
       public int filterPathTerminus;
@@ -195,7 +197,7 @@ public class OpenWireProtocolManager  extends AbstractProtocolManager<Command, O
       //make sure we don't cluster advisories
       clusterManager.addProtocolIgnoredAddress(AdvisorySupport.ADVISORY_TOPIC_PREFIX);
 
-      redirectHandler = new OpenWireRedirectHandler(server, this);
+      routingHandler = new OpenWireRoutingHandler(server, this);
    }
 
    /** Is Duplicate detection enabled when used with failover clients. */
@@ -334,10 +336,6 @@ public class OpenWireProtocolManager  extends AbstractProtocolManager<Command, O
       ConnectionEntry entry = new ConnectionEntry(owConn, null, System.currentTimeMillis(), -1);
       owConn.setConnectionEntry(entry);
       return entry;
-   }
-
-   @Override
-   public void removeHandler(String name) {
    }
 
    @Override
@@ -685,8 +683,8 @@ public class OpenWireProtocolManager  extends AbstractProtocolManager<Command, O
    }
 
    @Override
-   public OpenWireRedirectHandler getRedirectHandler() {
-      return redirectHandler;
+   public OpenWireRoutingHandler getRoutingHandler() {
+      return routingHandler;
    }
 
    @Override
@@ -720,6 +718,14 @@ public class OpenWireProtocolManager  extends AbstractProtocolManager<Command, O
 
    public void setSuppressInternalManagementObjects(boolean suppressInternalManagementObjects) {
       this.suppressInternalManagementObjects = suppressInternalManagementObjects;
+   }
+
+   public int getOpenWireDestinationCacheSize() {
+      return this.openWireDestinationCacheSize;
+   }
+
+   public void setOpenWireDestinationCacheSize(int openWireDestinationCacheSize) {
+      this.openWireDestinationCacheSize = openWireDestinationCacheSize;
    }
 
    public void setVirtualTopicConsumerWildcards(String virtualTopicConsumerWildcards) {

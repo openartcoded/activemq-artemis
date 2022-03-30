@@ -40,6 +40,8 @@ import org.apache.activemq.artemis.api.core.management.ResourceNames;
 import org.apache.activemq.artemis.core.client.impl.ClientSessionFactoryInternal;
 import org.apache.activemq.artemis.core.client.impl.ServerLocatorInternal;
 import org.apache.activemq.artemis.core.client.impl.TopologyMemberImpl;
+import org.apache.activemq.artemis.core.config.BridgeConfiguration;
+import org.apache.activemq.artemis.core.config.TransformerConfiguration;
 import org.apache.activemq.artemis.core.filter.Filter;
 import org.apache.activemq.artemis.core.persistence.StorageManager;
 import org.apache.activemq.artemis.core.postoffice.BindingType;
@@ -51,7 +53,6 @@ import org.apache.activemq.artemis.core.server.cluster.ActiveMQServerSideProtoco
 import org.apache.activemq.artemis.core.server.cluster.ClusterConnection;
 import org.apache.activemq.artemis.core.server.cluster.ClusterManager;
 import org.apache.activemq.artemis.core.server.cluster.MessageFlowRecord;
-import org.apache.activemq.artemis.core.server.transformer.Transformer;
 import org.apache.activemq.artemis.utils.CompositeAddress;
 import org.apache.activemq.artemis.utils.UUID;
 import org.apache.activemq.artemis.utils.UUIDGenerator;
@@ -108,7 +109,7 @@ public class ClusterConnectionBridge extends BridgeImpl {
                                   final Filter filterString,
                                   final SimpleString forwardingAddress,
                                   final ScheduledExecutorService scheduledExecutor,
-                                  final Transformer transformer,
+                                  final TransformerConfiguration transformer,
                                   final boolean useDuplicateDetection,
                                   final String user,
                                   final String password,
@@ -118,9 +119,22 @@ public class ClusterConnectionBridge extends BridgeImpl {
                                   final MessageFlowRecord flowRecord,
                                   final TransportConfiguration connector,
                                   final String storeAndForwardPrefix,
-                                  final StorageManager storageManager) {
-      super(targetLocator, initialConnectAttempts, reconnectAttempts, 0, // reconnectAttemptsOnSameNode means nothing on the clustering bridge since we always try the same
-            retryInterval, retryMultiplier, maxRetryInterval, nodeUUID, name, queue, executor, filterString, forwardingAddress, scheduledExecutor, transformer, useDuplicateDetection, user, password, server, ComponentConfigurationRoutingType.valueOf(ActiveMQDefaultConfiguration.getDefaultBridgeRoutingType()));
+                                  final StorageManager storageManager) throws ActiveMQException {
+      super(targetLocator, new BridgeConfiguration()
+         .setName(name == null ? null : name.toString())
+         .setInitialConnectAttempts(initialConnectAttempts)
+         .setReconnectAttempts(reconnectAttempts)
+         .setReconnectAttemptsOnSameNode(0) // reconnectAttemptsOnSameNode means nothing on the clustering bridge since we always try the same
+         .setRetryInterval(retryInterval)
+         .setRetryIntervalMultiplier(retryMultiplier)
+         .setMaxRetryInterval(maxRetryInterval)
+         .setFilterString(filterString == null ? null : filterString.toString())
+         .setForwardingAddress(forwardingAddress == null ? null : forwardingAddress.toString())
+         .setUseDuplicateDetection(useDuplicateDetection)
+         .setUser(user)
+         .setPassword(password)
+         .setTransformerConfiguration(transformer)
+         .setRoutingType(ComponentConfigurationRoutingType.valueOf(ActiveMQDefaultConfiguration.getDefaultBridgeRoutingType())), nodeUUID, queue, executor, scheduledExecutor, server);
 
       this.discoveryLocator = discoveryLocator;
 

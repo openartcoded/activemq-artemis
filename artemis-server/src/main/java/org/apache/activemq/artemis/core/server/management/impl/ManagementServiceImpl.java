@@ -16,8 +16,6 @@
  */
 package org.apache.activemq.artemis.core.server.management.impl;
 
-import static org.apache.activemq.artemis.api.core.FilterConstants.NATIVE_MESSAGE_ID;
-
 import javax.management.InstanceNotFoundException;
 import javax.management.MBeanRegistrationException;
 import javax.management.MBeanServer;
@@ -39,7 +37,6 @@ import org.apache.activemq.artemis.api.core.BroadcastGroupConfiguration;
 import org.apache.activemq.artemis.api.core.ChannelBroadcastEndpointFactory;
 import org.apache.activemq.artemis.api.core.ICoreMessage;
 import org.apache.activemq.artemis.api.core.JGroupsFileBroadcastEndpointFactory;
-import org.apache.activemq.artemis.api.core.JGroupsPropertiesBroadcastEndpointFactory;
 import org.apache.activemq.artemis.api.core.JsonUtil;
 import org.apache.activemq.artemis.api.core.Message;
 import org.apache.activemq.artemis.api.core.RoutingType;
@@ -51,14 +48,13 @@ import org.apache.activemq.artemis.api.core.management.ActiveMQServerControl;
 import org.apache.activemq.artemis.api.core.management.AddressControl;
 import org.apache.activemq.artemis.api.core.management.BaseBroadcastGroupControl;
 import org.apache.activemq.artemis.api.core.management.BridgeControl;
-import org.apache.activemq.artemis.api.core.management.BrokerBalancerControl;
+import org.apache.activemq.artemis.api.core.management.ConnectionRouterControl;
 import org.apache.activemq.artemis.api.core.management.ClusterConnectionControl;
 import org.apache.activemq.artemis.api.core.management.DivertControl;
 import org.apache.activemq.artemis.api.core.management.ManagementHelper;
 import org.apache.activemq.artemis.api.core.management.ObjectNameBuilder;
 import org.apache.activemq.artemis.api.core.management.QueueControl;
 import org.apache.activemq.artemis.api.core.management.ResourceNames;
-import org.apache.activemq.artemis.core.config.BridgeConfiguration;
 import org.apache.activemq.artemis.core.config.ClusterConnectionConfiguration;
 import org.apache.activemq.artemis.core.config.Configuration;
 import org.apache.activemq.artemis.core.management.impl.AcceptorControlImpl;
@@ -67,12 +63,11 @@ import org.apache.activemq.artemis.core.management.impl.AddressControlImpl;
 import org.apache.activemq.artemis.core.management.impl.BaseBroadcastGroupControlImpl;
 import org.apache.activemq.artemis.core.management.impl.BridgeControlImpl;
 import org.apache.activemq.artemis.core.management.impl.BroadcastGroupControlImpl;
-import org.apache.activemq.artemis.core.management.impl.BrokerBalancerControlImpl;
+import org.apache.activemq.artemis.core.management.impl.ConnectionRouterControlImpl;
 import org.apache.activemq.artemis.core.management.impl.ClusterConnectionControlImpl;
 import org.apache.activemq.artemis.core.management.impl.DivertControlImpl;
 import org.apache.activemq.artemis.core.management.impl.JGroupsChannelBroadcastGroupControlImpl;
 import org.apache.activemq.artemis.core.management.impl.JGroupsFileBroadcastGroupControlImpl;
-import org.apache.activemq.artemis.core.management.impl.JGroupsPropertiesBroadcastGroupControlImpl;
 import org.apache.activemq.artemis.core.management.impl.QueueControlImpl;
 import org.apache.activemq.artemis.core.message.impl.CoreMessage;
 import org.apache.activemq.artemis.core.messagecounter.MessageCounter;
@@ -90,7 +85,7 @@ import org.apache.activemq.artemis.core.server.ActiveMQServerLogger;
 import org.apache.activemq.artemis.core.server.Divert;
 import org.apache.activemq.artemis.core.server.Queue;
 import org.apache.activemq.artemis.core.server.QueueFactory;
-import org.apache.activemq.artemis.core.server.balancing.BrokerBalancer;
+import org.apache.activemq.artemis.core.server.routing.ConnectionRouter;
 import org.apache.activemq.artemis.core.server.cluster.Bridge;
 import org.apache.activemq.artemis.core.server.cluster.BroadcastGroup;
 import org.apache.activemq.artemis.core.server.cluster.ClusterConnection;
@@ -112,6 +107,8 @@ import org.apache.activemq.artemis.spi.core.remoting.Acceptor;
 import org.apache.activemq.artemis.utils.collections.ConcurrentHashSet;
 import org.apache.activemq.artemis.utils.collections.TypedProperties;
 import org.jboss.logging.Logger;
+
+import static org.apache.activemq.artemis.api.core.FilterConstants.NATIVE_MESSAGE_ID;
 
 public class ManagementServiceImpl implements ManagementService {
 
@@ -439,8 +436,6 @@ public class ManagementServiceImpl implements ManagementService {
          control = new JGroupsFileBroadcastGroupControlImpl(broadcastGroup, storageManager, configuration, (JGroupsFileBroadcastEndpointFactory) endpointFactory);
       } else if (endpointFactory instanceof ChannelBroadcastEndpointFactory) {
          control = new JGroupsChannelBroadcastGroupControlImpl(broadcastGroup, storageManager, configuration, (ChannelBroadcastEndpointFactory) endpointFactory);
-      } else if (endpointFactory instanceof JGroupsPropertiesBroadcastEndpointFactory) {
-         control = new JGroupsPropertiesBroadcastGroupControlImpl(broadcastGroup, storageManager, configuration, (JGroupsPropertiesBroadcastEndpointFactory) endpointFactory);
       } else {
          control = new BaseBroadcastGroupControlImpl(broadcastGroup, storageManager, configuration);
       }
@@ -459,13 +454,12 @@ public class ManagementServiceImpl implements ManagementService {
    }
 
    @Override
-   public synchronized void registerBridge(final Bridge bridge,
-                                           final BridgeConfiguration configuration) throws Exception {
+   public synchronized void registerBridge(final Bridge bridge) throws Exception {
       bridge.setNotificationService(this);
-      ObjectName objectName = objectNameBuilder.getBridgeObjectName(configuration.getName());
-      BridgeControl control = new BridgeControlImpl(bridge, storageManager, configuration);
+      ObjectName objectName = objectNameBuilder.getBridgeObjectName(bridge.getName().toString());
+      BridgeControl control = new BridgeControlImpl(bridge, storageManager);
       registerInJMX(objectName, control);
-      registerInRegistry(ResourceNames.BRIDGE + configuration.getName(), control);
+      registerInRegistry(ResourceNames.BRIDGE + bridge.getName(), control);
    }
 
    @Override
@@ -492,22 +486,22 @@ public class ManagementServiceImpl implements ManagementService {
    }
 
    @Override
-   public synchronized void registerBrokerBalancer(final BrokerBalancer balancer) throws Exception {
-      ObjectName objectName = objectNameBuilder.getBrokerBalancerObjectName(balancer.getName());
-      BrokerBalancerControl brokerBalancerControl = new BrokerBalancerControlImpl(balancer, storageManager);
-      registerInJMX(objectName, brokerBalancerControl);
-      registerInRegistry(ResourceNames.BROKER_BALANCER + balancer.getName(), brokerBalancerControl);
+   public synchronized void registerConnectionRouter(final ConnectionRouter router) throws Exception {
+      ObjectName objectName = objectNameBuilder.getConnectionRouterObjectName(router.getName());
+      ConnectionRouterControl connectionRouterControl = new ConnectionRouterControlImpl(router, storageManager);
+      registerInJMX(objectName, connectionRouterControl);
+      registerInRegistry(ResourceNames.CONNECTION_ROUTER + router.getName(), connectionRouterControl);
 
       if (logger.isDebugEnabled()) {
-         logger.debug("registered broker balancer " + objectName);
+         logger.debug("registered connection router " + objectName);
       }
    }
 
    @Override
-   public synchronized void unregisterBrokerBalancer(final String name) throws Exception {
-      ObjectName objectName = objectNameBuilder.getBrokerBalancerObjectName(name);
+   public synchronized void unregisterConnectionRouter(final String name) throws Exception {
+      ObjectName objectName = objectNameBuilder.getConnectionRouterObjectName(name);
       unregisterFromJMX(objectName);
-      unregisterFromRegistry(ResourceNames.BROKER_BALANCER + name);
+      unregisterFromRegistry(ResourceNames.CONNECTION_ROUTER + name);
    }
 
    @Override

@@ -20,13 +20,12 @@ import java.io.File;
 import java.net.URL;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.activemq.artemis.api.core.QueueConfiguration;
 import org.apache.activemq.artemis.core.config.amqpBrokerConnectivity.AMQPBrokerConnectConfiguration;
-import org.apache.activemq.artemis.core.config.balancing.BrokerBalancerConfiguration;
+import org.apache.activemq.artemis.core.config.routing.ConnectionRouterConfiguration;
 import org.apache.activemq.artemis.core.server.metrics.ActiveMQMetricsPlugin;
 import org.apache.activemq.artemis.core.server.plugin.ActiveMQServerFederationPlugin;
 import org.apache.activemq.artemis.core.server.plugin.ActiveMQServerAddressPlugin;
@@ -87,9 +86,7 @@ public interface Configuration {
     */
    String getSystemPropertyPrefix();
 
-   Configuration parseSystemProperties() throws Exception;
-
-   Configuration parseSystemProperties(Properties properties) throws Exception;
+   Configuration parseProperties(String optionalUrlToPropertiesFile) throws Exception;
 
    boolean isCriticalAnalyzer();
 
@@ -470,14 +467,14 @@ public interface Configuration {
    /**
     * Returns the redirects configured for this server.
     */
-   List<BrokerBalancerConfiguration> getBalancerConfigurations();
+   List<ConnectionRouterConfiguration> getConnectionRouters();
 
    /**
     * Sets the redirects configured for this server.
     */
-   Configuration setBalancerConfigurations(List<BrokerBalancerConfiguration> configs);
+   Configuration setConnectionRouters(List<ConnectionRouterConfiguration> configs);
 
-   Configuration addBalancerConfiguration(BrokerBalancerConfiguration config);
+   Configuration addConnectionRouter(ConnectionRouterConfiguration config);
 
    /**
     * Returns the cluster connections configured for this server.
@@ -1239,6 +1236,10 @@ public interface Configuration {
 
    Configuration setGlobalMaxSize(long globalMaxSize);
 
+   Configuration setGlobalMaxMessages(long globalMaxMessages);
+
+   long getGlobalMaxMessages();
+
    int getMaxDiskUsage();
 
    Configuration setMaxDiskUsage(int maxDiskUsage);
@@ -1382,5 +1383,26 @@ public interface Configuration {
    String getTemporaryQueueNamespace();
 
    Configuration setTemporaryQueueNamespace(String temporaryQueueNamespace);
+
+   /**
+    * This is specific to MQTT, and it's necessary because the session scan interval is a broker-wide setting and can't
+    * be set on a per-connector basis like the rest of the MQTT-specific settings.
+    */
+   Configuration setMqttSessionScanInterval(long mqttSessionScanInterval);
+
+   /**
+    * @see Configuration#setMqttSessionScanInterval(long)
+    *
+    * @return
+    */
+   long getMqttSessionScanInterval();
+
+   /**
+    * Returns whether suppression of session-notifications is enabled for this server. <br>
+    * Default value is {@link org.apache.activemq.artemis.api.config.ActiveMQDefaultConfiguration#DEFAULT_SUPPRESS_SESSION_NOTIFICATIONS}.
+    */
+   boolean isSuppressSessionNotifications();
+
+   Configuration setSuppressSessionNotifications(boolean suppressSessionNotifications);
 
 }

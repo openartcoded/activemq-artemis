@@ -28,7 +28,6 @@ import org.apache.activemq.artemis.api.core.SimpleString;
 import org.apache.activemq.artemis.api.core.TransportConfiguration;
 import org.apache.activemq.artemis.api.core.management.AddressControl;
 import org.apache.activemq.artemis.api.core.management.ObjectNameBuilder;
-import org.apache.activemq.artemis.core.config.BridgeConfiguration;
 import org.apache.activemq.artemis.core.config.ClusterConnectionConfiguration;
 import org.apache.activemq.artemis.core.config.Configuration;
 import org.apache.activemq.artemis.core.management.impl.ActiveMQServerControlImpl;
@@ -44,7 +43,7 @@ import org.apache.activemq.artemis.core.server.ActiveMQServer;
 import org.apache.activemq.artemis.core.server.Divert;
 import org.apache.activemq.artemis.core.server.Queue;
 import org.apache.activemq.artemis.core.server.QueueFactory;
-import org.apache.activemq.artemis.core.server.balancing.BrokerBalancer;
+import org.apache.activemq.artemis.core.server.routing.ConnectionRouter;
 import org.apache.activemq.artemis.core.server.cluster.Bridge;
 import org.apache.activemq.artemis.core.server.cluster.BroadcastGroup;
 import org.apache.activemq.artemis.core.server.cluster.ClusterConnection;
@@ -120,7 +119,7 @@ public interface ManagementService extends NotificationService, ActiveMQComponen
 
    //void unregisterDiscoveryGroup(String name) throws Exception;
 
-   void registerBridge(Bridge bridge, BridgeConfiguration configuration) throws Exception;
+   void registerBridge(Bridge bridge) throws Exception;
 
    void unregisterBridge(String name) throws Exception;
 
@@ -128,9 +127,9 @@ public interface ManagementService extends NotificationService, ActiveMQComponen
 
    void unregisterCluster(String name) throws Exception;
 
-   void registerBrokerBalancer(BrokerBalancer balancer) throws Exception;
+   void registerConnectionRouter(ConnectionRouter router) throws Exception;
 
-   void unregisterBrokerBalancer(String name) throws Exception;
+   void unregisterConnectionRouter(String name) throws Exception;
 
    Object getResource(String resourceName);
 

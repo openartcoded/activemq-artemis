@@ -22,6 +22,9 @@ import javax.jms.DeliveryMode;
 import javax.jms.MessageProducer;
 import javax.jms.Session;
 import javax.jms.TextMessage;
+
+import org.apache.activemq.artemis.core.paging.impl.PagingManagerTestAccessor;
+import org.apache.activemq.artemis.core.server.impl.QueueImplTestAccessor;
 import org.apache.activemq.artemis.json.JsonArray;
 import org.apache.activemq.artemis.json.JsonObject;
 import javax.management.Notification;
@@ -30,7 +33,6 @@ import javax.management.openmbean.CompositeDataSupport;
 import javax.management.openmbean.TabularDataSupport;
 import javax.transaction.xa.XAResource;
 import javax.transaction.xa.Xid;
-import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
 import java.text.DateFormat;
 import java.util.Arrays;
@@ -43,7 +45,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 import org.apache.activemq.artemis.api.core.ActiveMQBuffer;
@@ -71,13 +72,11 @@ import org.apache.activemq.artemis.core.config.Configuration;
 import org.apache.activemq.artemis.core.config.DivertConfiguration;
 import org.apache.activemq.artemis.core.management.impl.QueueControlImpl;
 import org.apache.activemq.artemis.core.messagecounter.impl.MessageCounterManagerImpl;
-import org.apache.activemq.artemis.core.paging.impl.PagingManagerImpl;
 import org.apache.activemq.artemis.core.postoffice.impl.LocalQueueBinding;
 import org.apache.activemq.artemis.core.server.ActiveMQServer;
 import org.apache.activemq.artemis.core.server.ActiveMQServers;
 import org.apache.activemq.artemis.core.server.Queue;
 import org.apache.activemq.artemis.core.server.impl.AddressInfo;
-import org.apache.activemq.artemis.core.server.impl.QueueImpl;
 import org.apache.activemq.artemis.core.settings.impl.AddressSettings;
 import org.apache.activemq.artemis.core.transaction.impl.XidImpl;
 import org.apache.activemq.artemis.tests.integration.jms.server.management.JMSUtil;
@@ -86,6 +85,7 @@ import org.apache.activemq.artemis.tests.util.Wait;
 import org.apache.activemq.artemis.utils.Base64;
 import org.apache.activemq.artemis.utils.RandomUtil;
 import org.apache.activemq.artemis.utils.RetryRule;
+import org.apache.qpid.jms.JmsConnectionFactory;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Before;
@@ -1578,16 +1578,9 @@ public class QueueControlTest extends ManagementTestBase {
       final LocalQueueBinding binding2 = (LocalQueueBinding) server.getPostOffice().getBinding(dlq);
       Queue q2 = binding2.getQueue();
 
-      Field queueMemorySizeField = QueueImpl.class.getDeclaredField("queueMemorySize");
-      queueMemorySizeField.setAccessible(true);
-
-      //Get memory size counters to verify
-      AtomicInteger queueMemorySize1 = (AtomicInteger) queueMemorySizeField.get(q);
-      AtomicInteger queueMemorySize2 = (AtomicInteger) queueMemorySizeField.get(q2);
-
       //Verify that original queue has a memory size greater than 0 and DLQ is 0
-      assertTrue(queueMemorySize1.get() > 0);
-      assertEquals(0, queueMemorySize2.get());
+      assertTrue(QueueImplTestAccessor.getQueueMemorySize(q) > 0);
+      assertEquals(0, QueueImplTestAccessor.getQueueMemorySize(q2));
 
       // Read and rollback all messages to DLQ
       ClientConsumer clientConsumer = session.createConsumer(qName);
@@ -1602,8 +1595,8 @@ public class QueueControlTest extends ManagementTestBase {
       Assert.assertNull(clientConsumer.receiveImmediate());
 
       //Verify that original queue has a memory size of 0 and DLQ is greater than 0 after rollback
-      assertEquals(0, queueMemorySize1.get());
-      assertTrue(queueMemorySize2.get() > 0);
+      assertEquals(0, QueueImplTestAccessor.getQueueMemorySize(q));
+      assertTrue(QueueImplTestAccessor.getQueueMemorySize(q2) > 0);
 
       QueueControl dlqQueueControl = createManagementControl(dla, dlq);
       assertMessageMetrics(dlqQueueControl, numMessagesToTest, durable);
@@ -1615,8 +1608,8 @@ public class QueueControlTest extends ManagementTestBase {
       assertMessageMetrics(dlqQueueControl, 0, durable);
 
       //Verify that original queue has a memory size of greater than 0 and DLQ is 0 after move
-      assertTrue(queueMemorySize1.get() > 0);
-      assertEquals(0, queueMemorySize2.get());
+      assertTrue(QueueImplTestAccessor.getQueueMemorySize(q) > 0);
+      assertEquals(0, QueueImplTestAccessor.getQueueMemorySize(q2));
 
       // .. and that the messages is now on the original queue once more.
       for (int i = 0; i < numMessagesToTest; i++) {
@@ -1629,8 +1622,8 @@ public class QueueControlTest extends ManagementTestBase {
       clientConsumer.close();
 
       //Verify that original queue and DLQ have a memory size of 0
-      assertEquals(0, queueMemorySize1.get());
-      assertEquals(0, queueMemorySize2.get());
+      assertEquals(0, QueueImplTestAccessor.getQueueMemorySize(q));
+      assertEquals(0, QueueImplTestAccessor.getQueueMemorySize(q2));
    }
 
    /**
@@ -1661,17 +1654,12 @@ public class QueueControlTest extends ManagementTestBase {
 
       final LocalQueueBinding binding = (LocalQueueBinding) server.getPostOffice().getBinding(queue);
       Queue q = binding.getQueue();
-      Field queueMemorySizeField = QueueImpl.class.getDeclaredField("queueMemorySize");
-      queueMemorySizeField.setAccessible(true);
-
-      //Get memory size counters to verify
-      AtomicInteger queueMemorySize = (AtomicInteger) queueMemorySizeField.get(q);
 
       QueueControl queueControl = createManagementControl(address, queue);
       assertMessageMetrics(queueControl, 1, durable);
 
       //verify memory usage is greater than 0
-      Assert.assertTrue(queueMemorySize.get() > 0);
+      Assert.assertTrue(QueueImplTestAccessor.getQueueMemorySize(q) > 0);
 
       // moved all messages to otherQueue
       int movedMessagesCount = queueControl.moveMessages(null, otherQueue.toString());
@@ -1679,7 +1667,7 @@ public class QueueControlTest extends ManagementTestBase {
       assertMessageMetrics(queueControl, 0, durable);
 
       //verify memory usage is 0 after move
-      Assert.assertEquals(0, queueMemorySize.get());
+      Assert.assertEquals(0, QueueImplTestAccessor.getQueueMemorySize(q));
 
       // check there is no message to consume from queue
       consumeMessages(0, session, queue);
@@ -1872,7 +1860,7 @@ public class QueueControlTest extends ManagementTestBase {
       }
 
       final LocalQueueBinding binding = (LocalQueueBinding) server.getPostOffice().getBinding(queue);
-      Assert.assertEquals(10, binding.getQueue().getMessageCount());
+      Wait.assertEquals(10, () -> binding.getQueue().getMessageCount());
 
       QueueControl queueControl = createManagementControl(address, queue);
       Assert.assertEquals(10, queueControl.getMessageCount());
@@ -2205,10 +2193,7 @@ public class QueueControlTest extends ManagementTestBase {
 
       final int MESSAGE_SIZE = 1024 * 3; // 3k
 
-      // reset maxSize for Paging mode
-      Field maxSizField = PagingManagerImpl.class.getDeclaredField("maxSize");
-      maxSizField.setAccessible(true);
-      maxSizField.setLong(server.getPagingManager(), 10240);
+      PagingManagerTestAccessor.resetMaxSize(server.getPagingManager(), 10240, 0);
       clearDataRecreateServerDirs();
 
       SimpleString address = RandomUtil.randomSimpleString();
@@ -2229,7 +2214,7 @@ public class QueueControlTest extends ManagementTestBase {
          bb.put(getSamplebyte(j));
       }
 
-      final int numberOfMessages = 8000;
+      final int numberOfMessages = 100;
       ClientMessage message;
       for (int i = 0; i < numberOfMessages; i++) {
          message = session.createMessage(true);
@@ -2249,10 +2234,7 @@ public class QueueControlTest extends ManagementTestBase {
       Assert.assertEquals(numberOfMessages, removedMatchedMessagesCount);
       assertMessageMetrics(queueControl, 0, durable);
 
-      Field queueMemoprySizeField = QueueImpl.class.getDeclaredField("queueMemorySize");
-      queueMemoprySizeField.setAccessible(true);
-      AtomicInteger queueMemorySize = (AtomicInteger) queueMemoprySizeField.get(queue);
-      Assert.assertEquals(0, queueMemorySize.get());
+      Assert.assertEquals(0, QueueImplTestAccessor.getQueueMemorySize(queue));
 
       session.deleteQueue(queueName);
    }
@@ -3730,6 +3712,49 @@ public class QueueControlTest extends ManagementTestBase {
    }
 
    @Test
+   public void testBrowseWithNullPropertyValue() throws Exception {
+      SimpleString address = RandomUtil.randomSimpleString();
+      SimpleString queue = RandomUtil.randomSimpleString();
+
+      session.createQueue(new QueueConfiguration(queue).setAddress(address).setDurable(durable));
+
+      ClientProducer producer = session.createProducer(address);
+      ClientMessage m = session.createMessage(true);
+      m.putStringProperty(RandomUtil.randomString(), null);
+      producer.send(m);
+      producer.close();
+
+      QueueControl queueControl = createManagementControl(address, queue);
+
+      assertEquals(1, queueControl.browse().length);
+
+      session.deleteQueue(queue);
+   }
+
+   @Test
+   public void testBrowseWithNullPropertyValueWithAMQP() throws Exception {
+      SimpleString address = RandomUtil.randomSimpleString();
+      SimpleString queue = RandomUtil.randomSimpleString();
+
+      session.createQueue(new QueueConfiguration(queue).setAddress(address).setDurable(durable).setRoutingType(RoutingType.ANYCAST));
+
+      JmsConnectionFactory cf = new JmsConnectionFactory("amqp://localhost:61616");
+      Connection c = cf.createConnection();
+      Session s = c.createSession();
+      MessageProducer p = s.createProducer(s.createQueue(address.toString()));
+      javax.jms.Message m = s.createMessage();
+      m.setStringProperty("foo", null);
+      p.send(m);
+      c.close();
+
+      QueueControl queueControl = createManagementControl(address, queue, RoutingType.ANYCAST);
+
+      assertEquals(1, queueControl.browse().length);
+
+      session.deleteQueue(queue);
+   }
+
+   @Test
    public void testResetGroups() throws Exception {
       SimpleString address = RandomUtil.randomSimpleString();
       SimpleString queue = RandomUtil.randomSimpleString();
@@ -3782,12 +3807,9 @@ public class QueueControlTest extends ManagementTestBase {
       QueueControl queueControl = createManagementControl(address, queue);
       Assert.assertEquals(0, queueControl.getScheduledCount());
 
-      Field queueMemorySizeField = QueueImpl.class.getDeclaredField("queueMemorySize");
-      queueMemorySizeField.setAccessible(true);
       final LocalQueueBinding binding = (LocalQueueBinding) server.getPostOffice().getBinding(queue);
       Queue q = binding.getQueue();
-      AtomicInteger queueMemorySize1 = (AtomicInteger) queueMemorySizeField.get(q);
-      assertEquals(0, queueMemorySize1.get());
+      assertEquals(0, QueueImplTestAccessor.getQueueMemorySize(q));
 
       ClientProducer producer = session.createProducer(address);
       ClientMessage message = session.createMessage(durable);
@@ -3799,7 +3821,7 @@ public class QueueControlTest extends ManagementTestBase {
       Assert.assertEquals(0, queueControl.getMessageCount());
 
       //Verify that original queue has a memory size of 0
-      assertEquals(0, queueMemorySize1.get());
+      assertEquals(0, QueueImplTestAccessor.getQueueMemorySize(q));
 
       session.deleteQueue(queue);
    }

@@ -20,7 +20,7 @@
    <groupId>org.apache.activemq</groupId>
    <artifactId>artemis-pom</artifactId>
    <packaging>pom</packaging>
-   <version>2.21.0-SNAPSHOT</version>
+   <version>2.22.0-SNAPSHOT</version>
 
    <parent>
       <groupId>org.apache</groupId>
@@ -99,29 +99,37 @@
       <commons.codec.version>1.15</commons.codec.version>
       <fuse.mqtt.client.version>1.16</fuse.mqtt.client.version>
       <guava.version>30.1-jre</guava.version>
+      <hawtio.version>2.14.2</hawtio.version>
+      <jsr305.version>3.0.2</jsr305.version>
       <jboss.logging.version>3.4.2.Final</jboss.logging.version>
-      <jetty.version>9.4.44.v20210927</jetty.version>
-      <jgroups.version>3.6.13.Final</jgroups.version>
-      <errorprone.version>2.9.0</errorprone.version>
+      <jetty.version>9.4.45.v20220203</jetty.version>
+      <tomcat.servlet-api.version>8.5.76</tomcat.servlet-api.version>
+      <jgroups.version>5.2.0.Final</jgroups.version>
+      <errorprone.version>2.10.0</errorprone.version>
       <maven.enforcer.plugin.version>3.0.0-M3</maven.enforcer.plugin.version>
       <maven.bundle.plugin.version>5.1.2</maven.bundle.plugin.version>
       <maven.shade.plugin.version>3.2.4</maven.shade.plugin.version>
-      <maven.checkstyle.plugin.version>3.1.1</maven.checkstyle.plugin.version>
+      <maven.checkstyle.plugin.version>3.1.2</maven.checkstyle.plugin.version>
       <sevntu.checks.version>1.39.0</sevntu.checks.version>
-      <checkstyle.version>8.43</checkstyle.version>
+      <checkstyle.version>9.2.1</checkstyle.version>
       <mockito.version>3.12.4</mockito.version>
       <jctools.version>2.1.2</jctools.version>
-      <netty.version>4.1.72.Final</netty.version>
+      <netty.version>4.1.75.Final</netty.version>
+      <hdrhistogram.version>2.1.12</hdrhistogram.version>
       <curator.version>5.2.0</curator.version>
       <zookeeper.version>3.6.3</zookeeper.version>
 
+      <!-- tracing -->
+      <opentelemetry.version>1.10.0</opentelemetry.version>
+      <opentelemetry-alpha.version>1.10.0-alpha</opentelemetry-alpha.version>
+
       <!-- this is basically for tests -->
-      <netty-tcnative-version>2.0.46.Final</netty-tcnative-version>
+      <netty-tcnative-version>2.0.50.Final</netty-tcnative-version>
       <proton.version>0.33.10</proton.version>
       <resteasy.version>3.15.0.Final</resteasy.version>
-      <slf4j.version>1.7.21</slf4j.version>
-      <qpid.jms.version>1.3.0</qpid.jms.version>
-      <johnzon.version>0.9.5</johnzon.version>
+      <slf4j.version>1.7.36</slf4j.version>
+      <qpid.jms.version>1.5.0</qpid.jms.version>
+      <johnzon.version>1.2.16</johnzon.version>
       <hawtbuff.version>1.11</hawtbuff.version>
       <jb.logmanager.version>2.1.10.Final</jb.logmanager.version>
       <jb.slf4j-jboss-logmanager.version>1.0.4.GA</jb.slf4j-jboss-logmanager.version>
@@ -152,13 +160,18 @@
       <junit.version>4.13.2</junit.version>
       <surefire.version>2.22.2</surefire.version>
       <version.jaxb.runtime>2.3.3</version.jaxb.runtime>
-      <paho.client.mqttv3.version>1.2.5</paho.client.mqttv3.version>
+      <paho.client.mqtt.version>1.2.5</paho.client.mqtt.version>
+      <postgresql.version>42.3.3</postgresql.version>
+      <testcontainers.version>1.16.3</testcontainers.version>
+      <exec-maven-plugin.version>3.0.0</exec-maven-plugin.version>
+
       <!-- for JakrtaEE -->
       <version.batavia>1.0.10.Final</version.batavia>
 
       <!-- used on tests -->
-      <groovy.version>2.5.10</groovy.version>
+      <groovy.version>4.0.0</groovy.version>
       <vertx.version>3.9.4</vertx.version>
+      <hadoop.minikdc.version>3.3.1</hadoop.minikdc.version>
 
       <owasp.version>6.1.0</owasp.version>
       <spring.version>5.1.7.RELEASE</spring.version>
@@ -167,7 +180,7 @@
       <activemq.version.majorVersion>1</activemq.version.majorVersion>
       <activemq.version.minorVersion>0</activemq.version.minorVersion>
       <activemq.version.microVersion>0</activemq.version.microVersion>
-      <activemq.version.incrementingVersion>131,130,129,128,127,126,125,124,123,122</activemq.version.incrementingVersion>
+      <activemq.version.incrementingVersion>132,131,130,129,128,127,126,125,124,123,122</activemq.version.incrementingVersion>
       <activemq.version.versionTag>${project.version}</activemq.version.versionTag>
       <ActiveMQ-Version>${project.version}(${activemq.version.incrementingVersion})</ActiveMQ-Version>
 
@@ -184,6 +197,9 @@
       <skipPerformanceTests>true</skipPerformanceTests>
       <skipRestTests>true</skipRestTests>
       <skipActiveMQ5Tests>true</skipActiveMQ5Tests>
+
+      <e2e-tests.skipTests>true</e2e-tests.skipTests>
+      <e2e-tests.skipImageBuild>true</e2e-tests.skipImageBuild>
 
       <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
       <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
@@ -209,6 +225,7 @@
          -Dlogging.configuration="file:${activemq.basedir}/tests/config/${logging.config}"
          -Djava.library.path="${activemq.basedir}/target/bin/lib/linux-x86_64:${activemq.basedir}/target/bin/lib/linux-i686" -Djgroups.bind_addr=localhost
          -Djava.net.preferIPv4Stack=true -Dbasedir=${basedir}
+         -Djdk.attach.allowAttachSelf=true
       </activemq-surefire-argline>
       <activemq.basedir>${project.basedir}</activemq.basedir>
       <skipOWASP>true</skipOWASP>
@@ -290,9 +307,14 @@
 
          <!-- ### For MQTT Tests && Examples -->
          <dependency>
-           <groupId>org.eclipse.paho</groupId>
-           <artifactId>org.eclipse.paho.client.mqttv3</artifactId>
-           <version>${paho.client.mqttv3.version}</version>
+            <groupId>org.eclipse.paho</groupId>
+            <artifactId>org.eclipse.paho.client.mqttv3</artifactId>
+            <version>${paho.client.mqtt.version}</version>
+         </dependency>
+         <dependency>
+            <groupId>org.eclipse.paho</groupId>
+            <artifactId>org.eclipse.paho.mqttv5.client</artifactId>
+            <version>${paho.client.mqtt.version}</version>
          </dependency>
          <dependency>
             <groupId>org.fusesource.mqtt-client</groupId>
@@ -317,7 +339,7 @@
          <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
-            <version>42.2.19</version>
+            <version>${postgresql.version}</version>
             <scope>provided</scope>
             <!-- postgresql license -->
          </dependency>
@@ -338,10 +360,15 @@
          </dependency>
 
          <dependency>
-            <groupId>org.apache.kerby</groupId>
-            <artifactId>token-provider</artifactId>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-minikdc</artifactId>
+            <version>${hadoop.minikdc.version}</version>
             <scope>test</scope>
             <exclusions>
+               <exclusion>
+                  <groupId>org.slf4j</groupId>
+                  <artifactId>slf4j-log4j12</artifactId>
+               </exclusion>
                <exclusion>
                   <groupId>com.nimbusds</groupId>
                   <artifactId>nimbus-jose-jwt</artifactId>
@@ -366,6 +393,7 @@
             <artifactId>jboss-logging-processor</artifactId>
             <version>2.2.0.Final</version>
             <optional>true</optional>
+            <scope>provided</scope>
             <!-- License: LGPL-->
          </dependency>
          <dependency>
@@ -381,7 +409,6 @@
              <artifactId>error_prone_core</artifactId>
              <version>${errorprone.version}</version>
              <scope>provided</scope>
-            <optional>true</optional>
          </dependency>
          <dependency>
             <groupId>org.springframework</groupId>
@@ -533,6 +560,23 @@
          </dependency>
          <!-- ## End Examples Dependencies ## -->
 
+         <!-- ### START opentelemetry Dependencies ### -->
+         <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-bom</artifactId>
+            <version>${opentelemetry.version}</version>
+            <type>pom</type>
+            <scope>import</scope>
+         </dependency>
+         <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-bom-alpha</artifactId>
+            <version>${opentelemetry-alpha.version}</version>
+            <type>pom</type>
+            <scope>import</scope>
+         </dependency>
+         <!-- ### END opentelemetry Dependencies ### -->
+
          <!--needed to compile the bootstrap jar-->
          <dependency>
             <groupId>org.jgroups</groupId>
@@ -549,6 +593,10 @@
                   <groupId>javax.inject</groupId>
                   <artifactId>javax.inject</artifactId>
                </exclusion>
+               <exclusion>
+                  <groupId>com.google.code.findbugs</groupId>
+                  <artifactId>jsr305</artifactId>
+               </exclusion>
             </exclusions>
             <!-- License: Apache 2.0 -->
          </dependency>
@@ -558,6 +606,12 @@
             <artifactId>jctools-core</artifactId>
             <version>${jctools.version}</version>
             <!-- License: Apache 2.0 -->
+         </dependency>
+         <dependency>
+            <groupId>org.hdrhistogram</groupId>
+            <artifactId>HdrHistogram</artifactId>
+            <version>${hdrhistogram.version}</version>
+            <!-- Licence: BSD 2-Clause -->
          </dependency>
          <dependency>
             <groupId>io.netty</groupId>
@@ -616,6 +670,12 @@
          <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty-resolver</artifactId>
+            <version>${netty.version}</version>
+            <!-- License: Apache 2.0 -->
+         </dependency>
+         <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-transport-native-unix-common</artifactId>
             <version>${netty.version}</version>
             <!-- License: Apache 2.0 -->
          </dependency>
@@ -718,17 +778,29 @@
 
          <!-- ## Jetty web Dependencies ##-->
          <dependency>
-            <groupId>org.eclipse.jetty.aggregate</groupId>
-            <artifactId>jetty-all</artifactId>
+            <groupId>org.eclipse.jetty</groupId>
+            <artifactId>jetty-server</artifactId>
             <version>${jetty.version}</version>
-            <type>jar</type>
-            <classifier>uber</classifier>
+            <exclusions>
+               <exclusion>
+                  <groupId>javax.servlet</groupId>
+                  <artifactId>javax.servlet-api</artifactId>
+               </exclusion>
+            </exclusions>
             <!-- License: (Joint): Apache 2.0 & EPL 1.0 -->
-        </dependency>
+         </dependency>
+         <dependency>
+            <groupId>org.eclipse.jetty</groupId>
+            <artifactId>jetty-bom</artifactId>
+            <version>${jetty.version}</version>
+            <type>pom</type>
+            <scope>import</scope>
+            <!-- License: (Joint): Apache 2.0 & EPL 1.0 -->
+         </dependency>
          <dependency>
             <groupId>org.apache.tomcat</groupId>
             <artifactId>tomcat-servlet-api</artifactId>
-            <version>8.5.5</version>
+            <version>${tomcat.servlet-api.version}</version>
          </dependency>
          <!-- ## End Jetty Wed Dependencies ## -->
 
@@ -787,6 +859,16 @@
             <artifactId>micrometer-core</artifactId>
             <version>${version.micrometer}</version>
             <optional>true</optional> <!-- keep optional as "true" at least until micrometer supports OSGi -->
+            <exclusions>
+               <exclusion>
+                  <groupId>org.hdrhistogram</groupId>
+                  <artifactId>HdrHistogram</artifactId>
+               </exclusion>
+               <exclusion>
+                  <groupId>org.latencyutils</groupId>
+                  <artifactId>LatencyUtils</artifactId>
+               </exclusion>
+            </exclusions>
             <!-- license Apache 2 -->
          </dependency>
 
@@ -878,6 +960,11 @@
             <!-- License: Apache 2.0 -->
          </dependency>
          <dependency>
+            <groupId>com.google.code.findbugs</groupId>
+            <artifactId>jsr305</artifactId>
+            <version>${jsr305.version}</version>
+         </dependency>
+         <dependency>
             <groupId>jakarta.security.auth.message</groupId>
             <artifactId>jakarta.security.auth.message-api</artifactId>
             <version>${jakarta.security.auth.message-api.version}</version>
@@ -915,6 +1002,10 @@
                   <groupId>io.netty</groupId>
                   <artifactId>netty-transport-native-epoll</artifactId>
                </exclusion>
+               <exclusion>
+                  <groupId>org.apache.yetus</groupId>
+                  <artifactId>audience-annotations</artifactId>
+               </exclusion>
             </exclusions>
          </dependency>
          <dependency>
@@ -945,6 +1036,19 @@
             <scope>test</scope>
             <!-- License: EPL 2.0 -->
          </dependency>
+
+         <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+            <version>${testcontainers.version}</version>
+            <scope>test</scope>
+         </dependency>
+         <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>selenium</artifactId>
+            <version>${testcontainers.version}</version>
+            <scope>test</scope>
+         </dependency>
       </dependencies>
 
    </dependencyManagement>
@@ -970,6 +1074,12 @@
                   <name>errorprone</name>
               </property>
           </activation>
+          <dependencies>
+              <dependency>
+                  <groupId>com.google.errorprone</groupId>
+                  <artifactId>error_prone_core</artifactId>
+              </dependency>
+          </dependencies>
           <build>
               <plugins>
                   <plugin>
@@ -979,6 +1089,7 @@
                           <compilerArgs>
                               <arg>-Xdiags:verbose</arg>
                               <arg>--add-exports=jdk.unsupported/sun.misc=ALL-UNNAMED</arg>
+                              <arg>--add-exports=java.base/jdk.internal.misc=ALL-UNNAMED</arg>
                               <arg>-XDcompilePolicy=simple</arg>
                               <arg>-Xplugin:ErrorProne -Xep:MissingOverride:ERROR -Xep:NonAtomicVolatileUpdate:ERROR -Xep:SynchronizeOnNonFinalField:ERROR -Xep:StaticQualifiedUsingExpression:ERROR -Xep:WaitNotInLoop:ERROR -XepExcludedPaths:.*/generated-sources/.*</arg>
                           </compilerArgs>
@@ -996,6 +1107,12 @@
                   <name>errorprone</name>
               </property>
           </activation>
+          <dependencies>
+              <dependency>
+                  <groupId>com.google.errorprone</groupId>
+                  <artifactId>error_prone_core</artifactId>
+              </dependency>
+          </dependencies>
           <build>
               <plugins>
                   <plugin>
@@ -1006,6 +1123,7 @@
                           <compilerArgs>
                               <arg>-Xdiags:verbose</arg>
                               <arg>--add-exports=jdk.unsupported/sun.misc=ALL-UNNAMED</arg>
+                              <arg>--add-exports=java.base/jdk.internal.misc=ALL-UNNAMED</arg>
                               <arg>-XDcompilePolicy=simple</arg>
                               <arg>-Xplugin:ErrorProne -Xep:MissingOverride:WARN -Xep:NonAtomicVolatileUpdate:ERROR -Xep:SynchronizeOnNonFinalField:ERROR -Xep:StaticQualifiedUsingExpression:ERROR -Xep:WaitNotInLoop:ERROR -XepExcludedPaths:.*/generated-sources/.*</arg>
                               <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED</arg>
@@ -1440,7 +1558,10 @@
                <groupId>org.apache.maven.plugins</groupId>
                <artifactId>maven-compiler-plugin</artifactId>
                <configuration>
-                   <showWarnings>true</showWarnings>
+                  <showWarnings>true</showWarnings>
+                  <compilerArgs>
+                     <arg>--add-exports=java.base/jdk.internal.misc=ALL-UNNAMED</arg>
+                  </compilerArgs>
                </configuration>
             </plugin>
             <plugin>
@@ -1583,6 +1704,7 @@
                      <exclude>docs/**/*.json</exclude>
                      <exclude>docs/**/_book/</exclude>
                      <exclude>docs/**/_layouts/</exclude>
+                     <exclude>docs/user-manual/en/diagrams/*.svg</exclude>
                      <exclude>**/target/</exclude>
                      <exclude>**/META-INF/services/*</exclude>
                      <exclude>**/META-INF/MANIFEST.MF</exclude>
@@ -1615,7 +1737,7 @@
                      <exclude>**/node/**</exclude>
                      <exclude>**/node_modules/**</exclude>
                      <exclude>**/package.json</exclude>
-                     <exclude>**/npm-shrinkwrap.json</exclude>
+                     <exclude>**/package-lock.json</exclude>
 
                      <!-- Build time overlay folder -->
                      <exclude>**/overlays/**</exclude>
@@ -1637,6 +1759,11 @@
                      <exclude>examples/protocols/amqp/**/readme.md</exclude>
                   </excludes>
                </configuration>
+            </plugin>
+            <plugin>
+               <groupId>org.codehaus.mojo</groupId>
+               <artifactId>exec-maven-plugin</artifactId>
+               <version>${exec-maven-plugin.version}</version>
             </plugin>
          </plugins>
       </pluginManagement>

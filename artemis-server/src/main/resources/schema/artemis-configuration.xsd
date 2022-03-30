@@ -428,6 +428,14 @@
             </xsd:annotation>
          </xsd:element>
 
+         <xsd:element name="mqtt-session-scan-interval" type="xsd:long" default="5000" maxOccurs="1" minOccurs="0">
+            <xsd:annotation>
+               <xsd:documentation>
+                  how often (in ms) to scan for expired MQTT sessions
+               </xsd:documentation>
+            </xsd:annotation>
+         </xsd:element>
+
          <xsd:element name="connectors" maxOccurs="1" minOccurs="0">
             <xsd:annotation>
                <xsd:documentation>
@@ -508,7 +516,7 @@
          <xsd:element name="queues" maxOccurs="1" minOccurs="0">
             <xsd:annotation>
                <xsd:documentation>
-                  a list of pre configured queues to create
+                  DEPRECATED: a list of pre configured queues to create
                </xsd:documentation>
             </xsd:annotation>
             <xsd:complexType>
@@ -619,15 +627,15 @@
             </xsd:annotation>
          </xsd:element>
 
-         <xsd:element name="broker-balancers" maxOccurs="1" minOccurs="0">
+         <xsd:element name="connection-routers" maxOccurs="1" minOccurs="0">
             <xsd:annotation>
                <xsd:documentation>
-                  A list of balancers
+                  A list of connection routers
                </xsd:documentation>
             </xsd:annotation>
             <xsd:complexType>
                <xsd:sequence>
-                  <xsd:element name="broker-balancer" type="brokerBalancerType" maxOccurs="unbounded" minOccurs="0"/>
+                  <xsd:element name="connection-router" type="connectionRouterType" maxOccurs="unbounded" minOccurs="0"/>
                </xsd:sequence>
                <xsd:attributeGroup ref="xml:specialAttrs"/>
             </xsd:complexType>
@@ -886,6 +894,15 @@
             </xsd:annotation>
          </xsd:element>
 
+         <xsd:element name="global-max-messages" type="xsd:long" default="-1" maxOccurs="1" minOccurs="0">
+            <xsd:annotation>
+               <xsd:documentation>
+                  Number of messages before all addresses will enter into their Full Policy configured.
+                  It works in conjunction with global-max-size, being watever value hits its maximum first.
+               </xsd:documentation>
+            </xsd:annotation>
+         </xsd:element>
+
          <xsd:element name="global-max-size" type="xsd:string" default="-1" maxOccurs="1" minOccurs="0">
             <xsd:annotation>
                <xsd:documentation>
@@ -988,6 +1005,16 @@
                <xsd:documentation>
                   The timeout (in nanoseconds) used to sync pages. The exact default value
                   depend on whether the journal is ASYNCIO or NIO.
+               </xsd:documentation>
+            </xsd:annotation>
+         </xsd:element>
+
+         <xsd:element name="suppress-session-notifications" type="xsd:boolean" default="false" maxOccurs="1" minOccurs="0">
+            <xsd:annotation>
+               <xsd:documentation>
+                  Whether or not to suppress SESSION_CREATED and SESSION_CLOSED notifications.
+                  Set to true to reduce notification overhead. However, these are required to
+                  enforce unique client ID utilization in a cluster for MQTT clients.
                </xsd:documentation>
             </xsd:annotation>
          </xsd:element>
@@ -2092,16 +2119,16 @@
       </xsd:sequence>
    </xsd:complexType>
 
-   <xsd:complexType name="brokerBalancerType">
+   <xsd:complexType name="connectionRouterType">
       <xsd:sequence maxOccurs="unbounded">
-         <xsd:element name="target-key" type="brokerBalancerTargetKeyType" maxOccurs="1" minOccurs="0">
+         <xsd:element name="key-type" type="connectionRouterKeyType" maxOccurs="1" minOccurs="0">
             <xsd:annotation>
                <xsd:documentation>
                   the optional target key
                </xsd:documentation>
             </xsd:annotation>
          </xsd:element>
-         <xsd:element name="target-key-filter" type="xsd:string" maxOccurs="1" minOccurs="0">
+         <xsd:element name="key-filter" type="xsd:string" maxOccurs="1" minOccurs="0">
             <xsd:annotation>
                <xsd:documentation>
                   the filter for the target key
@@ -2115,31 +2142,31 @@
                </xsd:documentation>
             </xsd:annotation>
          </xsd:element>
-         <xsd:element name="cache-timeout" type="xsd:long" default="-1" maxOccurs="1" minOccurs="0">
+         <xsd:element name="cache" type="connectionRouterCacheType" maxOccurs="1" minOccurs="0">
             <xsd:annotation>
                <xsd:documentation>
                   the time period for a cache entry to remain active
                </xsd:documentation>
             </xsd:annotation>
          </xsd:element>
-         <xsd:element name="policy" type="brokerBalancerPolicyType" maxOccurs="1" minOccurs="0">
+         <xsd:element name="policy" type="connectionRouterPolicyType" maxOccurs="1" minOccurs="0">
             <xsd:annotation>
                <xsd:documentation>
                   the policy configuration
                </xsd:documentation>
             </xsd:annotation>
          </xsd:element>
-         <xsd:element name="pool" type="brokerBalancerPoolType" maxOccurs="1" minOccurs="0">
+         <xsd:element name="pool" type="connectionRouterPoolType" maxOccurs="1" minOccurs="0">
             <xsd:annotation>
                <xsd:documentation>
                   the pool configuration
                </xsd:documentation>
             </xsd:annotation>
          </xsd:element>
-         <xsd:element name="local-target-key-transformer" type="brokerBalancerKeyTransformerType" maxOccurs="1" minOccurs="0">
+         <xsd:element name="key-transformer" type="connectionRouterKeyTransformerType" maxOccurs="1" minOccurs="0">
             <xsd:annotation>
                <xsd:documentation>
-                  the local target key transformer configuration
+                  the key transformer configuration
                </xsd:documentation>
             </xsd:annotation>
          </xsd:element>
@@ -2147,14 +2174,14 @@
       <xsd:attribute name="name" type="xsd:string" use="required">
          <xsd:annotation>
             <xsd:documentation>
-               a unique name for the broker balancer
+               a unique name for the connection router
             </xsd:documentation>
          </xsd:annotation>
       </xsd:attribute>
       <xsd:attributeGroup ref="xml:specialAttrs"/>
    </xsd:complexType>
 
-   <xsd:simpleType name="brokerBalancerTargetKeyType">
+   <xsd:simpleType name="connectionRouterKeyType">
       <xsd:restriction base="xsd:string">
          <xsd:enumeration value="CLIENT_ID"/>
          <xsd:enumeration value="SNI_HOST"/>
@@ -2163,7 +2190,27 @@
       </xsd:restriction>
    </xsd:simpleType>
 
-   <xsd:complexType name="brokerBalancerPolicyType">
+   <xsd:complexType name="connectionRouterCacheType">
+      <xsd:sequence maxOccurs="unbounded">
+         <xsd:element name="persisted" type="xsd:boolean" default="false" maxOccurs="1" minOccurs="0">
+            <xsd:annotation>
+               <xsd:documentation>
+                  true means that the cache entries are persisted
+               </xsd:documentation>
+            </xsd:annotation>
+         </xsd:element>
+         <xsd:element name="timeout" type="xsd:long" default="-1" maxOccurs="1" minOccurs="0">
+            <xsd:annotation>
+               <xsd:documentation>
+                  the timeout (in milliseconds) before removing cache entries
+               </xsd:documentation>
+            </xsd:annotation>
+         </xsd:element>
+      </xsd:sequence>
+      <xsd:attributeGroup ref="xml:specialAttrs"/>
+   </xsd:complexType>
+
+   <xsd:complexType name="connectionRouterPolicyType">
       <xsd:sequence>
          <xsd:element ref="property" maxOccurs="unbounded" minOccurs="0">
             <xsd:annotation>
@@ -2183,7 +2230,7 @@
       <xsd:attributeGroup ref="xml:specialAttrs"/>
    </xsd:complexType>
 
-   <xsd:complexType name="brokerBalancerKeyTransformerType">
+   <xsd:complexType name="connectionRouterKeyTransformerType">
       <xsd:sequence>
          <xsd:element ref="property" maxOccurs="unbounded" minOccurs="0">
             <xsd:annotation>
@@ -2203,7 +2250,7 @@
       <xsd:attributeGroup ref="xml:specialAttrs"/>
    </xsd:complexType>
 
-   <xsd:complexType name="brokerBalancerPoolType">
+   <xsd:complexType name="connectionRouterPoolType">
       <xsd:sequence maxOccurs="unbounded">
          <xsd:element name="username" type="xsd:string" maxOccurs="1" minOccurs="0">
             <xsd:annotation>
@@ -3896,6 +3943,14 @@
                </xsd:annotation>
             </xsd:element>
 
+            <xsd:element name="max-size-messages" type="xsd:long" default="-1" maxOccurs="1" minOccurs="0">
+               <xsd:annotation>
+                  <xsd:documentation>
+                     the maximum number of messages allowed on the address.  This is used in PAGING, BLOCK and FAIL policies. It does not support notations and it is a simple number of messages allowed.
+                  </xsd:documentation>
+               </xsd:annotation>
+            </xsd:element>
+
             <xsd:element name="max-size-bytes-reject-threshold" type="xsd:long" default="-1" maxOccurs="1"
                          minOccurs="0">
                <xsd:annotation>
@@ -4470,6 +4525,7 @@
       <xsd:attribute name="purge-on-no-consumers" type="xsd:boolean" use="optional"/>
       <xsd:attribute name="exclusive" type="xsd:boolean" use="optional"/>
       <xsd:attribute name="group-rebalance" type="xsd:boolean" use="optional"/>
+      <xsd:attribute name="group-rebalance-pause-dispatch" type="xsd:boolean" use="optional"/>
       <xsd:attribute name="group-buckets" type="xsd:int" use="optional"/>
       <xsd:attribute name="group-first-key" type="xsd:string" use="optional"/>
       <xsd:attribute name="last-value" type="xsd:boolean" use="optional"/>

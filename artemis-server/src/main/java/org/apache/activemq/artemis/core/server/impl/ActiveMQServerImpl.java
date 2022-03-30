@@ -144,6 +144,7 @@ import org.apache.activemq.artemis.core.server.ServerSession;
 import org.apache.activemq.artemis.core.server.ServiceComponent;
 import org.apache.activemq.artemis.core.server.ServiceRegistry;
 import org.apache.activemq.artemis.core.server.cluster.BackupManager;
+import org.apache.activemq.artemis.core.server.cluster.Bridge;
 import org.apache.activemq.artemis.core.server.cluster.ClusterConnection;
 import org.apache.activemq.artemis.core.server.cluster.ClusterManager;
 import org.apache.activemq.artemis.core.server.cluster.ha.HAPolicy;
@@ -172,7 +173,7 @@ import org.apache.activemq.artemis.core.server.plugin.ActiveMQServerMessagePlugi
 import org.apache.activemq.artemis.core.server.plugin.ActiveMQServerQueuePlugin;
 import org.apache.activemq.artemis.core.server.plugin.ActiveMQServerResourcePlugin;
 import org.apache.activemq.artemis.core.server.plugin.ActiveMQServerSessionPlugin;
-import org.apache.activemq.artemis.core.server.balancing.BrokerBalancerManager;
+import org.apache.activemq.artemis.core.server.routing.ConnectionRouterManager;
 import org.apache.activemq.artemis.core.server.reload.ReloadManager;
 import org.apache.activemq.artemis.core.server.reload.ReloadManagerImpl;
 import org.apache.activemq.artemis.core.server.replay.ReplayManager;
@@ -293,7 +294,7 @@ public class ActiveMQServerImpl implements ActiveMQServer {
 
    private volatile RemotingService remotingService;
 
-   private volatile BrokerBalancerManager balancerManager;
+   private volatile ConnectionRouterManager connectionRouterManager;
 
    private final List<ProtocolManagerFactory> protocolManagerFactories = new ArrayList<>();
 
@@ -368,6 +369,8 @@ public class ActiveMQServerImpl implements ActiveMQServer {
    private final ConcurrentMap<String, AtomicInteger> connectedClientIds = new ConcurrentHashMap();
 
    private volatile FederationManager federationManager;
+
+   private String propertiesFileUrl;
 
    private final ActiveMQComponent networkCheckMonitor = new ActiveMQComponent() {
       @Override
@@ -593,13 +596,18 @@ public class ActiveMQServerImpl implements ActiveMQServer {
       return this.analyzer;
    }
 
+   @Override
+   public void setProperties(String fileUrltoBrokerProperties) {
+      propertiesFileUrl = fileUrltoBrokerProperties;
+   }
+
    private void internalStart() throws Exception {
       if (state != SERVER_STATE.STOPPED) {
          logger.debug("Server already started!");
          return;
       }
 
-      configuration.parseSystemProperties();
+      configuration.parseProperties(propertiesFileUrl);
 
       initializeExecutorServices();
 
@@ -697,7 +705,13 @@ public class ActiveMQServerImpl implements ActiveMQServer {
       }
    }
 
-   private void initializeCriticalAnalyzer() throws Exception {
+
+   private void takingLongToStart(Object criticalComponent) {
+      ActiveMQServerLogger.LOGGER.tooLongToStart(criticalComponent);
+      threadDump();
+   }
+
+   protected void initializeCriticalAnalyzer() throws Exception {
 
       // Some tests will play crazy frequenceistop/start
       CriticalAnalyzer analyzer = this.getCriticalAnalyzer();
@@ -728,49 +742,61 @@ public class ActiveMQServerImpl implements ActiveMQServer {
          case HALT:
             criticalAction = criticalComponent -> {
 
-               checkCriticalAnalyzerLogging();
-               ActiveMQServerLogger.LOGGER.criticalSystemHalt(criticalComponent);
+               if (ActiveMQServerImpl.this.state == SERVER_STATE.STARTING) {
+                  takingLongToStart(criticalComponent);
+               } else {
+                  checkCriticalAnalyzerLogging();
+                  ActiveMQServerLogger.LOGGER.criticalSystemHalt(criticalComponent);
 
-               threadDump();
-               sendCriticalNotification(criticalComponent);
+                  threadDump();
+                  sendCriticalNotification(criticalComponent);
 
-               Runtime.getRuntime().halt(70); // Linux systems will have /usr/include/sysexits.h showing 70 as internal software error
+                  Runtime.getRuntime().halt(70); // Linux systems will have /usr/include/sysexits.h showing 70 as internal software error
+               }
 
             };
             break;
          case SHUTDOWN:
             criticalAction = criticalComponent -> {
 
-               checkCriticalAnalyzerLogging();
-               ActiveMQServerLogger.LOGGER.criticalSystemShutdown(criticalComponent);
+               if (ActiveMQServerImpl.this.state == SERVER_STATE.STARTING) {
+                  takingLongToStart(criticalComponent);
+               } else {
+                  checkCriticalAnalyzerLogging();
+                  ActiveMQServerLogger.LOGGER.criticalSystemShutdown(criticalComponent);
 
-               threadDump();
+                  threadDump();
 
-               // on the case of a critical failure, -1 cannot simply means forever.
-               // in case graceful is -1, we will set it to 30 seconds
-               sendCriticalNotification(criticalComponent);
+                  // on the case of a critical failure, -1 cannot simply means forever.
+                  // in case graceful is -1, we will set it to 30 seconds
+                  sendCriticalNotification(criticalComponent);
 
-               // you can't stop from the check thread,
-               // nor can use an executor
-               Thread stopThread = new Thread() {
-                  @Override
-                  public void run() {
-                     try {
-                        ActiveMQServerImpl.this.stop();
-                     } catch (Throwable e) {
-                        logger.warn(e.getMessage(), e);
+                  // you can't stop from the check thread,
+                  // nor can use an executor
+                  Thread stopThread = new Thread() {
+                     @Override
+                     public void run() {
+                        try {
+                           ActiveMQServerImpl.this.stop();
+                        } catch (Throwable e) {
+                           logger.warn(e.getMessage(), e);
+                        }
                      }
-                  }
-               };
-               stopThread.start();
+                  };
+                  stopThread.start();
+               }
             };
             break;
          case LOG:
             criticalAction = criticalComponent -> {
-               checkCriticalAnalyzerLogging();
-               ActiveMQServerLogger.LOGGER.criticalSystemLog(criticalComponent);
-               threadDump();
-               sendCriticalNotification(criticalComponent);
+               if (ActiveMQServerImpl.this.state == SERVER_STATE.STARTING) {
+                  takingLongToStart(criticalComponent);
+               } else {
+                  checkCriticalAnalyzerLogging();
+                  ActiveMQServerLogger.LOGGER.criticalSystemLog(criticalComponent);
+                  threadDump();
+                  sendCriticalNotification(criticalComponent);
+               }
             };
             break;
       }
@@ -1210,7 +1236,7 @@ public class ActiveMQServerImpl implements ActiveMQServer {
             }
          }
 
-         stopComponent(balancerManager);
+         stopComponent(connectionRouterManager);
 
          stopComponent(connectorsService);
 
@@ -1651,8 +1677,8 @@ public class ActiveMQServerImpl implements ActiveMQServer {
    }
 
    @Override
-   public BrokerBalancerManager getBalancerManager() {
-      return balancerManager;
+   public ConnectionRouterManager getConnectionRouterManager() {
+      return connectionRouterManager;
    }
 
    public BackupManager getBackupManager() {
@@ -2872,10 +2898,11 @@ public class ActiveMQServerImpl implements ActiveMQServer {
    }
 
    @Override
-   public void deployBridge(BridgeConfiguration config) throws Exception {
+   public boolean deployBridge(BridgeConfiguration config) throws Exception {
       if (clusterManager != null) {
-         clusterManager.deployBridge(config);
+         return clusterManager.deployBridge(config);
       }
+      return false;
    }
 
    @Override
@@ -2925,7 +2952,7 @@ public class ActiveMQServerImpl implements ActiveMQServer {
 
    @Override
    public PagingManager createPagingManager() throws Exception {
-      return new PagingManagerImpl(getPagingStoreFactory(), addressSettingsRepository, configuration.getGlobalMaxSize(), configuration.getManagementAddress());
+      return new PagingManagerImpl(getPagingStoreFactory(), addressSettingsRepository, configuration.getGlobalMaxSize(), configuration.getGlobalMaxMessages(), configuration.getManagementAddress());
    }
 
    protected PagingStoreFactory getPagingStoreFactory() throws Exception {
@@ -3138,9 +3165,9 @@ public class ActiveMQServerImpl implements ActiveMQServer {
 
       federationManager.deploy();
 
-      balancerManager = new BrokerBalancerManager(configuration, this, scheduledPool);
+      connectionRouterManager = new ConnectionRouterManager(configuration, this, scheduledPool);
 
-      balancerManager.deploy();
+      connectionRouterManager.deploy();
 
       remotingService = new RemotingServiceImpl(clusterManager, configuration, this, managementService, scheduledPool, protocolManagerFactories, executorFactory.getExecutor(), serviceRegistry);
 
@@ -3305,7 +3332,7 @@ public class ActiveMQServerImpl implements ActiveMQServer {
             federationManager.start();
          }
 
-         balancerManager.start();
+         connectionRouterManager.start();
 
          startProtocolServices();
 
@@ -4321,8 +4348,10 @@ public class ActiveMQServerImpl implements ActiveMQServer {
       configuration.setDivertConfigurations(config.getDivertConfigurations());
       configuration.setAddressConfigurations(config.getAddressConfigurations());
       configuration.setQueueConfigs(config.getQueueConfigs());
+      configuration.setBridgeConfigurations(config.getBridgeConfigurations());
       configurationReloadDeployed.set(false);
       if (isActive()) {
+         configuration.parseProperties(propertiesFileUrl);
          deployReloadableConfigFromConfiguration();
       }
    }
@@ -4388,6 +4417,25 @@ public class ActiveMQServerImpl implements ActiveMQServer {
          undeployAddressesAndQueueNotInConfiguration(configuration);
          deployAddressesFromConfiguration(configuration);
          deployQueuesFromListQueueConfiguration(configuration.getQueueConfigs());
+
+         ActiveMQServerLogger.LOGGER.reloadingConfiguration("bridges");
+         for (BridgeConfiguration newBridgeConfig : configuration.getBridgeConfigurations()) {
+            Bridge existingBridge = clusterManager.getBridges().get(newBridgeConfig.getName());
+            if (existingBridge != null && !existingBridge.getConfiguration().equals(newBridgeConfig)) {
+               // this is an existing bridge but the config changed so stop the current bridge and deploy the new one
+               destroyBridge(existingBridge.getName().toString());
+               deployBridge(newBridgeConfig);
+            } else if (existingBridge == null) {
+               // this is a new bridge
+               deployBridge(newBridgeConfig);
+            }
+         }
+         for (final Bridge runningBridge: clusterManager.getBridges().values()) {
+            if (!configuration.getBridgeConfigurations().contains(runningBridge.getConfiguration())) {
+               // this bridge is running but it isn't in the new config which means it was removed so destroy it
+               destroyBridge(runningBridge.getName().toString());
+            }
+         }
       }
    }
 

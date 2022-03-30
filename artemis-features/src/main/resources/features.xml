@@ -47,13 +47,14 @@
 	</feature>
 
 	<feature name="artemis-common" version="${pom.version}" description="ActiveMQ Artemis Common libraries">
+		<feature prerequisite="true">wrap</feature>
 		<feature>transaction</feature>
 		<feature>netty-core</feature>
 		<bundle dependency="true">mvn:commons-beanutils/commons-beanutils/${commons.beanutils.version}</bundle>
 		<bundle dependency="true">mvn:commons-collections/commons-collections/${commons.collections.version}</bundle>
 
 		<bundle dependency="true">mvn:org.jboss.logging/jboss-logging/${jboss.logging.version}</bundle>
-		<bundle dependency="true">mvn:org.jgroups/jgroups/${jgroups.version}</bundle>
+		<bundle dependency="true">wrap:mvn:org.jgroups/jgroups/${jgroups.version}</bundle>
 	</feature>
 
 	<feature name="artemis-core" version="${pom.version}" description="ActiveMQ Artemis broker libraries">
@@ -72,6 +73,7 @@
 		<bundle dependency="true">mvn:org.apache.commons/commons-text/${commons.text.version}</bundle>
 		<bundle dependency="true">mvn:org.apache.commons/commons-lang3/${commons.lang.version}</bundle>
 		<bundle dependency="true">mvn:org.jctools/jctools-core/${jctools.version}</bundle>
+		<bundle dependency="true">mvn:org.hdrhistogram/HdrHistogram/${hdrhistogram.version}</bundle>
 		<bundle dependency="true">mvn:com.google.guava/failureaccess/1.0.1</bundle>
 		<bundle dependency="true">mvn:com.google.guava/guava/${guava.version}</bundle>
 		<bundle dependency="true">mvn:org.apache.commons/commons-dbcp2/${commons.dbcp2.version}</bundle>

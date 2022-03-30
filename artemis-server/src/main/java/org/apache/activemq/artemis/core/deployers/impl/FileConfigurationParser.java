@@ -46,8 +46,9 @@ import org.apache.activemq.artemis.api.core.SimpleString;
 import org.apache.activemq.artemis.api.core.TransportConfiguration;
 import org.apache.activemq.artemis.api.core.UDPBroadcastEndpointFactory;
 import org.apache.activemq.artemis.api.core.client.ActiveMQClient;
-import org.apache.activemq.artemis.core.config.balancing.BrokerBalancerConfiguration;
-import org.apache.activemq.artemis.core.config.balancing.NamedPropertyConfiguration;
+import org.apache.activemq.artemis.core.config.routing.ConnectionRouterConfiguration;
+import org.apache.activemq.artemis.core.config.routing.CacheConfiguration;
+import org.apache.activemq.artemis.core.config.routing.NamedPropertyConfiguration;
 import org.apache.activemq.artemis.core.config.amqpBrokerConnectivity.AMQPBrokerConnectConfiguration;
 import org.apache.activemq.artemis.core.config.BridgeConfiguration;
 import org.apache.activemq.artemis.core.config.ClusterConnectionConfiguration;
@@ -64,7 +65,7 @@ import org.apache.activemq.artemis.core.config.WildcardConfiguration;
 import org.apache.activemq.artemis.core.config.amqpBrokerConnectivity.AMQPBrokerConnectionElement;
 import org.apache.activemq.artemis.core.config.amqpBrokerConnectivity.AMQPBrokerConnectionAddressType;
 import org.apache.activemq.artemis.core.config.amqpBrokerConnectivity.AMQPMirrorBrokerConnectionElement;
-import org.apache.activemq.artemis.core.config.balancing.PoolConfiguration;
+import org.apache.activemq.artemis.core.config.routing.PoolConfiguration;
 import org.apache.activemq.artemis.core.config.federation.FederationAddressPolicyConfiguration;
 import org.apache.activemq.artemis.core.config.federation.FederationDownstreamConfiguration;
 import org.apache.activemq.artemis.core.config.federation.FederationPolicySet;
@@ -91,9 +92,8 @@ import org.apache.activemq.artemis.core.server.ActiveMQServerLogger;
 import org.apache.activemq.artemis.core.server.ComponentConfigurationRoutingType;
 import org.apache.activemq.artemis.core.server.JournalType;
 import org.apache.activemq.artemis.core.server.SecuritySettingPlugin;
-import org.apache.activemq.artemis.core.server.balancing.policies.PolicyFactoryResolver;
-import org.apache.activemq.artemis.core.server.balancing.targets.TargetKey;
-import org.apache.activemq.artemis.core.server.balancing.transformer.TransformerFactoryResolver;
+import org.apache.activemq.artemis.core.server.routing.policies.PolicyFactoryResolver;
+import org.apache.activemq.artemis.core.server.routing.KeyType;
 import org.apache.activemq.artemis.core.server.cluster.impl.MessageLoadBalancingType;
 import org.apache.activemq.artemis.core.server.group.impl.GroupingHandlerConfiguration;
 import org.apache.activemq.artemis.core.server.metrics.ActiveMQMetricsPlugin;
@@ -212,6 +212,8 @@ public final class FileConfigurationParser extends XMLConfigurationUtil {
 
    private static final String MAX_SIZE_BYTES_NODE_NAME = "max-size-bytes";
 
+   private static final String MAX_MESSAGES_NODE_NAME = "max-size-messages";
+
    private static final String MAX_SIZE_BYTES_REJECT_THRESHOLD_NODE_NAME = "max-size-bytes-reject-threshold";
 
    private static final String ADDRESS_FULL_MESSAGE_POLICY_NODE_NAME = "address-full-policy";
@@ -304,6 +306,8 @@ public final class FileConfigurationParser extends XMLConfigurationUtil {
 
    private static final String GLOBAL_MAX_SIZE = "global-max-size";
 
+   private static final String GLOBAL_MAX_MESSAGES = "global-max-messages";
+
    private static final String MAX_DISK_USAGE = "max-disk-usage";
 
    private static final String DISK_SCAN_PERIOD = "disk-scan-period";
@@ -322,6 +326,7 @@ public final class FileConfigurationParser extends XMLConfigurationUtil {
 
    private static final String ENABLE_INGRESS_TIMESTAMP = "enable-ingress-timestamp";
 
+   private static final String SUPPRESS_SESSION_NOTIFICATIONS = "suppress-session-notifications";
 
    private boolean validateAIO = false;
 
@@ -434,6 +439,8 @@ public final class FileConfigurationParser extends XMLConfigurationUtil {
 
       config.setTemporaryQueueNamespace(getString(e, "temporary-queue-namespace", config.getTemporaryQueueNamespace(), Validators.NOT_NULL_OR_EMPTY));
 
+      config.setMqttSessionScanInterval(getLong(e, "mqtt-session-scan-interval", config.getMqttSessionScanInterval(), Validators.GT_ZERO));
+
       long globalMaxSize = getTextBytesAsLongBytes(e, GLOBAL_MAX_SIZE, -1, Validators.MINUS_ONE_OR_GT_ZERO);
 
       if (globalMaxSize > 0) {
@@ -441,6 +448,10 @@ public final class FileConfigurationParser extends XMLConfigurationUtil {
          // We do it this way because it will be valid also on the case of embedded
          config.setGlobalMaxSize(globalMaxSize);
       }
+
+      long globalMaxMessages = getLong(e, GLOBAL_MAX_MESSAGES, -1, Validators.MINUS_ONE_OR_GT_ZERO);
+
+      config.setGlobalMaxMessages(globalMaxMessages);
 
       config.setMaxDiskUsage(getInteger(e, MAX_DISK_USAGE, config.getMaxDiskUsage(), Validators.PERCENTAGE_OR_MINUS_ONE));
 
@@ -630,16 +641,16 @@ public final class FileConfigurationParser extends XMLConfigurationUtil {
          parseDivertConfiguration(dvNode, config);
       }
 
-      NodeList ccBalancers = e.getElementsByTagName("broker-balancers");
+      NodeList ccConnectionRouters = e.getElementsByTagName("connection-routers");
 
-      if (ccBalancers != null) {
-         NodeList ccBalancer = e.getElementsByTagName("broker-balancer");
+      if (ccConnectionRouters != null) {
+         NodeList ccConnectionRouter = e.getElementsByTagName("connection-router");
 
-         if (ccBalancer != null) {
-            for (int i = 0; i < ccBalancer.getLength(); i++) {
-               Element ccNode = (Element) ccBalancer.item(i);
+         if (ccConnectionRouter != null) {
+            for (int i = 0; i < ccConnectionRouter.getLength(); i++) {
+               Element ccNode = (Element) ccConnectionRouter.item(i);
 
-               parseBalancerConfiguration(ccNode, config);
+               parseConnectionRouterConfiguration(ccNode, config);
             }
          }
       }
@@ -765,6 +776,8 @@ public final class FileConfigurationParser extends XMLConfigurationUtil {
       config.setCriticalAnalyzerPolicy(CriticalAnalyzerPolicy.valueOf(getString(e, "critical-analyzer-policy", config.getCriticalAnalyzerPolicy().name(), Validators.NOT_NULL_OR_EMPTY)));
 
       config.setPageSyncTimeout(getInteger(e, "page-sync-timeout", config.getJournalBufferTimeout_NIO(), Validators.GE_ZERO));
+
+      config.setSuppressSessionNotifications(getBoolean(e, "suppress-session-notifications", config.isSuppressSessionNotifications()));
 
       parseAddressSettings(e, config);
 
@@ -978,6 +991,7 @@ public final class FileConfigurationParser extends XMLConfigurationUtil {
    private void parseQueues(final Element e, final Configuration config) {
       NodeList elements = e.getElementsByTagName("queues");
       if (elements.getLength() != 0) {
+         ActiveMQServerLogger.LOGGER.queuesElementDeprecated();
          Element node = (Element) elements.item(0);
          config.setQueueConfigs(parseQueueConfigurations(node, ActiveMQDefaultConfiguration.DEFAULT_ROUTING_TYPE));
       }
@@ -1239,6 +1253,8 @@ public final class FileConfigurationParser extends XMLConfigurationUtil {
             addressSettings.setMaxRedeliveryDelay(XMLUtil.parseLong(child));
          } else if (MAX_SIZE_BYTES_NODE_NAME.equalsIgnoreCase(name)) {
             addressSettings.setMaxSizeBytes(ByteUtil.convertTextBytes(getTrimmedTextContent(child)));
+         } else if (MAX_MESSAGES_NODE_NAME.equalsIgnoreCase(name)) {
+            addressSettings.setMaxSizeMessages(XMLUtil.parseInt(child));
          } else if (MAX_SIZE_BYTES_REJECT_THRESHOLD_NODE_NAME.equalsIgnoreCase(name)) {
             addressSettings.setMaxSizeBytesRejectThreshold(ByteUtil.convertTextBytes(getTrimmedTextContent(child)));
          } else if (PAGE_SIZE_BYTES_NODE_NAME.equalsIgnoreCase(name)) {
@@ -2052,7 +2068,7 @@ public final class FileConfigurationParser extends XMLConfigurationUtil {
       String uri = e.getAttribute("uri");
 
       int retryInterval = getAttributeInteger(e, "retry-interval", 5000, Validators.GT_ZERO);
-      int reconnectAttemps = getAttributeInteger(e, "reconnect-attempts", -1, Validators.MINUS_ONE_OR_GT_ZERO);
+      int reconnectAttempts = getAttributeInteger(e, "reconnect-attempts", -1, Validators.MINUS_ONE_OR_GT_ZERO);
       String user = getAttributeValue(e, "user");
       String password = getAttributeValue(e, "password");
       boolean autoStart = getBooleanAttribute(e, "auto-start", true);
@@ -2061,7 +2077,7 @@ public final class FileConfigurationParser extends XMLConfigurationUtil {
 
       AMQPBrokerConnectConfiguration config = new AMQPBrokerConnectConfiguration(name, uri);
       config.parseURI();
-      config.setRetryInterval(retryInterval).setReconnectAttempts(reconnectAttemps).setUser(user).setPassword(password).setAutostart(autoStart);
+      config.setRetryInterval(retryInterval).setReconnectAttempts(reconnectAttempts).setUser(user).setPassword(password).setAutostart(autoStart);
 
       mainConfig.addAMQPConnection(config);
 
@@ -2640,19 +2656,16 @@ public final class FileConfigurationParser extends XMLConfigurationUtil {
       mainConfig.getDivertConfigurations().add(config);
    }
 
-   private void parseBalancerConfiguration(final Element e, final Configuration config) throws Exception {
-      BrokerBalancerConfiguration brokerBalancerConfiguration = new BrokerBalancerConfiguration();
+   private void parseConnectionRouterConfiguration(final Element e, final Configuration config) throws Exception {
+      ConnectionRouterConfiguration connectionRouterConfiguration = new ConnectionRouterConfiguration();
 
-      brokerBalancerConfiguration.setName(e.getAttribute("name"));
+      connectionRouterConfiguration.setName(e.getAttribute("name"));
 
-      brokerBalancerConfiguration.setTargetKey(TargetKey.valueOf(getString(e, "target-key", brokerBalancerConfiguration.getTargetKey().name(), Validators.TARGET_KEY)));
+      connectionRouterConfiguration.setKeyType(KeyType.valueOf(getString(e, "key-type", connectionRouterConfiguration.getKeyType().name(), Validators.KEY_TYPE)));
 
-      brokerBalancerConfiguration.setTargetKeyFilter(getString(e, "target-key-filter", brokerBalancerConfiguration.getTargetKeyFilter(), Validators.NO_CHECK));
+      connectionRouterConfiguration.setKeyFilter(getString(e, "key-filter", connectionRouterConfiguration.getKeyFilter(), Validators.NO_CHECK));
 
-      brokerBalancerConfiguration.setLocalTargetFilter(getString(e, "local-target-filter", brokerBalancerConfiguration.getLocalTargetFilter(), Validators.NO_CHECK));
-
-      brokerBalancerConfiguration.setCacheTimeout(getInteger(e, "cache-timeout",
-         brokerBalancerConfiguration.getCacheTimeout(), Validators.MINUS_ONE_OR_GE_ZERO));
+      connectionRouterConfiguration.setLocalTargetFilter(getString(e, "local-target-filter", connectionRouterConfiguration.getLocalTargetFilter(), Validators.NO_CHECK));
 
       NamedPropertyConfiguration policyConfiguration = null;
       PoolConfiguration poolConfiguration = null;
@@ -2661,32 +2674,30 @@ public final class FileConfigurationParser extends XMLConfigurationUtil {
       for (int j = 0; j < children.getLength(); j++) {
          Node child = children.item(j);
 
-         if (child.getNodeName().equals("policy")) {
+         if (child.getNodeName().equals("cache")) {
+            CacheConfiguration cacheConfiguration = new CacheConfiguration();
+            parseCacheConfiguration((Element) child, cacheConfiguration);
+            connectionRouterConfiguration.setCacheConfiguration(cacheConfiguration);
+         } else if (child.getNodeName().equals("policy")) {
             policyConfiguration = new NamedPropertyConfiguration();
             parsePolicyConfiguration((Element) child, policyConfiguration);
-            brokerBalancerConfiguration.setPolicyConfiguration(policyConfiguration);
+            connectionRouterConfiguration.setPolicyConfiguration(policyConfiguration);
          } else if (child.getNodeName().equals("pool")) {
             poolConfiguration = new PoolConfiguration();
             parsePoolConfiguration((Element) child, config, poolConfiguration);
-            brokerBalancerConfiguration.setPoolConfiguration(poolConfiguration);
-         } else if (child.getNodeName().equals("local-target-key-transformer")) {
-            policyConfiguration = new NamedPropertyConfiguration();
-            parseTransformerConfiguration((Element) child, policyConfiguration);
-            brokerBalancerConfiguration.setTransformerConfiguration(policyConfiguration);
+            connectionRouterConfiguration.setPoolConfiguration(poolConfiguration);
          }
       }
 
-      config.getBalancerConfigurations().add(brokerBalancerConfiguration);
+      config.getConnectionRouters().add(connectionRouterConfiguration);
    }
 
-   private void parseTransformerConfiguration(final Element e, final NamedPropertyConfiguration policyConfiguration) throws ClassNotFoundException {
-      String name = e.getAttribute("name");
+   private void parseCacheConfiguration(final Element e, final CacheConfiguration cacheConfiguration) throws ClassNotFoundException {
+      cacheConfiguration.setPersisted(getBoolean(e, "persisted",
+         cacheConfiguration.isPersisted()));
 
-      TransformerFactoryResolver.getInstance().resolve(name);
-
-      policyConfiguration.setName(name);
-
-      policyConfiguration.setProperties(getMapOfChildPropertyElements(e));
+      cacheConfiguration.setTimeout(getInteger(e, "timeout",
+         cacheConfiguration.getTimeout(), Validators.GE_ZERO));
    }
 
    private void parsePolicyConfiguration(final Element e, final NamedPropertyConfiguration policyConfiguration) throws ClassNotFoundException {

@@ -46,7 +46,7 @@ import org.apache.activemq.artemis.core.config.DivertConfiguration;
 import org.apache.activemq.artemis.core.config.FileDeploymentManager;
 import org.apache.activemq.artemis.core.config.HAPolicyConfiguration;
 import org.apache.activemq.artemis.core.config.MetricsConfiguration;
-import org.apache.activemq.artemis.core.config.balancing.BrokerBalancerConfiguration;
+import org.apache.activemq.artemis.core.config.routing.ConnectionRouterConfiguration;
 import org.apache.activemq.artemis.core.config.ha.LiveOnlyPolicyConfiguration;
 import org.apache.activemq.artemis.core.journal.impl.JournalImpl;
 import org.apache.activemq.artemis.core.remoting.impl.netty.TransportConstants;
@@ -55,10 +55,11 @@ import org.apache.activemq.artemis.core.server.ComponentConfigurationRoutingType
 import org.apache.activemq.artemis.core.server.JournalType;
 import org.apache.activemq.artemis.core.server.Queue;
 import org.apache.activemq.artemis.core.server.SecuritySettingPlugin;
-import org.apache.activemq.artemis.core.server.balancing.policies.ConsistentHashPolicy;
-import org.apache.activemq.artemis.core.server.balancing.policies.FirstElementPolicy;
-import org.apache.activemq.artemis.core.server.balancing.policies.LeastConnectionsPolicy;
-import org.apache.activemq.artemis.core.server.balancing.targets.TargetKey;
+import org.apache.activemq.artemis.core.server.routing.policies.ConsistentHashModuloPolicy;
+import org.apache.activemq.artemis.core.server.routing.policies.ConsistentHashPolicy;
+import org.apache.activemq.artemis.core.server.routing.policies.FirstElementPolicy;
+import org.apache.activemq.artemis.core.server.routing.policies.LeastConnectionsPolicy;
+import org.apache.activemq.artemis.core.server.routing.KeyType;
 import org.apache.activemq.artemis.core.server.cluster.impl.MessageLoadBalancingType;
 import org.apache.activemq.artemis.core.server.impl.ActiveMQServerImpl;
 import org.apache.activemq.artemis.core.server.impl.LegacyLDAPSecuritySettingPlugin;
@@ -75,8 +76,6 @@ import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
-import static org.apache.activemq.artemis.core.server.balancing.transformer.ConsistentHashModulo.MODULO;
 
 public class FileConfigurationTest extends ConfigurationImplTest {
 
@@ -136,6 +135,7 @@ public class FileConfigurationTest extends ConfigurationImplTest {
       Assert.assertEquals("somedir", conf.getBindingsDirectory());
       Assert.assertEquals(false, conf.isCreateBindingsDir());
       Assert.assertEquals(true, conf.isAmqpUseCoreSubscriptionNaming());
+      Assert.assertEquals(false, conf.isSuppressSessionNotifications());
 
       Assert.assertEquals("max concurrent io", 17, conf.getPageMaxConcurrentIO());
       Assert.assertEquals(true, conf.isReadWholePage());
@@ -160,6 +160,7 @@ public class FileConfigurationTest extends ConfigurationImplTest {
       Assert.assertEquals(12345, conf.getGracefulShutdownTimeout());
       Assert.assertEquals(true, conf.isPopulateValidatedUser());
       Assert.assertEquals(false, conf.isRejectEmptyValidatedUser());
+      Assert.assertEquals(123456, conf.getMqttSessionScanInterval());
       Assert.assertEquals(98765, conf.getConnectionTtlCheckInterval());
       Assert.assertEquals(1234567, conf.getConfigurationFileRefreshPeriod());
       Assert.assertEquals("TEMP", conf.getTemporaryQueueNamespace());
@@ -267,30 +268,29 @@ public class FileConfigurationTest extends ConfigurationImplTest {
          }
       }
 
-      Assert.assertEquals(5, conf.getBalancerConfigurations().size());
-      for (BrokerBalancerConfiguration bc : conf.getBalancerConfigurations()) {
+      Assert.assertEquals(5, conf.getConnectionRouters().size());
+      for (ConnectionRouterConfiguration bc : conf.getConnectionRouters()) {
          if (bc.getName().equals("simple-local")) {
-            Assert.assertEquals(bc.getTargetKey(), TargetKey.CLIENT_ID);
+            Assert.assertEquals(bc.getKeyType(), KeyType.CLIENT_ID);
             Assert.assertNotNull(bc.getLocalTargetFilter());
-            Assert.assertNotNull(bc.getTargetKeyFilter());
+            Assert.assertNotNull(bc.getKeyFilter());
             Assert.assertNull(bc.getPolicyConfiguration());
          } else if (bc.getName().equals("simple-local-with-transformer")) {
-            Assert.assertEquals(bc.getTargetKey(), TargetKey.CLIENT_ID);
+            Assert.assertEquals(bc.getKeyType(), KeyType.CLIENT_ID);
             Assert.assertNotNull(bc.getLocalTargetFilter());
-            Assert.assertNotNull(bc.getTargetKeyFilter());
-            Assert.assertNull(bc.getPolicyConfiguration());
-            Assert.assertNotNull(bc.getTransformerConfiguration());
-            Assert.assertNotNull(bc.getTransformerConfiguration().getProperties().get(MODULO));
-         } else if (bc.getName().equals("simple-balancer")) {
-            Assert.assertEquals(bc.getTargetKey(), TargetKey.USER_NAME);
+            Assert.assertNotNull(bc.getKeyFilter());
+            Assert.assertNotNull(bc.getPolicyConfiguration());
+            Assert.assertNotNull(bc.getPolicyConfiguration().getProperties().get(ConsistentHashModuloPolicy.MODULO));
+         } else if (bc.getName().equals("simple-router")) {
+            Assert.assertEquals(bc.getKeyType(), KeyType.USER_NAME);
             Assert.assertNull(bc.getLocalTargetFilter());
             Assert.assertEquals(bc.getPolicyConfiguration().getName(), FirstElementPolicy.NAME);
             Assert.assertEquals(false, bc.getPoolConfiguration().isLocalTargetEnabled());
             Assert.assertEquals("connector1", bc.getPoolConfiguration().getStaticConnectors().get(0));
             Assert.assertEquals(null, bc.getPoolConfiguration().getDiscoveryGroupName());
-         } else if (bc.getName().equals("consistent-hash-balancer")) {
-            Assert.assertEquals(bc.getTargetKey(), TargetKey.SNI_HOST);
-            Assert.assertEquals(bc.getTargetKeyFilter(), "^[^.]+");
+         } else if (bc.getName().equals("consistent-hash-router")) {
+            Assert.assertEquals(bc.getKeyType(), KeyType.SNI_HOST);
+            Assert.assertEquals(bc.getKeyFilter(), "^[^.]+");
             Assert.assertEquals(bc.getLocalTargetFilter(), "DEFAULT");
             Assert.assertEquals(bc.getPolicyConfiguration().getName(), ConsistentHashPolicy.NAME);
             Assert.assertEquals(1000, bc.getPoolConfiguration().getCheckPeriod());
@@ -298,9 +298,11 @@ public class FileConfigurationTest extends ConfigurationImplTest {
             Assert.assertEquals(null, bc.getPoolConfiguration().getStaticConnectors());
             Assert.assertEquals("dg1", bc.getPoolConfiguration().getDiscoveryGroupName());
          } else {
-            Assert.assertEquals(bc.getTargetKey(), TargetKey.SOURCE_IP);
-            Assert.assertEquals("least-connections-balancer", bc.getName());
-            Assert.assertEquals(60000, bc.getCacheTimeout());
+            Assert.assertEquals(bc.getKeyType(), KeyType.SOURCE_IP);
+            Assert.assertEquals("least-connections-router", bc.getName());
+            Assert.assertNotNull(bc.getCacheConfiguration());
+            Assert.assertEquals(true, bc.getCacheConfiguration().isPersisted());
+            Assert.assertEquals(60000, bc.getCacheConfiguration().getTimeout());
             Assert.assertEquals(bc.getPolicyConfiguration().getName(), LeastConnectionsPolicy.NAME);
             Assert.assertEquals(3000, bc.getPoolConfiguration().getCheckPeriod());
             Assert.assertEquals(2, bc.getPoolConfiguration().getQuorumSize());
@@ -576,6 +578,7 @@ public class FileConfigurationTest extends ConfigurationImplTest {
       assertEquals("addr1", queueConfiguration.getAddress().toString());
       // If null, then default will be taken from address-settings (which defaults to ActiveMQDefaultConfiguration.getDefaultMaxQueueConsumers())
       assertEquals(null, queueConfiguration.getMaxConsumers());
+      assertEquals(null, queueConfiguration.isGroupRebalancePauseDispatch());
 
       // Addr 1 Queue 2
       queueConfiguration = addressConfiguration.getQueueConfigs().get(1);
@@ -587,6 +590,7 @@ public class FileConfigurationTest extends ConfigurationImplTest {
       assertEquals(Queue.MAX_CONSUMERS_UNLIMITED, queueConfiguration.getMaxConsumers().intValue());
       assertFalse(queueConfiguration.isPurgeOnNoConsumers());
       assertEquals("addr1", queueConfiguration.getAddress().toString());
+      assertEquals(true, queueConfiguration.isGroupRebalancePauseDispatch());
 
       // Addr 2
       addressConfiguration = conf.getAddressConfigurations().get(1);
@@ -605,6 +609,7 @@ public class FileConfigurationTest extends ConfigurationImplTest {
       assertEquals(10, queueConfiguration.getMaxConsumers().intValue());
       assertEquals(ActiveMQDefaultConfiguration.getDefaultPurgeOnNoConsumers(), queueConfiguration.isPurgeOnNoConsumers());
       assertEquals("addr2", queueConfiguration.getAddress().toString());
+      assertEquals(null, queueConfiguration.isGroupRebalancePauseDispatch());
 
       // Addr 2 Queue 2
       queueConfiguration = addressConfiguration.getQueueConfigs().get(1);
@@ -616,6 +621,7 @@ public class FileConfigurationTest extends ConfigurationImplTest {
       assertEquals(null, queueConfiguration.getMaxConsumers());
       assertTrue(queueConfiguration.isPurgeOnNoConsumers());
       assertEquals("addr2", queueConfiguration.getAddress().toString());
+      assertEquals(true, queueConfiguration.isGroupRebalancePauseDispatch());
 
       // Addr 3
       addressConfiguration = conf.getAddressConfigurations().get(2);

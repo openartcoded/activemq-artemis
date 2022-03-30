@@ -19,7 +19,7 @@
    <parent>
       <groupId>org.apache.activemq.tests</groupId>
       <artifactId>artemis-tests-pom</artifactId>
-      <version>2.21.0-SNAPSHOT</version>
+      <version>2.22.0-SNAPSHOT</version>
    </parent>
 
    <artifactId>unit-tests</artifactId>
@@ -171,10 +171,10 @@
          <scope>test</scope>
       </dependency>
       <dependency>
-          <groupId>com.google.errorprone</groupId>
-          <artifactId>error_prone_core</artifactId>
+        <groupId>org.mockito</groupId>
+        <artifactId>mockito-core</artifactId>
+        <scope>test</scope>
       </dependency>
-
    </dependencies>
 
    <build>

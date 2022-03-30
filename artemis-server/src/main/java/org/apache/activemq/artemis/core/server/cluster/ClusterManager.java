@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -40,7 +41,6 @@ import org.apache.activemq.artemis.core.client.impl.ServerLocatorInternal;
 import org.apache.activemq.artemis.core.config.BridgeConfiguration;
 import org.apache.activemq.artemis.core.config.ClusterConnectionConfiguration;
 import org.apache.activemq.artemis.core.config.Configuration;
-import org.apache.activemq.artemis.core.filter.impl.FilterImpl;
 import org.apache.activemq.artemis.core.postoffice.Binding;
 import org.apache.activemq.artemis.core.postoffice.PostOffice;
 import org.apache.activemq.artemis.core.protocol.core.Channel;
@@ -53,7 +53,6 @@ import org.apache.activemq.artemis.core.server.ActiveMQServer;
 import org.apache.activemq.artemis.core.server.ActiveMQServerLogger;
 import org.apache.activemq.artemis.core.server.NodeManager;
 import org.apache.activemq.artemis.core.server.Queue;
-import org.apache.activemq.artemis.core.server.transformer.Transformer;
 import org.apache.activemq.artemis.core.server.cluster.ha.HAManager;
 import org.apache.activemq.artemis.core.server.cluster.impl.BridgeImpl;
 import org.apache.activemq.artemis.core.server.cluster.impl.BroadcastGroupImpl;
@@ -378,17 +377,17 @@ public class ClusterManager implements ActiveMQComponent {
       this.clusterLocators.remove(serverLocator);
    }
 
-   public synchronized void deployBridge(final BridgeConfiguration config) throws Exception {
+   public synchronized boolean deployBridge(final BridgeConfiguration config) throws Exception {
       if (config.getName() == null) {
          ActiveMQServerLogger.LOGGER.bridgeNotUnique();
 
-         return;
+         return false;
       }
 
       if (config.getQueueName() == null) {
          ActiveMQServerLogger.LOGGER.bridgeNoQueue(config.getName());
 
-         return;
+         return false;
       }
 
       if (config.getForwardingAddress() == null) {
@@ -398,17 +397,15 @@ public class ClusterManager implements ActiveMQComponent {
       if (bridges.containsKey(config.getName())) {
          ActiveMQServerLogger.LOGGER.bridgeAlreadyDeployed(config.getName());
 
-         return;
+         return false;
       }
-
-      Transformer transformer = server.getServiceRegistry().getBridgeTransformer(config.getName(), config.getTransformerConfiguration());
 
       Binding binding = postOffice.getBinding(new SimpleString(config.getQueueName()));
 
       if (binding == null) {
          ActiveMQServerLogger.LOGGER.bridgeQueueNotFound(config.getQueueName(), config.getName());
 
-         return;
+         return false;
       }
 
       if (server.hasBrokerBridgePlugins()) {
@@ -424,7 +421,7 @@ public class ClusterManager implements ActiveMQComponent {
          if (discoveryGroupConfiguration == null) {
             ActiveMQServerLogger.LOGGER.bridgeNoDiscoveryGroup(config.getDiscoveryGroupName());
 
-            return;
+            return false;
          }
 
          if (config.isHA()) {
@@ -438,7 +435,7 @@ public class ClusterManager implements ActiveMQComponent {
 
          if (tcConfigs == null) {
             ActiveMQServerLogger.LOGGER.bridgeCantFindConnectors(config.getName());
-            return;
+            return false;
          }
 
          if (config.isHA()) {
@@ -482,21 +479,16 @@ public class ClusterManager implements ActiveMQComponent {
 
       for (int i = 0; i < config.getConcurrency(); i++) {
          String name = config.getConcurrency() > 1 ? (config.getName() + "-" + i) : config.getName();
-         Bridge bridge = new BridgeImpl(serverLocator, config.getInitialConnectAttempts(), config.getReconnectAttempts(),
-               config.getReconnectAttemptsOnSameNode(), config.getRetryInterval(), config.getRetryIntervalMultiplier(),
-               config.getMaxRetryInterval(), nodeManager.getUUID(), new SimpleString(name), queue,
-               executorFactory.getExecutor(), FilterImpl.createFilter(config.getFilterString()),
-               SimpleString.toSimpleString(config.getForwardingAddress()), scheduledExecutor, transformer,
-               config.isUseDuplicateDetection(), config.getUser(), config.getPassword(), server,
-               config.getRoutingType());
+         Bridge bridge = new BridgeImpl(serverLocator, new BridgeConfiguration(config).setName(name), nodeManager.getUUID(), queue, executorFactory.getExecutor(), scheduledExecutor, server);
          bridges.put(name, bridge);
-         managementService.registerBridge(bridge, config);
+         managementService.registerBridge(bridge);
          bridge.start();
 
          if (server.hasBrokerBridgePlugins()) {
             server.callBrokerBridgePlugins(plugin -> plugin.afterDeployBridge(bridge));
          }
       }
+      return true;
    }
 
    public static class IncomingInterceptorLookingForExceptionMessage implements Interceptor {
@@ -538,16 +530,24 @@ public class ClusterManager implements ActiveMQComponent {
    }
 
    public void destroyBridge(final String name) throws Exception {
-      Bridge bridge;
+      List<Bridge> bridgesToRemove = new ArrayList<>();
 
       synchronized (this) {
-         bridge = bridges.remove(name);
-         if (bridge != null) {
-            bridge.stop();
-            managementService.unregisterBridge(name);
+         for (Bridge bridge : bridges.values()) {
+            if (bridge.getName().toString().matches(name + "|" + name + "-\\d+")) {
+               bridge = bridges.get(bridge.getName().toString());
+               if (bridge != null) {
+                  bridgesToRemove.add(bridge);
+               }
+            }
+         }
+         for (Bridge bridgeToRemove : bridgesToRemove) {
+            bridges.remove(bridgeToRemove.getName().toString());
+            bridgeToRemove.stop();
+            managementService.unregisterBridge(bridgeToRemove.getName().toString());
          }
       }
-      if (bridge != null) {
+      for (Bridge bridge : bridgesToRemove) {
          bridge.flushExecutor();
       }
    }

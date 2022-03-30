@@ -40,10 +40,11 @@ import org.apache.qpid.jms.JmsConnectionFactory;
 @Command(name = "transfer", description = "Moves Messages from one destination towards another destination")
 public class Transfer extends InputAbstract {
 
-   private static final String DEFAULT_BROKER_URL = "tcp://localhost:61616";
-
-   @Option(name = "--source-url", description = "URL towards the broker. (default: Read from current broker.xml or tcp://localhost:61616 if the default cannot be parsed)")
+   @Option(name = "--source-url", description = "URL towards the broker. (default: Build URL from acceptors defined in the broker.xml or tcp://localhost:61616 if the default cannot be parsed)")
    protected String sourceURL = DEFAULT_BROKER_URL;
+
+   @Option(name = "--source-acceptor", description = "Acceptor used to build URL towards the broker")
+   protected String sourceAcceptor;
 
    @Option(name = "--source-user", description = "User used to connect")
    protected String sourceUser;
@@ -93,7 +94,7 @@ public class Transfer extends InputAbstract {
    @Option(name = "--target-protocol", description = "Protocol used. Valid values are amqp or core. Default=core.")
    String targetProtocol = "core";
 
-   @Option(name = "--commit-interval", description = "Destination to be used. It can be prefixed with queue:// or topic:// and can be an FQQN in the form of <address>::<queue>. (Default: queue://TEST)")
+   @Option(name = "--commit-interval", description = "Transaction batch interval.")
    int commitInterval = 1000;
 
    @Option(name = "--copy", description = "If this option is chosen we will perform a copy of the queue by rolling back the original TX on the source.")
@@ -114,6 +115,15 @@ public class Transfer extends InputAbstract {
 
    public Transfer setSourceURL(String sourceURL) {
       this.sourceURL = sourceURL;
+      return this;
+   }
+
+   public String getSourceAcceptor() {
+      return sourceAcceptor;
+   }
+
+   public Transfer setSourceAcceptor(String sourceAcceptor) {
+      this.sourceAcceptor = sourceAcceptor;
       return this;
    }
 
@@ -319,7 +329,7 @@ public class Transfer extends InputAbstract {
       // and still honor the one passed by parameter.
       // SupressWarnings was added to this method to supress the false positive here from error-prone.
       if (sourceURL == DEFAULT_BROKER_URL) {
-         String brokerURLInstance = getBrokerURLInstance();
+         String brokerURLInstance = getBrokerURLInstance(sourceAcceptor);
 
          if (brokerURLInstance != null) {
             sourceURL = brokerURLInstance;

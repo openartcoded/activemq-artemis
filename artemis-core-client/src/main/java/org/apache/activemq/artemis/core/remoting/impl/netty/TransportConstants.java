@@ -318,9 +318,15 @@ public class TransportConstants {
 
    public static final long DEFAULT_CONNECTIONS_ALLOWED = -1L;
 
+   /**
+    * @deprecated Use {@link TransportConstants#WEB_SOCKET_MAX_FRAME_PAYLOAD_LENGTH instead}.
+    */
+   @Deprecated
    public static final String STOMP_MAX_FRAME_PAYLOAD_LENGTH = "stompMaxFramePayloadLength";
 
-   public static final int DEFAULT_STOMP_MAX_FRAME_PAYLOAD_LENGTH = 65536;
+   public static final String WEB_SOCKET_MAX_FRAME_PAYLOAD_LENGTH = "webSocketMaxFramePayloadLength";
+
+   public static final int DEFAULT_WEB_SOCKET_MAX_FRAME_PAYLOAD_LENGTH = 65536;
 
    public static final String HANDSHAKE_TIMEOUT = "handshake-timeout";
 
@@ -357,9 +363,9 @@ public class TransportConstants {
 
    public static final boolean DEFAULT_PROXY_REMOTE_DNS = false;
 
-   public static final String REDIRECT_TO = "redirect-to";
+   public static final String ROUTER = "router";
 
-   public static final String DEFAULT_REDIRECT_TO = null;
+   public static final String DEFAULT_ROUTER = null;
 
    private static int parseDefaultVariable(String variableName, int defaultValue) {
       try {
@@ -426,6 +432,7 @@ public class TransportConstants {
       allowableAcceptorKeys.add(TransportConstants.STOMP_ENABLE_MESSAGE_ID);
       allowableAcceptorKeys.add(TransportConstants.CONNECTIONS_ALLOWED);
       allowableAcceptorKeys.add(TransportConstants.STOMP_MAX_FRAME_PAYLOAD_LENGTH);
+      allowableAcceptorKeys.add(TransportConstants.WEB_SOCKET_MAX_FRAME_PAYLOAD_LENGTH);
       allowableAcceptorKeys.add(ActiveMQDefaultConfiguration.getPropMaskPassword());
       allowableAcceptorKeys.add(ActiveMQDefaultConfiguration.getPropPasswordCodec());
       allowableAcceptorKeys.add(TransportConstants.BACKLOG_PROP_NAME);
@@ -437,7 +444,7 @@ public class TransportConstants {
       allowableAcceptorKeys.add(TransportConstants.QUIET_PERIOD);
       allowableAcceptorKeys.add(TransportConstants.DISABLE_STOMP_SERVER_HEADER);
       allowableAcceptorKeys.add(TransportConstants.AUTO_START);
-      allowableAcceptorKeys.add(TransportConstants.REDIRECT_TO);
+      allowableAcceptorKeys.add(TransportConstants.ROUTER);
 
       ALLOWABLE_ACCEPTOR_KEYS = Collections.unmodifiableSet(allowableAcceptorKeys);
 

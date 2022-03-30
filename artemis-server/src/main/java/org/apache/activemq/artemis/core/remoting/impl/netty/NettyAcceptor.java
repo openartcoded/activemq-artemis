@@ -233,13 +233,15 @@ public class NettyAcceptor extends AbstractAcceptor {
 
    private final boolean autoStart;
 
-   private final String redirectTo;
+   private final String router;
 
    final AtomicBoolean warningPrinted = new AtomicBoolean(false);
 
    final Executor failureExecutor;
 
    private volatile Object providerAgnosticSslContext;
+
+   private volatile int actualPort = 0;
 
    public NettyAcceptor(final String name,
                         final ClusterConnection clusterConnection,
@@ -375,7 +377,7 @@ public class NettyAcceptor extends AbstractAcceptor {
 
       autoStart = ConfigurationHelper.getBooleanProperty(TransportConstants.AUTO_START, TransportConstants.DEFAULT_AUTO_START, configuration);
 
-      redirectTo = ConfigurationHelper.getStringProperty(TransportConstants.REDIRECT_TO, TransportConstants.DEFAULT_REDIRECT_TO, configuration);
+      router = ConfigurationHelper.getStringProperty(TransportConstants.ROUTER, TransportConstants.DEFAULT_ROUTER, configuration);
    }
 
    private Object loadSSLContext() {
@@ -529,12 +531,12 @@ public class NettyAcceptor extends AbstractAcceptor {
             TypedProperties props = new TypedProperties();
             props.putSimpleStringProperty(new SimpleString("factory"), new SimpleString(NettyAcceptorFactory.class.getName()));
             props.putSimpleStringProperty(new SimpleString("host"), new SimpleString(host));
-            props.putIntProperty(new SimpleString("port"), port);
+            props.putIntProperty(new SimpleString("port"), actualPort);
             Notification notification = new Notification(null, CoreNotificationType.ACCEPTOR_STARTED, props);
             notificationService.sendNotification(notification);
          }
 
-         ActiveMQServerLogger.LOGGER.startedAcceptor(acceptorType, host, port, protocolsString);
+         ActiveMQServerLogger.LOGGER.startedAcceptor(acceptorType, host, actualPort, protocolsString);
       }
 
       if (batchDelay > 0) {
@@ -715,6 +717,13 @@ public class NettyAcceptor extends AbstractAcceptor {
          Channel serverChannel = null;
          try {
             serverChannel = bootstrap.bind(address).syncUninterruptibly().channel();
+
+            // The port may be configured as `0` which means the JVM will select an ephemeral port
+            if (serverChannel.localAddress() instanceof InetSocketAddress) {
+               actualPort = ((InetSocketAddress)serverChannel.localAddress()).getPort();
+            } else {
+               actualPort = port;
+            }
          } catch (Exception e) {
             throw ActiveMQMessageBundle.BUNDLE.failedToBind(getName(), h + ":" + port, e);
          }
@@ -911,7 +920,7 @@ public class NettyAcceptor extends AbstractAcceptor {
             super.channelActive(ctx);
             Listener connectionListener = new Listener();
 
-            NettyServerConnection nc = new NettyServerConnection(configuration, ctx.channel(), connectionListener, !httpEnabled && batchDelay > 0, directDeliver, redirectTo);
+            NettyServerConnection nc = new NettyServerConnection(configuration, ctx.channel(), connectionListener, !httpEnabled && batchDelay > 0, directDeliver, router);
 
             connectionListener.connectionCreated(NettyAcceptor.this, nc, protocolHandler.getProtocol(protocol));
 
@@ -1043,5 +1052,10 @@ public class NettyAcceptor extends AbstractAcceptor {
 
    public boolean isAutoStart() {
       return autoStart;
+   }
+
+   @Override
+   public int getActualPort() {
+      return actualPort;
    }
 }

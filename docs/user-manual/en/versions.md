@@ -8,6 +8,41 @@ This chapter provides the following information for each release:
   - **Note:** Follow the general upgrade procedure outlined in the [Upgrading the Broker](upgrading.md) 
     chapter in addition to any version-specific upgrade instructions outlined here.
 
+## 2.21.0
+[Full release notes](https://issues.apache.org/jira/secure/ReleaseNote.jspa?version=12351083&projectId=12315920).
+
+Highlights:
+- [MQTT 5](mqtt.md) is now supported.
+- A new set of [performance tools](perf-tools.md) are now available to evaluate
+  throughput and Response Under Load performance of Artemis
+- Diverts now support [multiple addresses](diverts.md#composite-divert)
+- [Runtime configuration reloading](config-reload.md) now supports bridges.
+- [Paging](paging.md#paging-mode) can now be configured by message count.
+
+#### Upgrading from older versions
+
+Due to XML schema changes to correct an inaccurate domain name 2 files will need to
+be updated:
+
+ 1. `etc/bootstrap.xml`
+ 2. `etc/management.xml`
+
+In both files change the XML namespace from `activemq.org` to `activemq.apache.org`,
+e.g. in `bootsrap.xml` use:
+```xml
+<broker xmlns="http://activemq.apache.org/schema">
+```
+And in `management.xml` use:
+```xml
+<management-context xmlns="http://activemq.apache.org/schema">
+```
+
+## 2.20.0
+[Full release notes](https://issues.apache.org/jira/secure/ReleaseNote.jspa?version=12350581&projectId=12315920).
+
+Highlights:
+- **Java 11 is now required.**
+
 ## 2.19.0
 [Full release notes](https://issues.apache.org/jira/secure/ReleaseNote.jspa?projectId=12315920&version=12350519).
 
@@ -31,7 +66,7 @@ Highlights:
   support improving capabilities on AMQP Mirror for Disaster Recovery
 - [Journal Retention](persistence.md#journal-retention)
 - [Replication integrated with Zookeeper](ha.md#pluggable-quorum-vote-replication-configurations)
-- [Broker load balancer](broker-balancers.md)
+- [Connection Routers](connection-routers.md)
 - [Concurrency](core-bridges.md#configuring-bridges) configuration for core
   bridges.
 - [XPath filter expressions](filter-expressions.md#xpath) (for parity with
@@ -229,7 +264,7 @@ Highlights:
 - Support for [min/max expiry-delay](message-expiry.md#configuring-expiry-delay)
 - [Per-acceptor security domains](security.md#per-acceptor-security-domains)
 - Command-line `check` tool for checking the health of a broker
-- Support disabling metrics per address via the [`enable-metrics` address setting](address-model.md#configuring-addresses-and-queues-via-address-settings)
+- Support disabling metrics per address via the [`enable-metrics` address setting](address-settings.md)
 - Improvements to the [audit logging](logging.md#configuring-audit-logging)
 - Speed optimizations for the `HierarchicalObjectRepository`, an internal object used to store address and security settings
 
@@ -416,7 +451,7 @@ Highlights:
 Highlights:
 - Support advanced destination options like `consumersBeforeDispatchStarts` and `timeBeforeDispatchStarts` from 5.x.
 - Add support for delays before deleting addresses and queues via [`auto-delete-queues-delay` and `auto-delete-addresses-delay`
-  Address Settings](address-model.md#configuring-addresses-and-queues-via-address-settings).
+  Address Settings](address-settings.md).
 - Support [logging HTTP access](web-server.md).
 - Add a CLI command to purge a queue.
 - Support user and role manipulation for PropertiesLoginModule via management interfaces.
@@ -426,7 +461,7 @@ Highlights:
 - Support [FQQN](address-model.md#specifying-a-fully-qualified-queue-name) for producers.
 - Track routed and unrouted messages sent to an address.
 - Support [connection pooling in LDAPLoginModule](security.md#ldaploginmodule).
-- Support configuring a default consumer window size via [`default-consumer-window-size` Address Setting](address-model.md#configuring-addresses-and-queues-via-address-settings).
+- Support configuring a default consumer window size via [`default-consumer-window-size` Address Setting](address-settings.md).
 - Support [masking](masking-passwords.md) `key-store-password` and `trust-store-password` in management.xml.
 - Support [`JMSXGroupSeq` -1 to close/reset message groups](message-grouping.md#closing-a-message-group) from 5.x.
 - Allow configuration of [RMI registry port](management.md#configuring-remote-jmx-access).
