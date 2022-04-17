@@ -18,6 +18,7 @@
 package org.apache.activemq.artemis.core.protocol.mqtt;
 
 import java.util.UUID;
+import java.util.List;
 
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.handler.codec.mqtt.MqttConnectMessage;
@@ -58,7 +59,6 @@ public class MQTTConnectionManager {
    }
 
    void connect(MqttConnectMessage connect, String validatedUser) throws Exception {
-      session.setVersion(MQTTVersion.getVersion(connect.variableHeader().version()));
       if (session.getVersion() == MQTTVersion.MQTT_5) {
          session.getConnection().setProtocolVersion(Byte.toString(MqttVersion.MQTT_5.protocolLevel()));
          String authenticationMethod = MQTTUtil.getProperty(String.class, connect.variableHeader().properties(), AUTHENTICATION_METHOD);
@@ -126,6 +126,10 @@ public class MQTTConnectionManager {
                   MqttProperties.MqttProperty willDelayInterval = willProperties.getProperty(WILL_DELAY_INTERVAL.value());
                   if (willDelayInterval != null) {
                      session.getState().setWillDelayInterval(( int) willDelayInterval.value());
+                  }
+                  List<? extends MqttProperties.MqttProperty> userProperties = willProperties.getProperties(MqttProperties.MqttPropertyType.USER_PROPERTY.value());
+                  if (userProperties != null) {
+                     session.getState().setWillUserProperties(userProperties);
                   }
                }
             }

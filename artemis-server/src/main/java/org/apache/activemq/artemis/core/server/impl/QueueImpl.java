@@ -295,8 +295,6 @@ public class QueueImpl extends CriticalComponentImpl implements Queue {
 
    private AddressSettingsRepositoryListener addressSettingsRepositoryListener;
 
-   private final ExpiryScanner expiryScanner = new ExpiryScanner();
-
    private final ReusableLatch deliveriesInTransit = new ReusableLatch(0);
 
    private final AtomicLong queueRateCheckTime = new AtomicLong(System.currentTimeMillis());
@@ -2361,13 +2359,10 @@ public class QueueImpl extends CriticalComponentImpl implements Queue {
       }
 
 
-      if (!queueDestroyed && expiryScanner.scannerRunning.get() == 0) {
-         if (expiryScanner.scannerRunning.incrementAndGet() == 1) {
-            expiryScanner.doneCallback = done;
-         }
-         getExecutor().execute(expiryScanner);
+      if (!queueDestroyed) {
+         getExecutor().execute(new ExpiryScanner(done));
       } else {
-         // expire is already happening on this queue, move on!
+         // queue is destroyed, move on
          if (done != null) {
             done.run();
          }
@@ -2388,24 +2383,25 @@ public class QueueImpl extends CriticalComponentImpl implements Queue {
 
    class ExpiryScanner implements Runnable {
 
-      public Runnable doneCallback;
-      public AtomicInteger scannerRunning = new AtomicInteger(0);
+      private final Runnable doneCallback;
+
+      ExpiryScanner(Runnable doneCallback) {
+         this.doneCallback = doneCallback;
+      }
+
       LinkedListIterator<MessageReference> iter = null;
 
       @Override
       public void run() {
-
          boolean expired = false;
          boolean hasElements = false;
          int elementsIterated = 0;
          int elementsExpired = 0;
 
+         boolean rescheduled = false;
+
          LinkedList<MessageReference> expiredMessages = new LinkedList<>();
          synchronized (QueueImpl.this) {
-            if (queueDestroyed) {
-               return;
-            }
-
             if (logger.isDebugEnabled()) {
                logger.debug("Scanning for expires on " + QueueImpl.this.getName());
             }
@@ -2422,7 +2418,7 @@ public class QueueImpl extends CriticalComponentImpl implements Queue {
             }
 
             try {
-               while (postOffice.isStarted() && iter.hasNext()) {
+               while (!queueDestroyed && postOffice.isStarted() && iter.hasNext()) {
                   hasElements = true;
                   MessageReference ref = iter.next();
                   if (ref.getMessage().isExpired()) {
@@ -2433,14 +2429,16 @@ public class QueueImpl extends CriticalComponentImpl implements Queue {
                      iter.remove();
                   }
                   if (++elementsIterated >= MAX_DELIVERIES_IN_LOOP) {
-                     logger.debug("Breaking loop of expiring");
-                     scannerRunning.incrementAndGet();
+                     logger.debugf("Expiry Scanner on %s ran for %s iteration, scheduling a new one", QueueImpl.this.getName(), elementsIterated);
+                     rescheduled = true;
                      getExecutor().execute(this);
                      break;
                   }
                }
             } finally {
-               if (scannerRunning.decrementAndGet() == 0) {
+               if (!rescheduled) {
+                  logger.debugf("Scanning for expires on %s done", QueueImpl.this.getName());
+
                   if (server.hasBrokerQueuePlugins()) {
                      try {
                         server.callBrokerQueuePlugins((p) -> p.afterExpiryScan(QueueImpl.this));
@@ -2454,12 +2452,8 @@ public class QueueImpl extends CriticalComponentImpl implements Queue {
 
                   if (doneCallback != null) {
                      doneCallback.run();
-                     doneCallback = null;
                   }
                }
-
-               logger.debug("Scanning for expires on " + QueueImpl.this.getName() + " done");
-
             }
          }
 
@@ -4287,18 +4281,58 @@ public class QueueImpl extends CriticalComponentImpl implements Queue {
 
       @Override
       public boolean hasNext() {
-         if (messagesIterator != null && messagesIterator.hasNext()) {
-            lastIterator = messagesIterator;
+         if (cachedNext != null) {
             return true;
          }
-         if (getPagingIterator() != null) {
-            if (getPagingIterator().hasNext()) {
-               lastIterator = getPagingIterator();
+
+         if (messagesIterator != null) {
+            MessageReference nextMessage = iterate(messagesIterator);
+            if (nextMessage != null) {
+               cachedNext = nextMessage;
+               lastIterator = messagesIterator;
+               return true;
+            }
+         }
+
+         LinkedListIterator<PagedReference> pagingIterator = getPagingIterator();
+         if (pagingIterator != null) {
+            PagedReference nextMessage = iteratePaging(pagingIterator);
+            if (nextMessage != null) {
+               cachedNext = nextMessage;
+               lastIterator = pagingIterator;
                return true;
             }
          }
 
          return false;
+      }
+
+      private PagedReference iteratePaging(LinkedListIterator<PagedReference> iterator) {
+         while (iterator.hasNext()) {
+            PagedReference ref = iterator.next();
+
+            // During regular depaging we move messages from paging into QueueImpl::messageReferences
+            // later on the PagingIterator will read messages from the page files
+            // and this step will avoid reproducing those messages twice.
+            // once we found a previouslyBrowsed message we can remove it from this list as it's no longer needed
+            // since it won't be read again
+            if (!previouslyBrowsed.remove(ref.getPosition())) {
+               return ref;
+            }
+         }
+         return null;
+      }
+
+
+      private MessageReference iterate(LinkedListIterator<MessageReference> iterator) {
+         while (iterator.hasNext()) {
+            MessageReference ref = iterator.next();
+            if (ref.isPaged()) {
+               previouslyBrowsed.add(((PagedReference)ref).getPosition());
+            }
+            return ref;
+         }
+         return null;
       }
 
       @Override
@@ -4312,20 +4346,18 @@ public class QueueImpl extends CriticalComponentImpl implements Queue {
             }
 
          }
+
          if (messagesIterator != null && messagesIterator.hasNext()) {
-            MessageReference msg = messagesIterator.next();
-            if (msg.isPaged()) {
-               previouslyBrowsed.add(((PagedReference) msg).getPosition());
+            MessageReference ref = iterate(messagesIterator);
+            if (ref != null) {
+               return ref;
             }
-            return msg;
          }
-         if (getPagingIterator() != null) {
-            while (getPagingIterator().hasNext()) {
-               lastIterator = getPagingIterator();
-               PagedReference ref = getPagingIterator().next();
-               if (previouslyBrowsed.contains(ref.getPosition())) {
-                  continue;
-               }
+
+         LinkedListIterator<PagedReference> pagingIterator = getPagingIterator();
+         if (pagingIterator != null) {
+            PagedReference ref = iteratePaging(pagingIterator);
+            if (ref != null) {
                return ref;
             }
          }

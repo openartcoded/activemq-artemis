@@ -1,4 +1,4 @@
-/*
+/**
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.
@@ -14,8 +14,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.activemq.artemis.core.server.cluster.impl;
 
-public enum MessageLoadBalancingType {
-   OFF, STRICT, ON_DEMAND, OFF_WITH_REDISTRIBUTION;
+package org.apache.activemq.artemis.core.paging.impl;
+
+import org.apache.activemq.artemis.core.io.SequentialFileFactory;
+import org.apache.activemq.artemis.core.paging.PagingStore;
+
+public class PagingStoreTestAccessor {
+   public static SequentialFileFactory getFileFactory(PagingStore store) throws Exception {
+      return ((PagingStoreImpl) store).getFileFactory();
+   }
 }
