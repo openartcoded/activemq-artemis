@@ -2651,6 +2651,7 @@ public class ActiveMQServerControlImpl extends AbstractControl implements Active
       JsonObjectBuilder obj = JsonLoader.createObjectBuilder().add("sessionID", sess.getName()).add("creationTime", sess.getCreationTime()).add("consumerCount", sess.getServerConsumers().size());
 
       if (sess.getValidatedUser() != null) {
+         obj.add("validatedUser", sess.getValidatedUser());
          obj.add("principal", sess.getValidatedUser());
       }
 

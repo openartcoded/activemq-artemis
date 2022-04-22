@@ -51,6 +51,7 @@ import org.jboss.logging.Logger;
 
 import static io.netty.handler.codec.mqtt.MqttProperties.MqttPropertyType.AUTHENTICATION_DATA;
 import static io.netty.handler.codec.mqtt.MqttProperties.MqttPropertyType.AUTHENTICATION_METHOD;
+import static io.netty.handler.codec.mqtt.MqttProperties.MqttPropertyType.SESSION_EXPIRY_INTERVAL;
 
 /**
  * This class is responsible for receiving and sending MQTT packets, delegating behaviour to one of the
@@ -128,7 +129,7 @@ public class MQTTProtocolHandler extends ChannelInboundHandlerAdapter {
          AuditLogger.setRemoteAddress(connection.getRemoteAddress());
       }
 
-      MQTTUtil.logMessage(session.getState(), message, true);
+      MQTTUtil.logMessage(session.getState(), message, true, session.getVersion());
 
       if (this.ctx == null) {
          this.ctx = ctx;
@@ -173,7 +174,7 @@ public class MQTTProtocolHandler extends ChannelInboundHandlerAdapter {
                handleUnsubscribe((MqttUnsubscribeMessage) message);
                break;
             case DISCONNECT:
-               disconnect(false);
+               disconnect(false, message);
                break;
             case UNSUBACK:
             case SUBACK:
@@ -280,6 +281,16 @@ public class MQTTProtocolHandler extends ChannelInboundHandlerAdapter {
    }
 
    void disconnect(boolean error) {
+      disconnect(error, null);
+   }
+
+   void disconnect(boolean error, MqttMessage disconnect) {
+      if (disconnect != null && disconnect.variableHeader() instanceof MqttReasonCodeAndPropertiesVariableHeader) {
+         Integer sessionExpiryInterval = MQTTUtil.getProperty(Integer.class, ((MqttReasonCodeAndPropertiesVariableHeader)disconnect.variableHeader()).properties(), SESSION_EXPIRY_INTERVAL, null);
+         if (sessionExpiryInterval != null) {
+            session.getState().setClientSessionExpiryInterval(sessionExpiryInterval);
+         }
+      }
       session.getConnectionManager().disconnect(error);
    }
 
@@ -407,7 +418,7 @@ public class MQTTProtocolHandler extends ChannelInboundHandlerAdapter {
       if (this.protocolManager.invokeOutgoing(message, connection) != null) {
          return;
       }
-      MQTTUtil.logMessage(session.getState(), message, false);
+      MQTTUtil.logMessage(session.getState(), message, false, session.getVersion());
       ctx.writeAndFlush(message, ctx.voidPromise());
    }
 
