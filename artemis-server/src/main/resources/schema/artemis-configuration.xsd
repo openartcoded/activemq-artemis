@@ -1709,7 +1709,7 @@
             </xsd:annotation>
          </xsd:element>
 
-         <xsd:element name="producer-window-size" type="xsd:string" maxOccurs="1" minOccurs="0" default="-1">
+         <xsd:element name="producer-window-size" type="xsd:string" maxOccurs="1" minOccurs="0" default="1048576">
             <xsd:annotation>
                <xsd:documentation>
                   Producer flow control. Supports byte notation like "K", "Mb", "GB", etc.
@@ -2117,6 +2117,7 @@
       <xsd:sequence maxOccurs="unbounded">
         <xsd:element name="amqp-connection" type="amqp-connectionUriType"/>
       </xsd:sequence>
+      <xsd:attributeGroup ref="xml:specialAttrs"/>
    </xsd:complexType>
 
    <xsd:complexType name="connectionRouterType">
@@ -2442,6 +2443,14 @@
             </xsd:documentation>
          </xsd:annotation>
       </xsd:attribute>
+      <xsd:attribute name="address-filter" type="xsd:string" use="optional">
+         <xsd:annotation>
+            <xsd:documentation>
+               This defines a filter that mirror will use to determine witch events will be forwarded toward
+               target server based on source address.
+            </xsd:documentation>
+         </xsd:annotation>
+      </xsd:attribute>
 
    </xsd:complexType>
 
@@ -2605,7 +2614,7 @@
             </xsd:annotation>
          </xsd:element>
 
-         <xsd:element name="producer-window-size" type="xsd:string" maxOccurs="1" minOccurs="0" default="-1">
+         <xsd:element name="producer-window-size" type="xsd:string" maxOccurs="1" minOccurs="0" default="1048576">
             <xsd:annotation>
                <xsd:documentation>
                   Producer flow control. Supports byte notation like "K", "Mb", "GB", etc.
@@ -2925,6 +2934,14 @@
             <xsd:annotation>
                <xsd:documentation>
                   The JDBC jouranl sync period in milliseconds.
+               </xsd:documentation>
+            </xsd:annotation>
+         </xsd:element>
+         <xsd:element name="jdbc-allowed-time-diff" type="xsd:long" minOccurs="0" maxOccurs="1" default="250">
+            <xsd:annotation>
+               <xsd:documentation>
+                  The maximal time offset between the broker and the database in milliseconds when requesting the
+                  current time of the database while updating and validating live and backup locks.
                </xsd:documentation>
             </xsd:annotation>
          </xsd:element>
@@ -3975,6 +3992,24 @@
                <xsd:annotation>
                   <xsd:documentation>
                      Number of paging files to cache in memory to avoid IO during paging navigation
+                  </xsd:documentation>
+               </xsd:annotation>
+            </xsd:element>
+
+            <xsd:element name="max-read-page-messages" type="xsd:int" default="-1" maxOccurs="1" minOccurs="0">
+               <xsd:annotation>
+                  <xsd:documentation>
+                     How many messages are we allowed to read from page into the Queue each time. We should read more data from pages as messages are acknowledged until it fills up the size.
+                     Between this and max-read-page-bytes the system will stop reading based on whatever hits the mark first.
+                  </xsd:documentation>
+               </xsd:annotation>
+            </xsd:element>
+
+            <xsd:element name="max-read-page-bytes" type="xsd:string" default="20M" maxOccurs="1" minOccurs="0">
+               <xsd:annotation>
+                  <xsd:documentation>
+                     How many bytes are we allowed to read from page into the Queue each time. We should read more data from pages as messages are acknowledged until it fills up the size.
+                     Between this and max-read-page-messages the system will stop reading based on whatever hits the mark first.
                   </xsd:documentation>
                </xsd:annotation>
             </xsd:element>

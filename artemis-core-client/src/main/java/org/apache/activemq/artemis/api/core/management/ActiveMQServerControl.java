@@ -19,6 +19,7 @@ package org.apache.activemq.artemis.api.core.management;
 import javax.management.MBeanOperationInfo;
 import java.util.Map;
 
+import org.apache.activemq.artemis.api.config.ActiveMQDefaultConfiguration;
 import org.apache.activemq.artemis.api.core.ActiveMQAddressDoesNotExistException;
 
 /**
@@ -30,6 +31,12 @@ public interface ActiveMQServerControl {
    String ADDRESS_MEMORY_USAGE_DESCRIPTION = "Memory used by all the addresses on broker for in-memory messages";
    String ADDRESS_MEMORY_USAGE_PERCENTAGE_DESCRIPTION = "Memory used by all the addresses on broker as a percentage of the global-max-size";
    String DISK_STORE_USAGE_DESCRIPTION = "Fraction of total disk store used";
+
+   /**
+    * Returns this server's name.
+    */
+   @Attribute(desc = "Server's name")
+   String getName();
 
    /**
     * Returns this server's version.
@@ -513,6 +520,9 @@ public interface ActiveMQServerControl {
     */
    @Attribute(desc = "The runtime size of the authorization cache")
    long getAuthorizationCacheSize();
+
+   @Attribute(desc = "The current status in JSON format")
+   String getStatus();
 
    // Operations ----------------------------------------------------
    @Operation(desc = "Isolate the broker", impact = MBeanOperationInfo.ACTION)
@@ -1816,6 +1826,13 @@ public interface ActiveMQServerControl {
    @Operation(desc = "Destroy a bridge", impact = MBeanOperationInfo.ACTION)
    void destroyBridge(@Parameter(name = "name", desc = "Name of the bridge") String name) throws Exception;
 
+   @Operation(desc = "Add a connector", impact = MBeanOperationInfo.ACTION)
+   void addConnector(@Parameter(name = "name", desc = "the unique name of the connector to add; may be referenced from other components (e.g. bridges)") String name,
+                     @Parameter(name = "url", desc = "the URL of the connector") String url) throws Exception;
+
+   @Operation(desc = "Remove a connector", impact = MBeanOperationInfo.ACTION)
+   void removeConnector(@Parameter(name = "name", desc = "the name of the connector to remove") String name) throws Exception;
+
    @Operation(desc = "List the existing broker connections", impact = MBeanOperationInfo.INFO)
    String listBrokerConnections();
 
@@ -1960,16 +1977,31 @@ public interface ActiveMQServerControl {
    @Operation(desc = "forces the broker to reload its configuration file", impact = MBeanOperationInfo.ACTION)
    void reloadConfigurationFile() throws Exception;
 
-   @Operation(desc = "Makes the broker to read messages from the retention folder matching the address and filter.", impact = MBeanOperationInfo.ACTION)
+   @Operation(desc = "Replays messages from all files in the retention folder that match an address and filter.", impact = MBeanOperationInfo.ACTION)
    void replay(@Parameter(name = "address", desc = "Name of the address to replay") String address,
                @Parameter(name = "target", desc = "Where the replay data should be sent") String target,
                @Parameter(name = "filter", desc = "Filter to apply on message selection. Null means everything matching the address") String filter) throws Exception;
 
-   @Operation(desc = "Makes the broker to read messages from the retention folder matching the address and filter.", impact = MBeanOperationInfo.ACTION)
+   @Operation(desc = "Replays messages from a configurable subset of the files in the retention folder that match an address and filter.", impact = MBeanOperationInfo.ACTION)
    void replay(@Parameter(name = "startScanDate", desc = "Start date where we will start scanning for journals to replay. Format YYYYMMDDHHMMSS") String startScan,
                @Parameter(name = "endScanDate", desc = "Finish date where we will stop scannning for journals to replay. Format YYYYMMDDHHMMSS") String endScan,
                @Parameter(name = "address", desc = "Name of the address to replay") String address,
                @Parameter(name = "target", desc = "Where the replay data should be sent") String target,
                @Parameter(name = "filter", desc = "Filter to apply on message selection. Null means everything matching the address") String filter) throws Exception;
+
+   @Operation(desc = "stop the embedded web server", impact = MBeanOperationInfo.ACTION)
+   void stopEmbeddedWebServer() throws Exception;
+
+   @Operation(desc = "start the embedded web server", impact = MBeanOperationInfo.ACTION)
+   void startEmbeddedWebServer() throws Exception;
+
+   @Operation(desc = "restart the embedded web server; wait the default " + ActiveMQDefaultConfiguration.DEFAULT_EMBEDDED_WEB_SERVER_RESTART_TIMEOUT + " milliseconds to ensure restart completes successfully", impact = MBeanOperationInfo.ACTION)
+   void restartEmbeddedWebServer() throws Exception;
+
+   @Operation(desc = "restart the embedded web server; wait specified time (in milliseconds) to ensure restart completes successfully", impact = MBeanOperationInfo.ACTION)
+   void restartEmbeddedWebServer(@Parameter(name = "timeout", desc = "how long to wait (in milliseconds) to ensure restart completes successfully") long timeout) throws Exception;
+
+   @Attribute(desc = "Whether the embedded web server is started")
+   boolean isEmbeddedWebServerStarted();
 }
 

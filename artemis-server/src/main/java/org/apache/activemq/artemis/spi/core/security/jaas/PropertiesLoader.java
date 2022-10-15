@@ -20,11 +20,13 @@ import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 public class PropertiesLoader {
 
-   private static final Logger logger = Logger.getLogger(PropertiesLoader.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    static final Map<FileNameKey, ReloadableProperties> staticCache = new HashMap<>();
    protected boolean debug;
@@ -112,7 +114,7 @@ public class PropertiesLoader {
             }
          }
          if (debug) {
-            logger.debug("Using basedir=" + (baseDir == null ? null : baseDir.getAbsolutePath()));
+            logger.debug("Using basedir={}", (baseDir == null ? null : baseDir.getAbsolutePath()));
          }
          return baseDir;
       }

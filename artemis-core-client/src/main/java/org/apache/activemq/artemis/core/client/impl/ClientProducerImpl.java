@@ -33,14 +33,16 @@ import org.apache.activemq.artemis.utils.ActiveMQBufferInputStream;
 import org.apache.activemq.artemis.utils.DeflaterReader;
 import org.apache.activemq.artemis.utils.TokenBucketLimiter;
 import org.apache.activemq.artemis.utils.UUIDGenerator;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 /**
  * The client-side Producer.
  */
 public class ClientProducerImpl implements ClientProducerInternal {
 
-   private static final Logger logger = Logger.getLogger(ClientProducerImpl.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private final SimpleString address;
 
@@ -140,9 +142,7 @@ public class ClientProducerImpl implements ClientProducerInternal {
       doSend(address1, message, handler);
 
       if (handler != null && !session.isConfirmationWindowEnabled()) {
-         if (logger.isDebugEnabled()) {
-            logger.debug("Handler was used on producing messages towards address " + address1 + " however there is no confirmationWindowEnabled");
-         }
+         logger.debug("Handler was used on producing messages towards address {} however there is no confirmationWindowEnabled", address1);
 
          // if there is no confirmation enabled, we will at least call the handler after the sent is done
          session.scheduleConfirmation(handler, message);
@@ -282,7 +282,7 @@ public class ClientProducerImpl implements ClientProducerInternal {
       // Not the continuations, but this is ok since we are only interested in limiting the amount of
       // data in *memory* and continuations go straight to the disk
 
-      logger.tracef("sendRegularMessage::%s, Blocking=%s", msgI, sendBlocking);
+      logger.trace("sendRegularMessage::{}, Blocking={}", msgI, sendBlocking);
 
       int creditSize = sessionContext.getCreditsOnSendingFull(msgI);
 
@@ -308,7 +308,7 @@ public class ClientProducerImpl implements ClientProducerInternal {
                                  final ICoreMessage msgI,
                                  final ClientProducerCredits credits,
                                  SendAcknowledgementHandler handler) throws ActiveMQException {
-      logger.tracef("largeMessageSend::%s, Blocking=%s", msgI, sendBlocking);
+      logger.trace("largeMessageSend::{}, Blocking={}", msgI, sendBlocking);
 
       int headerSize = msgI.getHeadersAndPropertiesEncodeSize();
 

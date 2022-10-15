@@ -19,12 +19,14 @@ package org.apache.activemq.artemis.tests.unit;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.reflect.ClassPath;
-import org.apache.activemq.artemis.tests.util.RandomUtil;
-import org.jboss.logging.Logger;
+import org.apache.activemq.artemis.utils.RandomUtil;
 import org.junit.Assume;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Modifier;
@@ -37,7 +39,7 @@ import java.util.List;
 
 @RunWith(value = Parameterized.class)
 public class AllClassesTest {
-   private static final Logger log = Logger.getLogger(AllClassesTest.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    @Parameterized.Parameters(name = "classInfo={0}")
    public static Collection getParameters() {
@@ -56,7 +58,7 @@ public class AllClassesTest {
                      parameters.add(loadedClass);
                   }
                } catch (Throwable loadThrowable) {
-                  log.debug("cannot load " + classInfo.getName() + ": " + loadThrowable);
+                  logger.debug("cannot load {} : {}", classInfo.getName(), loadThrowable);
                }
             }
          }
@@ -65,7 +67,7 @@ public class AllClassesTest {
 
          return parameters;
       } catch (Exception e) {
-         log.warn("Exception on loading all classes: " + e);
+         logger.warn("Exception on loading all classes: {}", e.toString());
       }
 
       return parameters;
@@ -85,20 +87,20 @@ public class AllClassesTest {
       try {
          targetInstance = newInstance(targetClass);
       } catch (Throwable t) {
-         log.debug("Error creating a new instance of " + targetClass.getName() + ": " + t);
+         logger.debug("Error creating a new instance of {}: {}", targetClass.getName(), t);
       }
 
       Assume.assumeTrue("Cannot create " + targetClass.getName(), targetInstance != null);
 
       try {
          String targetOutput = targetInstance.toString();
-         log.debug("targetOutput: " + targetOutput);
+         logger.debug("targetOutput: {}", targetOutput);
       } finally {
          if (targetInstance instanceof AutoCloseable) {
             try {
                ((AutoCloseable)targetInstance).close();
             } catch (Throwable t) {
-               log.debug("Error closing the instance of " + targetClass.getName() + ": " + t);
+               logger.debug("Error closing the instance of {}: {}", targetClass.getName(), t);
             }
          }
       }
@@ -140,7 +142,9 @@ public class AllClassesTest {
          try {
             return targetConstructor.newInstance(initArgs.toArray());
          } catch (Throwable t) {
-            log.debug("Cannot construct " + targetClass.getName() + ": " + t);
+            if (logger.isDebugEnabled()) {
+               logger.debug("Cannot construct {}: {}", targetClass.getName(), t);
+            }
          }
       }
 

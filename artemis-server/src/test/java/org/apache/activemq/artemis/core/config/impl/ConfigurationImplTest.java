@@ -16,18 +16,23 @@
  */
 package org.apache.activemq.artemis.core.config.impl;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.PrintWriter;
+import java.lang.reflect.Method;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import org.apache.activemq.artemis.ArtemisConstants;
@@ -35,10 +40,18 @@ import org.apache.activemq.artemis.api.config.ActiveMQDefaultConfiguration;
 import org.apache.activemq.artemis.api.core.SimpleString;
 import org.apache.activemq.artemis.api.core.TransportConfiguration;
 import org.apache.activemq.artemis.core.config.Configuration;
+import org.apache.activemq.artemis.core.config.ConfigurationUtils;
 import org.apache.activemq.artemis.core.config.amqpBrokerConnectivity.AMQPBrokerConnectConfiguration;
 import org.apache.activemq.artemis.core.config.amqpBrokerConnectivity.AMQPBrokerConnectionAddressType;
+import org.apache.activemq.artemis.core.config.amqpBrokerConnectivity.AMQPBrokerConnectionElement;
 import org.apache.activemq.artemis.core.config.amqpBrokerConnectivity.AMQPMirrorBrokerConnectionElement;
+import org.apache.activemq.artemis.core.config.federation.FederationAddressPolicyConfiguration;
+import org.apache.activemq.artemis.core.config.federation.FederationPolicySet;
+import org.apache.activemq.artemis.core.config.federation.FederationQueuePolicyConfiguration;
 import org.apache.activemq.artemis.core.config.ha.LiveOnlyPolicyConfiguration;
+import org.apache.activemq.artemis.core.deployers.impl.FileConfigurationParser;
+import org.apache.activemq.artemis.core.security.Role;
+import org.apache.activemq.artemis.core.server.ComponentConfigurationRoutingType;
 import org.apache.activemq.artemis.core.server.JournalType;
 import org.apache.activemq.artemis.core.server.cluster.impl.MessageLoadBalancingType;
 import org.apache.activemq.artemis.core.server.plugin.impl.LoggingActiveMQServerPlugin;
@@ -48,14 +61,17 @@ import org.apache.activemq.artemis.core.settings.impl.ResourceLimitSettings;
 import org.apache.activemq.artemis.tests.util.ActiveMQTestBase;
 import org.apache.activemq.artemis.utils.RandomUtil;
 import org.apache.activemq.artemis.utils.critical.CriticalAnalyzerPolicy;
-import org.jboss.logging.Logger;
+import org.apache.commons.lang3.ClassUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
 public class ConfigurationImplTest extends ActiveMQTestBase {
 
-   private static final Logger log = Logger.getLogger(ConfigurationImplTest.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    protected Configuration conf;
 
@@ -555,7 +571,7 @@ public class ConfigurationImplTest extends ActiveMQTestBase {
          tempFolder = new File(tempFolder.getAbsolutePath());
          tempFolder.mkdirs();
 
-         log.debug("TempFolder = " + tempFolder.getAbsolutePath());
+         logger.debug("TempFolder = {}", tempFolder.getAbsolutePath());
 
          ConfigurationImpl configuration = new ConfigurationImpl();
          configuration.setJournalDirectory(tempFolder.getAbsolutePath());
@@ -573,7 +589,7 @@ public class ConfigurationImplTest extends ActiveMQTestBase {
          tempFolder = new File(tempFolder.getAbsolutePath());
          tempFolder.mkdirs();
 
-         log.debug("TempFolder = " + tempFolder.getAbsolutePath());
+         logger.debug("TempFolder = {}", tempFolder.getAbsolutePath());
          configuration.setNodeManagerLockDirectory(tempFolder.getAbsolutePath());
          File lockLocation = configuration.getNodeManagerLockLocation();
          Assert.assertTrue(lockLocation.exists());
@@ -594,6 +610,60 @@ public class ConfigurationImplTest extends ActiveMQTestBase {
 
    }
 
+   @Test
+   public void testRootPrimitives() throws Exception {
+      ConfigurationImpl configuration = new ConfigurationImpl();
+      Properties properties = new Properties();
+      Method[] declaredMethods = Configuration.class.getDeclaredMethods();
+      HashMap<String, Object> props = new HashMap<>();
+      int nextInt = 1;
+      long nextLong = 1;
+      // add random entries for all root primitive bean properties
+      for (Method declaredMethod : declaredMethods) {
+         if (declaredMethod.getName().startsWith("set") && declaredMethod.getAnnotation(Deprecated.class) == null &&
+                 declaredMethod.getParameterCount() == 1 && (ClassUtils.isPrimitiveOrWrapper(declaredMethod.getParameters()[0].getType())
+                 || declaredMethod.getParameters()[0].getType().equals(String.class))) {
+            String prop = declaredMethod.getName().substring(3);
+            prop = Character.toLowerCase(prop.charAt(0)) +
+                    (prop.length() > 1 ? prop.substring(1) : "");
+            Class<?> type = declaredMethod.getParameters()[0].getType();
+            if (type.equals(Boolean.class)) {
+               properties.put(prop, Boolean.TRUE);
+            } else if (type.equals(boolean.class)) {
+               properties.put(prop, true);
+            } else if (type.equals(Long.class) || type.equals(long.class)) {
+               properties.put(prop, nextLong++);
+            } else if (type.equals(Integer.class) || type.equals(int.class)) {
+               properties.put(prop, nextInt++);
+            } else if (type.equals(String.class)) {
+               byte[] array = new byte[7]; // length is bounded by 7
+               new Random().nextBytes(array);
+               String generatedString = new String(array, Charset.forName("UTF-8"));
+
+               properties.put(prop, generatedString);
+            }
+         }
+      }
+      properties.remove("status"); // this is not a simple symmetric property
+      // now parse
+      configuration.parsePrefixedProperties(properties, null);
+
+      //then call the getter to make sure it gets set
+      for (Map.Entry<Object, Object> entry : properties.entrySet()) {
+         String methodName = entry.getKey().toString();
+         methodName = Character.toUpperCase(methodName.charAt(0)) +
+                 (methodName.length() > 1 ? methodName.substring(1) : "");
+         if (entry.getValue().getClass() == Boolean.class || entry.getValue().getClass() == boolean.class) {
+            methodName = "is" + methodName;
+         } else {
+            methodName = "get" + methodName;
+         }
+
+         Method declaredMethod = ConfigurationImpl.class.getDeclaredMethod(methodName);
+         Object value = declaredMethod.invoke(configuration);
+         Assert.assertEquals(value, properties.get(entry.getKey()));
+      }
+   }
 
    @Test
    public void testSetSystemProperty() throws Throwable {
@@ -610,21 +680,16 @@ public class ConfigurationImplTest extends ActiveMQTestBase {
 
    @Test
    public void testSetConnectionRoutersPolicyConfiguration() throws Throwable {
-      ConfigurationImpl configuration = new ConfigurationImpl();
+      testSetConnectionRoutersPolicyConfiguration(new ConfigurationImpl());
+   }
 
-      Properties insertionOrderedProperties = new Properties() {
-         final LinkedHashMap<Object, Object> orderedMap = new LinkedHashMap<>();
+   @Test
+   public void testSetConnectionRoutersPolicyFileConfiguration() throws Throwable {
+      testSetConnectionRoutersPolicyConfiguration(new FileConfiguration());
+   }
 
-         @Override
-         public Object put(Object key, Object value) {
-            return orderedMap.put(key.toString(), value.toString());
-         }
-
-         @Override
-         public Set<Map.Entry<Object, Object>> entrySet() {
-            return orderedMap.entrySet();
-         }
-      };
+   private void testSetConnectionRoutersPolicyConfiguration(ConfigurationImpl configuration) throws Throwable {
+      Properties insertionOrderedProperties = new ConfigurationImpl.InsertionOrderedProperties();
       insertionOrderedProperties.put("connectionRouters.autoShard.localTargetFilter", "NULL|$STATEFUL_SET_ORDINAL");
       insertionOrderedProperties.put("connectionRouters.autoShard.keyType", KeyType.CLIENT_ID);
       insertionOrderedProperties.put("connectionRouters.autoShard.policyConfiguration", ConsistentHashModuloPolicy.NAME);
@@ -635,6 +700,126 @@ public class ConfigurationImplTest extends ActiveMQTestBase {
       Assert.assertEquals(1, configuration.getConnectionRouters().size());
       Assert.assertEquals(KeyType.CLIENT_ID, configuration.getConnectionRouters().get(0).getKeyType());
       Assert.assertEquals("2", configuration.getConnectionRouters().get(0).getPolicyConfiguration().getProperties().get(ConsistentHashModuloPolicy.MODULO));
+   }
+
+   @Test
+   public void testAMQPConnectionsConfiguration() throws Throwable {
+      ConfigurationImpl configuration = new ConfigurationImpl();
+
+      Properties insertionOrderedProperties = new ConfigurationImpl.InsertionOrderedProperties();
+      insertionOrderedProperties.put("AMQPConnections.target.uri", "localhost:61617");
+      insertionOrderedProperties.put("AMQPConnections.target.retryInterval", 55);
+      insertionOrderedProperties.put("AMQPConnections.target.reconnectAttempts", -2);
+      insertionOrderedProperties.put("AMQPConnections.target.user", "admin");
+      insertionOrderedProperties.put("AMQPConnections.target.password", "password");
+      insertionOrderedProperties.put("AMQPConnections.target.autoStart", "true");
+      insertionOrderedProperties.put("AMQPConnections.target.connectionElements.mirror.type", "MIRROR");
+      insertionOrderedProperties.put("AMQPConnections.target.connectionElements.mirror.messageAcknowledgements", "true");
+      insertionOrderedProperties.put("AMQPConnections.target.connectionElements.mirror.queueCreation", "true");
+      insertionOrderedProperties.put("AMQPConnections.target.connectionElements.mirror.queueRemoval", "true");
+      insertionOrderedProperties.put("AMQPConnections.target.connectionElements.mirror.addressFilter", "foo");
+
+      configuration.parsePrefixedProperties(insertionOrderedProperties, null);
+
+      Assert.assertEquals(1, configuration.getAMQPConnections().size());
+      AMQPBrokerConnectConfiguration connectConfiguration = configuration.getAMQPConnections().get(0);
+      Assert.assertEquals("target", connectConfiguration.getName());
+      Assert.assertEquals("localhost:61617", connectConfiguration.getUri());
+      Assert.assertEquals(55, connectConfiguration.getRetryInterval());
+      Assert.assertEquals(-2, connectConfiguration.getReconnectAttempts());
+      Assert.assertEquals("admin", connectConfiguration.getUser());
+      Assert.assertEquals("password", connectConfiguration.getPassword());
+      Assert.assertEquals(1,connectConfiguration.getConnectionElements().size());
+      AMQPBrokerConnectionElement amqpBrokerConnectionElement = connectConfiguration.getConnectionElements().get(0);
+      Assert.assertTrue(amqpBrokerConnectionElement instanceof AMQPMirrorBrokerConnectionElement);
+      AMQPMirrorBrokerConnectionElement amqpMirrorBrokerConnectionElement = (AMQPMirrorBrokerConnectionElement) amqpBrokerConnectionElement;
+      Assert.assertEquals("mirror", amqpMirrorBrokerConnectionElement.getName());
+      Assert.assertEquals(true, amqpMirrorBrokerConnectionElement.isMessageAcknowledgements());
+      Assert.assertEquals(true, amqpMirrorBrokerConnectionElement.isQueueCreation());
+      Assert.assertEquals(true, amqpMirrorBrokerConnectionElement.isQueueRemoval());
+      Assert.assertEquals("foo", amqpMirrorBrokerConnectionElement.getAddressFilter());
+   }
+
+   @Test
+   public void testCoreBridgeConfiguration() throws Throwable {
+      ConfigurationImpl configuration = new ConfigurationImpl();
+
+      final String queueName = "q";
+      final String forwardingAddress = "fa";
+
+      Properties properties = new ConfigurationImpl.InsertionOrderedProperties();
+
+      properties.put("bridgeConfigurations.b1.queueName", queueName);
+      properties.put("bridgeConfigurations.b1.forwardingAddress", forwardingAddress);
+      properties.put("bridgeConfigurations.b1.confirmationWindowSize", "10");
+      properties.put("bridgeConfigurations.b1.routingType", "STRIP");  // enum
+      // this is a List<String> from comma sep value
+      properties.put("bridgeConfigurations.b1.staticConnectors", "a,b");
+      // flip b in place
+      properties.put("bridgeConfigurations.b1.staticConnectors[1]", "c");
+
+      configuration.parsePrefixedProperties(properties, null);
+
+      Assert.assertEquals(1, configuration.getBridgeConfigurations().size());
+      Assert.assertEquals(queueName, configuration.getBridgeConfigurations().get(0).getQueueName());
+
+      Assert.assertEquals(forwardingAddress, configuration.getBridgeConfigurations().get(0).getForwardingAddress());
+      Assert.assertEquals(10, configuration.getBridgeConfigurations().get(0).getConfirmationWindowSize());
+      Assert.assertEquals(2, configuration.getBridgeConfigurations().get(0).getStaticConnectors().size());
+      Assert.assertEquals("a", configuration.getBridgeConfigurations().get(0).getStaticConnectors().get(0));
+      Assert.assertEquals("c", configuration.getBridgeConfigurations().get(0).getStaticConnectors().get(1));
+
+      Assert.assertEquals(ComponentConfigurationRoutingType.STRIP, configuration.getBridgeConfigurations().get(0).getRoutingType());
+   }
+
+   @Test
+   public void testFederationUpstreamConfiguration() throws Throwable {
+      ConfigurationImpl configuration = new ConfigurationImpl();
+
+      Properties properties = new ConfigurationImpl.InsertionOrderedProperties();
+
+      properties.put("federationConfigurations.f1.upstreamConfigurations.joe.connectionConfiguration.reconnectAttempts", "1");
+      properties.put("federationConfigurations.f1.upstreamConfigurations.joe.connectionConfiguration.staticConnectors", "a,b,c");
+      properties.put("federationConfigurations.f1.upstreamConfigurations.joe.policyRefs", "pq1,pq2");
+
+      properties.put("federationConfigurations.f1.queuePolicies.qp1.transformerRef", "simpleTransform");
+      properties.put("federationConfigurations.f1.queuePolicies.qp2.includes.all-N.queueMatch", "N#");
+
+      properties.put("federationConfigurations.f1.addressPolicies.a1.transformerRef", "simpleTransform");
+      properties.put("federationConfigurations.f1.addressPolicies.a1.excludes.just-b.addressMatch", "b");
+
+      properties.put("federationConfigurations.f1.policySets.combined.policyRefs", "qp1,qp2,a1");
+
+      properties.put("federationConfigurations.f1.transformerConfigurations.simpleTransform.transformerConfiguration.className", "a.b");
+      properties.put("federationConfigurations.f1.transformerConfigurations.simpleTransform.transformerConfiguration.properties.a", "b");
+
+      properties.put("federationConfigurations.f1.credentials.user", "u");
+      properties.put("federationConfigurations.f1.credentials.password", "ENC(2a7c211d21c295cdbcde3589c205decb)");
+
+      configuration.parsePrefixedProperties(properties, null);
+
+      Assert.assertEquals(1, configuration.getFederationConfigurations().size());
+      Assert.assertEquals(1, configuration.getFederationConfigurations().get(0).getUpstreamConfigurations().get(0).getConnectionConfiguration().getReconnectAttempts());
+      Assert.assertEquals(3, configuration.getFederationConfigurations().get(0).getUpstreamConfigurations().get(0).getConnectionConfiguration().getStaticConnectors().size());
+
+      Assert.assertEquals(2, configuration.getFederationConfigurations().get(0).getUpstreamConfigurations().get(0).getPolicyRefs().size());
+
+      Assert.assertEquals(4, configuration.getFederationConfigurations().get(0).getFederationPolicyMap().size());
+      Assert.assertEquals("qp1", configuration.getFederationConfigurations().get(0).getFederationPolicyMap().get("qp1").getName());
+
+      Assert.assertEquals("combined", configuration.getFederationConfigurations().get(0).getFederationPolicyMap().get("combined").getName());
+      Assert.assertEquals(3, ((FederationPolicySet)configuration.getFederationConfigurations().get(0).getFederationPolicyMap().get("combined")).getPolicyRefs().size());
+
+      Assert.assertEquals("simpleTransform", ((FederationQueuePolicyConfiguration)configuration.getFederationConfigurations().get(0).getFederationPolicyMap().get("qp1")).getTransformerRef());
+
+      Assert.assertEquals("N#", ((FederationQueuePolicyConfiguration.Matcher)((FederationQueuePolicyConfiguration)configuration.getFederationConfigurations().get(0).getFederationPolicyMap().get("qp2")).getIncludes().toArray()[0]).getQueueMatch());
+      Assert.assertEquals("b", ((FederationAddressPolicyConfiguration.Matcher)((FederationAddressPolicyConfiguration)configuration.getFederationConfigurations().get(0).getFederationPolicyMap().get("a1")).getExcludes().toArray()[0]).getAddressMatch());
+
+      Assert.assertEquals("b", configuration.getFederationConfigurations().get(0).getTransformerConfigurations().get("simpleTransform").getTransformerConfiguration().getProperties().get("a"));
+      Assert.assertEquals("a.b", configuration.getFederationConfigurations().get(0).getTransformerConfigurations().get("simpleTransform").getTransformerConfiguration().getClassName());
+
+      Assert.assertEquals("u", configuration.getFederationConfigurations().get(0).getCredentials().getUser());
+      Assert.assertEquals("secureexample", configuration.getFederationConfigurations().get(0).getCredentials().getPassword());
    }
 
    @Test
@@ -722,22 +907,177 @@ public class ConfigurationImplTest extends ActiveMQTestBase {
       Assert.assertEquals("TF", configuration.getConnectionRouters().get(0).getKeyFilter());
    }
 
+
+   @Test
+   public void testAddressViaProperties() throws Throwable {
+      ConfigurationImpl configuration = new ConfigurationImpl();
+
+      Properties properties = new Properties();
+
+      properties.put("addressConfigurations.\"LB.TEST\".queueConfigs.\"LB.TEST\".routingType", "ANYCAST");
+      properties.put("addressConfigurations.\"LB.TEST\".queueConfigs.\"LB.TEST\".durable", "false");
+
+      configuration.parsePrefixedProperties(properties, null);
+
+      Assert.assertEquals(1, configuration.getAddressConfigurations().size());
+      Assert.assertEquals(1, configuration.getAddressConfigurations().get(0).getQueueConfigs().size());
+      Assert.assertEquals(SimpleString.toSimpleString("LB.TEST"), configuration.getAddressConfigurations().get(0).getQueueConfigs().get(0).getAddress());
+      Assert.assertEquals(false, configuration.getAddressConfigurations().get(0).getQueueConfigs().get(0).isDurable());
+   }
+
+
+   @Test
+   public void testAcceptorViaProperties() throws Throwable {
+      ConfigurationImpl configuration = new ConfigurationImpl();
+
+      configuration.getAcceptorConfigurations().add(ConfigurationUtils.parseAcceptorURI(
+         "artemis", "tcp://0.0.0.0:61616?protocols=CORE,AMQP,STOMP,HORNETQ,MQTT,OPENWIRE;supportAdvisory=false;suppressInternalManagementObjects=false").get(0));
+
+      Properties properties = new Properties();
+
+      properties.put("acceptorConfigurations.artemis.extraParams.supportAdvisory", "true");
+      properties.put("acceptorConfigurations.new.extraParams.supportAdvisory", "true");
+
+      configuration.parsePrefixedProperties(properties, null);
+
+      Assert.assertEquals(2, configuration.getAcceptorConfigurations().size());
+
+      TransportConfiguration artemisTransportConfiguration = configuration.getAcceptorConfigurations().stream().filter(
+         transportConfiguration -> transportConfiguration.getName().equals("artemis")).findFirst().get();
+      Assert.assertTrue(artemisTransportConfiguration.getParams().containsKey("protocols"));
+      Assert.assertEquals("CORE,AMQP,STOMP,HORNETQ,MQTT,OPENWIRE", artemisTransportConfiguration.getParams().get("protocols"));
+      Assert.assertTrue(artemisTransportConfiguration.getExtraParams().containsKey("supportAdvisory"));
+      Assert.assertEquals("true", artemisTransportConfiguration.getExtraParams().get("supportAdvisory"));
+      Assert.assertTrue(artemisTransportConfiguration.getExtraParams().containsKey("suppressInternalManagementObjects"));
+      Assert.assertEquals("false", artemisTransportConfiguration.getExtraParams().get("suppressInternalManagementObjects"));
+
+      TransportConfiguration newTransportConfiguration = configuration.getAcceptorConfigurations().stream().filter(
+         transportConfiguration -> transportConfiguration.getName().equals("new")).findFirst().get();
+      Assert.assertTrue(newTransportConfiguration.getExtraParams().containsKey("supportAdvisory"));
+      Assert.assertEquals("true", newTransportConfiguration.getExtraParams().get("supportAdvisory"));
+   }
+
+
    @Test
    public void testAddressSettingsViaProperties() throws Throwable {
       ConfigurationImpl configuration = new ConfigurationImpl();
 
       Properties properties = new Properties();
 
-      properties.put("addressesSettings.#.expiryAddress", "sharedExpiry");
-      properties.put("addressesSettings.NeedToTrackExpired.expiryAddress", "important");
-      properties.put("addressesSettings.\"Name.With.Dots\".expiryAddress", "moreImportant");
+      properties.put("addressesSettings.#.expiryAddress", "sharedExpiry"); // verify @Deprecation double plural still works
+      properties.put("addressSettings.NeedToTrackExpired.expiryAddress", "important");
+      properties.put("addressSettings.\"Name.With.Dots\".expiryAddress", "moreImportant");
 
       configuration.parsePrefixedProperties(properties, null);
 
-      Assert.assertEquals(3, configuration.getAddressesSettings().size());
-      Assert.assertEquals(SimpleString.toSimpleString("sharedExpiry"), configuration.getAddressesSettings().get("#").getExpiryAddress());
-      Assert.assertEquals(SimpleString.toSimpleString("important"), configuration.getAddressesSettings().get("NeedToTrackExpired").getExpiryAddress());
-      Assert.assertEquals(SimpleString.toSimpleString("moreImportant"), configuration.getAddressesSettings().get("Name.With.Dots").getExpiryAddress());
+      Assert.assertEquals(3, configuration.getAddressSettings().size());
+      Assert.assertEquals(SimpleString.toSimpleString("sharedExpiry"), configuration.getAddressSettings().get("#").getExpiryAddress());
+      Assert.assertEquals(SimpleString.toSimpleString("important"), configuration.getAddressSettings().get("NeedToTrackExpired").getExpiryAddress());
+      Assert.assertEquals(SimpleString.toSimpleString("moreImportant"), configuration.getAddressSettings().get("Name.With.Dots").getExpiryAddress());
+   }
+
+   @Test
+   public void testDivertViaProperties() throws Exception {
+      ConfigurationImpl configuration = new ConfigurationImpl();
+
+
+      final String routingName = "divert1";
+      final String address = "testAddress";
+      final String forwardAddress = "forwardAddress";
+      final String className = "s.o.m.e.class";
+
+      Properties properties = new ConfigurationImpl.InsertionOrderedProperties();
+
+      properties.put("divertConfigurations.divert1.routingName", routingName);
+      properties.put("divertConfigurations.divert1.address", address);
+      properties.put("divertConfigurations.divert1.forwardingAddress", forwardAddress);
+      properties.put("divertConfigurations.divert1.transformerConfiguration", className);
+      properties.put("divertConfigurations.divert1.transformerConfiguration.properties.a", "va");
+      properties.put("divertConfigurations.divert1.transformerConfiguration.properties.b", "vb");
+
+      configuration.parsePrefixedProperties(properties, null);
+
+      Assert.assertEquals(1, configuration.getDivertConfigurations().size());
+      Assert.assertEquals(routingName, configuration.getDivertConfigurations().get(0).getRoutingName());
+      Assert.assertEquals(address, configuration.getDivertConfigurations().get(0).getAddress());
+      Assert.assertEquals(forwardAddress, configuration.getDivertConfigurations().get(0).getForwardingAddress());
+
+      Assert.assertEquals(className, configuration.getDivertConfigurations().get(0).getTransformerConfiguration().getClassName());
+      Assert.assertEquals("va", configuration.getDivertConfigurations().get(0).getTransformerConfiguration().getProperties().get("a"));
+      Assert.assertEquals("vb", configuration.getDivertConfigurations().get(0).getTransformerConfiguration().getProperties().get("b"));
+   }
+
+   @Test
+   public void testRoleSettingsViaProperties() throws Exception {
+      ConfigurationImpl configuration = new ConfigurationImpl();
+
+      Properties properties = new Properties();
+
+      properties.put("securityRoles.TEST.users.send", "true");
+      properties.put("securityRoles.TEST.users.consume", "true");
+
+      configuration.parsePrefixedProperties(properties, null);
+
+      Assert.assertEquals(1, configuration.getSecurityRoles().size());
+      Assert.assertEquals(1, configuration.getSecurityRoles().get("TEST").size());
+      Assert.assertTrue(configuration.getSecurityRoles().get("TEST").stream().findFirst().orElse(null).isConsume());
+      Assert.assertTrue(configuration.getSecurityRoles().get("TEST").stream().findFirst().orElse(null).isSend());
+      Assert.assertFalse(configuration.getSecurityRoles().get("TEST").stream().findFirst().orElse(null).isCreateAddress());
+   }
+
+   @Test
+   public void testRoleAugmentViaProperties() throws Exception {
+
+      final String xmlConfig = "<configuration xmlns=\"urn:activemq\"\n" +
+         "xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n" +
+         "xsi:schemaLocation=\"urn:activemq /schema/artemis-configuration.xsd\">\n" +
+         "<security-settings>" + "\n" +
+         "<security-setting match=\"#\">" + "\n" +
+         "<permission type=\"consume\" roles=\"guest\"/>" + "\n" +
+         "<permission type=\"send\" roles=\"guest\"/>" + "\n" +
+         "</security-setting>" + "\n" +
+         "</security-settings>" + "\n" +
+         "</configuration>";
+
+      FileConfigurationParser parser = new FileConfigurationParser();
+      ByteArrayInputStream input = new ByteArrayInputStream(xmlConfig.getBytes(StandardCharsets.UTF_8));
+
+      ConfigurationImpl configuration = (ConfigurationImpl) parser.parseMainConfig(input);
+      Properties properties = new Properties();
+
+      // new entry
+      properties.put("securityRoles.TEST.users.send", "true");
+      properties.put("securityRoles.TEST.users.consume", "false");
+
+      // modify existing role
+      properties.put("securityRoles.#.guest.consume", "false");
+
+      // modify with new role
+      properties.put("securityRoles.#.users.send", "true");
+
+      configuration.parsePrefixedProperties(properties, null);
+
+      // verify new addition
+      Assert.assertEquals(2, configuration.getSecurityRoles().size());
+      Assert.assertEquals(1, configuration.getSecurityRoles().get("TEST").size());
+      Assert.assertFalse(configuration.getSecurityRoles().get("TEST").stream().findFirst().orElse(null).isConsume());
+      Assert.assertTrue(configuration.getSecurityRoles().get("TEST").stream().findFirst().orElse(null).isSend());
+
+      // verify augmentation
+      Assert.assertEquals(2, configuration.getSecurityRoles().get("#").size());
+      Set roles = configuration.getSecurityRoles().get("#");
+      class RolePredicate implements Predicate<Role> {
+         final String roleName;
+         RolePredicate(String name) {
+            this.roleName = name;
+         }
+         @Override
+         public boolean test(Role role) {
+            return roleName.equals(role.getName()) && !role.isConsume() && role.isSend() && !role.isCreateAddress();
+         }
+      }
+      Assert.assertEquals(1L, roles.stream().filter(new RolePredicate("guest")).count());
+      Assert.assertEquals(1L, roles.stream().filter(new RolePredicate("users")).count());
    }
 
    @Test
@@ -882,7 +1222,6 @@ public class ConfigurationImplTest extends ActiveMQTestBase {
 
          files.addLast(tmpFile.getAbsolutePath());
       }
-      final AtomicReference<String> errorAt = new AtomicReference<>();
       ConfigurationImpl configuration = new ConfigurationImpl() {
          @Override
          public ConfigurationImpl setName(String name) {
@@ -894,6 +1233,41 @@ public class ConfigurationImplTest extends ActiveMQTestBase {
       };
       configuration.parseProperties(files.stream().collect(Collectors.joining(",")));
       assertEquals("second won", "two", configuration.getName());
+   }
+
+   @Test
+   public void testPropertiesFilesInDir() throws Exception {
+
+      LinkedList<String> files = new LinkedList<>();
+      LinkedList<String> names = new LinkedList<>();
+      names.addLast("a_one");
+      names.addLast("b_two");
+
+      for (String name : names) {
+         File tmpFile = File.createTempFile(name, ".properties", temporaryFolder.getRoot());
+
+         FileOutputStream fileOutputStream = new FileOutputStream(tmpFile);
+         PrintWriter printWriter = new PrintWriter(fileOutputStream);
+
+         printWriter.println("name=" + name);
+
+         printWriter.flush();
+         fileOutputStream.flush();
+         fileOutputStream.close();
+         files.addLast(tmpFile.getAbsolutePath());
+      }
+      ConfigurationImpl configuration = new ConfigurationImpl() {
+         @Override
+         public ConfigurationImpl setName(String name) {
+            if (!(name.equals(names.remove()))) {
+               fail("Expected names from files in order");
+            }
+            return super.setName(name);
+         }
+      };
+      configuration.parseProperties(temporaryFolder.getRoot() + "/");
+      assertEquals("second won", "b_two", configuration.getName());
+      assertTrue("all names applied", names.isEmpty());
    }
 
    @Test
@@ -910,10 +1284,60 @@ public class ConfigurationImplTest extends ActiveMQTestBase {
 
       configuration.parsePrefixedProperties(properties, null);
 
-      Assert.assertEquals(3, configuration.getAddressesSettings().size());
-      Assert.assertEquals(SimpleString.toSimpleString("sharedExpiry"), configuration.getAddressesSettings().get("#").getExpiryAddress());
-      Assert.assertEquals(SimpleString.toSimpleString("important"), configuration.getAddressesSettings().get("NeedToTrackExpired").getExpiryAddress());
-      Assert.assertEquals(SimpleString.toSimpleString("moreImportant"), configuration.getAddressesSettings().get("Name.With.Dots").getExpiryAddress());
+      Assert.assertEquals(3, configuration.getAddressSettings().size());
+      Assert.assertEquals(SimpleString.toSimpleString("sharedExpiry"), configuration.getAddressSettings().get("#").getExpiryAddress());
+      Assert.assertEquals(SimpleString.toSimpleString("important"), configuration.getAddressSettings().get("NeedToTrackExpired").getExpiryAddress());
+      Assert.assertEquals(SimpleString.toSimpleString("moreImportant"), configuration.getAddressSettings().get("Name.With.Dots").getExpiryAddress());
+   }
+
+   @Test
+   public void testStatusOnErrorApplyingProperties() throws Exception {
+      ConfigurationImpl configuration = new ConfigurationImpl();
+
+      Properties properties = new Properties();
+
+      properties.put("clusterConfigurations.cc.bonkers", "bla");
+
+      properties.put("notValid.#.expiryAddress", "sharedExpiry");
+      properties.put("addressSettings.#.bla", "bla");
+      properties.put("addressSettings.#.expiryAddress", "good");
+
+      String SHA = "34311";
+      // status field json blob gives possibility for two-way interaction
+      // this value is reflected back but can be augmented
+      properties.put("status", "{ \"properties\": { \"sha\": \"" + SHA + "\"}}");
+
+      configuration.parsePrefixedProperties(properties, null);
+
+      String jsonStatus = configuration.getStatus();
+
+      // errors reported
+      assertTrue(jsonStatus.contains("notValid"));
+      assertTrue(jsonStatus.contains("Unknown"));
+      assertTrue(jsonStatus.contains("bonkers"));
+      assertTrue(jsonStatus.contains("bla"));
+
+      // input status reflected
+      assertTrue(jsonStatus.contains(SHA));
+      // only errors reported, good property goes unmentioned
+      assertFalse(jsonStatus.contains("good"));
+
+      // apply again with only good values, new sha.... verify no errors
+      properties.clear();
+
+      String UPDATED_SHA = "66666";
+      // status field json blob gives possibility for two-way interaction
+      // this value is reflected back but can be augmented
+      properties.put("status", "{ \"properties\": { \"sha\": \"" + UPDATED_SHA + "\"}}");
+      properties.put("addressSettings.#.expiryAddress", "changed");
+
+      configuration.parsePrefixedProperties(properties, null);
+
+      jsonStatus = configuration.getStatus();
+
+      assertTrue(jsonStatus.contains(UPDATED_SHA));
+      assertFalse(jsonStatus.contains(SHA));
+      assertTrue(jsonStatus.contains("alder32"));
    }
 
    /**
@@ -981,4 +1405,5 @@ public class ConfigurationImplTest extends ActiveMQTestBase {
    protected Configuration createConfiguration() throws Exception {
       return new ConfigurationImpl();
    }
+
 }

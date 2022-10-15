@@ -41,7 +41,6 @@ import org.apache.activemq.artemis.utils.ConfigurationHelper;
 import org.apache.activemq.artemis.utils.ExecutorFactory;
 import org.apache.activemq.artemis.utils.actors.OrderedExecutorFactory;
 import org.apache.activemq.artemis.utils.collections.TypedProperties;
-import org.jboss.logging.Logger;
 
 public final class InVMAcceptor extends AbstractAcceptor {
 
@@ -70,8 +69,6 @@ public final class InVMAcceptor extends AbstractAcceptor {
    private final long connectionsAllowed;
 
    private final String name;
-
-   private static final Logger logger = Logger.getLogger(InVMAcceptor.class);
 
    private final boolean enableBufferPooling;
 

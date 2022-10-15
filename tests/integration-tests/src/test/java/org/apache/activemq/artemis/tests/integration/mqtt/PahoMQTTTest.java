@@ -33,15 +33,17 @@ import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.eclipse.paho.client.mqttv3.MqttException;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
-import org.jboss.logging.Logger;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 @RunWith(Parameterized.class)
 public class PahoMQTTTest extends MQTTTestSupport {
 
-   private static final Logger log = Logger.getLogger(PahoMQTTTest.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    @Parameterized.Parameters(name = "protocol={0}")
    public static Collection<Object[]> getParams() {
@@ -58,7 +60,7 @@ public class PahoMQTTTest extends MQTTTestSupport {
    public void testLotsOfClients() throws Exception {
 
       final int CLIENTS = Integer.getInteger("PahoMQTTTest.CLIENTS", 100);
-      log.debug("Using: {} clients: " + CLIENTS);
+      logger.debug("Using: {} clients: ", CLIENTS);
 
       final AtomicInteger receiveCounter = new AtomicInteger();
       MqttClient client = createPahoClient("consumer");
@@ -114,7 +116,7 @@ public class PahoMQTTTest extends MQTTTestSupport {
       assertNull("Async error: " + asyncError.get(), asyncError.get());
       sendBarrier.countDown();
 
-      log.debug("All clients connected... waiting to receive sent messages...");
+      logger.debug("All clients connected... waiting to receive sent messages...");
 
       // We should eventually get all the messages.
       within(30, TimeUnit.SECONDS, new Task() {
@@ -124,7 +126,7 @@ public class PahoMQTTTest extends MQTTTestSupport {
          }
       });
 
-      log.debug("All messages received.");
+      logger.debug("All messages received.");
 
       disconnectDoneLatch.await();
       assertNull("Async error: " + asyncError.get(), asyncError.get());

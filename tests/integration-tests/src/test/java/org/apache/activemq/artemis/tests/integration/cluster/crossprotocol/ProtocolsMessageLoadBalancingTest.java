@@ -23,6 +23,7 @@ import javax.jms.Message;
 import javax.jms.MessageConsumer;
 import javax.jms.MessageProducer;
 import javax.jms.Session;
+import java.lang.invoke.MethodHandles;
 import java.util.Arrays;
 import java.util.Collection;
 
@@ -49,20 +50,19 @@ import org.apache.activemq.artemis.tests.util.Wait;
 import org.apache.activemq.artemis.protocol.amqp.broker.ProtonProtocolManagerFactory;
 import org.apache.activemq.artemis.spi.core.protocol.RemotingConnection;
 import org.apache.activemq.artemis.tests.integration.cluster.distribution.ClusterTestBase;
-import org.apache.activemq.artemis.utils.RetryRule;
 import org.apache.qpid.jms.JmsConnectionFactory;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @RunWith(value = Parameterized.class)
 public class ProtocolsMessageLoadBalancingTest extends ClusterTestBase {
 
-   @Rule
-   public RetryRule retryRule = new RetryRule(2);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private static final int NUMBER_OF_SERVERS = 2;
    private static final SimpleString queueName = SimpleString.toSimpleString("queues.0");
@@ -166,6 +166,7 @@ public class ProtocolsMessageLoadBalancingTest extends ClusterTestBase {
       {
          ConnectionFactory cf = getJmsConnectionFactory(0);
          Connection cn = cf.createConnection();
+         runAfter(cn::close);
          Session sn = cn.createSession(false, Session.AUTO_ACKNOWLEDGE);
          MessageProducer pd = sn.createProducer(sn.createQueue(queueName.toString()));
 
@@ -217,11 +218,13 @@ public class ProtocolsMessageLoadBalancingTest extends ClusterTestBase {
 
       // Create Consumers
       Connection cn0 = cf0.createConnection();
+      runAfter(cn0::close);
       Session sn0 = cn0.createSession(false, Session.AUTO_ACKNOWLEDGE);
       MessageConsumer c0 = sn0.createConsumer(sn0.createQueue(queueName.toString()));
       cn0.start();
 
       Connection cn1 = cf1.createConnection();
+      runAfter(cn1::close);
       Session sn1 = cn1.createSession(false, Session.AUTO_ACKNOWLEDGE);
       MessageConsumer c1 = sn1.createConsumer(sn0.createQueue(queueName.toString()));
       cn1.start();
@@ -258,8 +261,8 @@ public class ProtocolsMessageLoadBalancingTest extends ClusterTestBase {
       cn0.close();
 
       // Messages should stay in node 1 and note get redistributed.
-      assertEquals(NUMBER_OF_MESSAGES, servers[0].locateQueue(queueName).getMessageCount());
-      assertEquals(0, servers[1].locateQueue(queueName).getMessageCount());
+      Wait.assertEquals(NUMBER_OF_MESSAGES, servers[0].locateQueue(queueName)::getMessageCount);
+      Wait.assertEquals(0, servers[1].locateQueue(queueName)::getMessageCount);
    }
 
    @Test
@@ -293,6 +296,7 @@ public class ProtocolsMessageLoadBalancingTest extends ClusterTestBase {
       Thread.sleep(200);
 
       Connection connection = factory.createConnection();
+      runAfter(connection::close);
       Session session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
       MessageConsumer consumer = session.createConsumer(session.createQueue("queues.expiry"));
 
@@ -305,7 +309,7 @@ public class ProtocolsMessageLoadBalancingTest extends ClusterTestBase {
 
       startServers(MessageLoadBalancingType.STRICT);
 
-      instanceLog.debug("connections " + servers[1].getRemotingService().getConnections().size());
+      logger.debug("connections {}", servers[1].getRemotingService().getConnections().size());
 
       Wait.assertEquals(3, () -> servers[1].getRemotingService().getConnections().size());
       Wait.assertEquals(3, () -> servers[0].getRemotingService().getConnections().size());
@@ -322,6 +326,7 @@ public class ProtocolsMessageLoadBalancingTest extends ClusterTestBase {
       for (int node = 0; node < NUMBER_OF_SERVERS; node++) {
          factory[node] = getJmsConnectionFactory(node);
          connection[node] = factory[node].createConnection();
+         runAfter(connection[node]::close);
          session[node] = connection[node].createSession(false, Session.AUTO_ACKNOWLEDGE);
          consumer[node] = session[node].createConsumer(session[node].createQueue(queueName.toString()));
       }
@@ -361,7 +366,7 @@ public class ProtocolsMessageLoadBalancingTest extends ClusterTestBase {
       waitForBindings(0, "queues.0", 1, 1, false);
       waitForBindings(1, "queues.0", 1, 1, false);
 
-      instanceLog.debug("connections " + servers[1].getRemotingService().getConnections().size());
+      logger.debug("connections {}", servers[1].getRemotingService().getConnections().size());
 
       // sending Messages.. they should be load balanced
       {
@@ -400,6 +405,7 @@ public class ProtocolsMessageLoadBalancingTest extends ClusterTestBase {
       for (int node = 0; node < NUMBER_OF_SERVERS; node++) {
          factory[node] = getJmsConnectionFactory(node);
          connection[node] = factory[node].createConnection();
+         runAfter(connection[node]::close);
          session[node] = connection[node].createSession(false, Session.AUTO_ACKNOWLEDGE);
          consumer[node] = session[node].createConsumer(session[node].createQueue(queueName.toString()));
       }
@@ -413,8 +419,6 @@ public class ProtocolsMessageLoadBalancingTest extends ClusterTestBase {
 
 
       if (protocol.equals("AMQP")) {
-
-
          ServerLocator locator = ActiveMQClient.createServerLocator("tcp://localhost:61616");
          locator.setMinLargeMessageSize(1024);
          ClientSessionFactory coreFactory = locator.createSessionFactory();
@@ -446,13 +450,8 @@ public class ProtocolsMessageLoadBalancingTest extends ClusterTestBase {
          for (int i = 0; i < NUMBER_OF_MESSAGES; i++) {
             StringBuffer stringbuffer = new StringBuffer();
             stringbuffer.append("hello");
-            if (i % 3 == 0) {
-               // making 1/3 of the messages to be large message
-               for (int j = 0; j < 300 * 1024; j++) {
-                  stringbuffer.append(" ");
-               }
-            }
-            pd.send(sn.createTextMessage(stringbuffer.toString()));
+            Message message = sn.createTextMessage(stringbuffer.toString());
+            pd.send(message);
          }
 
          cn.close();
@@ -476,7 +475,7 @@ public class ProtocolsMessageLoadBalancingTest extends ClusterTestBase {
 
       for (int i = 0; i < messageCount; i++) {
          Message msg = messageConsumer.receive(5000);
-         Assert.assertNotNull(msg);
+         Assert.assertNotNull("did not receive message at " + i, msg);
       }
 
       // this means no more messages received

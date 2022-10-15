@@ -32,14 +32,16 @@ import org.apache.activemq.artemis.core.journal.impl.JournalImpl;
 import org.apache.activemq.artemis.logs.AssertionLoggerHandler;
 import org.apache.activemq.artemis.tests.unit.core.journal.impl.fakes.SimpleEncoding;
 import org.apache.activemq.artemis.utils.RandomUtil;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
 
 public abstract class JournalImplTestUnit extends JournalImplTestBase {
 
-   private static final Logger log = Logger.getLogger(JournalImplTestUnit.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    @Override
    @After
@@ -733,7 +735,7 @@ public abstract class JournalImplTestUnit extends JournalImplTestBase {
 
       int addRecordsPerFile = calculateRecordsPerFile(10 * 1024, journal.getAlignment(), JournalImpl.SIZE_ADD_RECORD + 1 + recordLength);
 
-      log.debug(JournalImpl.SIZE_ADD_RECORD + 1 + recordLength);
+      logger.debug("{}", (JournalImpl.SIZE_ADD_RECORD + 1 + recordLength));
 
       // Fills exactly 10 files
       int initialNumberOfAddRecords = addRecordsPerFile * 10;
@@ -1082,7 +1084,9 @@ public abstract class JournalImplTestUnit extends JournalImplTestBase {
 
       journal.debugWait();
 
-      log.debug("journal tmp :" + journal.debug());
+      if (logger.isDebugEnabled()) {
+         logger.debug("journal tmp : {}", journal.debug());
+      }
 
       journal.processBackup();
       List<String> files2 = fileFactory.listFiles(fileExtension);
@@ -1100,7 +1104,9 @@ public abstract class JournalImplTestUnit extends JournalImplTestBase {
 
       journal.debugWait();
 
-      log.debug("journal tmp2 :" + journal.debug());
+      if (logger.isDebugEnabled()) {
+         logger.debug("journal tmp2 : {}", journal.debug());
+      }
 
       journal.processBackup();
       List<String> files3 = fileFactory.listFiles(fileExtension);
@@ -1108,8 +1114,8 @@ public abstract class JournalImplTestUnit extends JournalImplTestBase {
       Assert.assertEquals(4, files3.size());
       Assert.assertEquals(1, journal.getOpenedFilesCount());
 
-      log.debug("data files count " + journal.getDataFilesCount());
-      log.debug("free files count " + journal.getFreeFilesCount());
+      logger.debug("data files count {}", journal.getDataFilesCount());
+      logger.debug("free files count {}", journal.getFreeFilesCount());
 
       Assert.assertEquals(2, journal.getDataFilesCount());
       Assert.assertEquals(0, journal.getFreeFilesCount());
@@ -1159,8 +1165,9 @@ public abstract class JournalImplTestUnit extends JournalImplTestBase {
 
       journal.checkReclaimStatus();
 
-      log.debug("journal:" + journal.debug());
-
+      if (logger.isDebugEnabled()) {
+         logger.debug("journal: {}", journal.debug());
+      }
       stopJournal(false);
       createJournal();
       startJournal();
@@ -2018,7 +2025,9 @@ public abstract class JournalImplTestUnit extends JournalImplTestBase {
 
       addWithSize(1024 - JournalImpl.SIZE_ADD_RECORD, 6);
 
-      log.debug("Debug journal on testPrepareReclaim ->\n" + debugJournal());
+      if (logger.isDebugEnabled()) {
+         logger.debug("Debug journal on testPrepareReclaim ->\n{}", debugJournal());
+      }
 
       Assert.assertEquals(1, journal.getOpenedFilesCount());
       Assert.assertEquals(0, journal.getFreeFilesCount());
@@ -3058,7 +3067,9 @@ public abstract class JournalImplTestUnit extends JournalImplTestBase {
       addTx(4, 31);
       commit(3);
 
-      log.debug("Debug on Journal before stopJournal - \n" + debugJournal());
+      if (logger.isDebugEnabled()) {
+         logger.debug("Debug on Journal before stopJournal - \n{}", debugJournal());
+      }
 
       stopJournal();
       createJournal();
@@ -3099,18 +3110,18 @@ public abstract class JournalImplTestUnit extends JournalImplTestBase {
        * Enable System.outs again if test fails and needs to be debugged
        */
 
-      //      log.debug("Before stop ****************************");
-      //      log.debug(journal.debug());
-      //      log.debug("*****************************************");
+      //      logger.debug("Before stop ****************************");
+      //      logger.debug(journal.debug());
+      //      logger.debug("*****************************************");
 
       stopJournal();
       createJournal();
       startJournal();
       loadAndCheck();
 
-      //      log.debug("After start ****************************");
-      //      log.debug(journal.debug());
-      //      log.debug("*****************************************");
+      //      logger.debug("After start ****************************");
+      //      logger.debug(journal.debug());
+      //      logger.debug("*****************************************");
 
       journal.forceMoveNextFile();
 
@@ -3118,40 +3129,40 @@ public abstract class JournalImplTestUnit extends JournalImplTestBase {
          delete(i);
       }
 
-      //      log.debug("After delete ****************************");
-      //      log.debug(journal.debug());
-      //      log.debug("*****************************************");
+      //      logger.debug("After delete ****************************");
+      //      logger.debug(journal.debug());
+      //      logger.debug("*****************************************");
 
       for (int i = 100; i < 200; i++) {
          updateTx(transactionID, i);
       }
 
-      //      log.debug("After updatetx ****************************");
-      //      log.debug(journal.debug());
-      //      log.debug("*****************************************");
+      //      logger.debug("After updatetx ****************************");
+      //      logger.debug(journal.debug());
+      //      logger.debug("*****************************************");
 
       journal.forceMoveNextFile();
 
       commit(transactionID++);
 
-      //      log.debug("After commit ****************************");
-      //      log.debug(journal.debug());
-      //      log.debug("*****************************************");
+      //      logger.debug("After commit ****************************");
+      //      logger.debug(journal.debug());
+      //      logger.debug("*****************************************");
 
       for (int i = 100; i < 200; i++) {
          updateTx(transactionID, i);
          deleteTx(transactionID, i);
       }
 
-      //      log.debug("After delete ****************************");
-      //      log.debug(journal.debug());
-      //      log.debug("*****************************************");
+      //      logger.debug("After delete ****************************");
+      //      logger.debug(journal.debug());
+      //      logger.debug("*****************************************");
 
       commit(transactionID++);
 
-      //      log.debug("Before reclaim/after commit ****************************");
-      //      log.debug(journal.debug());
-      //      log.debug("*****************************************");
+      //      logger.debug("Before reclaim/after commit ****************************");
+      //      logger.debug(journal.debug());
+      //      logger.debug("*****************************************");
 
       journal.processBackup();
       stopJournal();
@@ -3159,9 +3170,9 @@ public abstract class JournalImplTestUnit extends JournalImplTestBase {
       startJournal();
       loadAndCheck();
 
-      //      log.debug("After reclaim ****************************");
-      //      log.debug(journal.debug());
-      //      log.debug("*****************************************");
+      //      logger.debug("After reclaim ****************************");
+      //      logger.debug(journal.debug());
+      //      logger.debug("*****************************************");
 
       journal.forceMoveNextFile();
       checkAndReclaimFiles();

@@ -106,13 +106,15 @@ import org.apache.activemq.artemis.core.transaction.ResourceManager;
 import org.apache.activemq.artemis.spi.core.remoting.Acceptor;
 import org.apache.activemq.artemis.utils.collections.ConcurrentHashSet;
 import org.apache.activemq.artemis.utils.collections.TypedProperties;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 import static org.apache.activemq.artemis.api.core.FilterConstants.NATIVE_MESSAGE_ID;
 
 public class ManagementServiceImpl implements ManagementService {
 
-   private static final Logger logger = Logger.getLogger(ManagementServiceImpl.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private final MBeanServer mbeanServer;
 
@@ -255,9 +257,7 @@ public class ManagementServiceImpl implements ManagementService {
 
       registerAddressMeters(addressInfo, addressControl);
 
-      if (logger.isDebugEnabled()) {
-         logger.debug("registered address " + objectName);
-      }
+      logger.debug("registered address {}", objectName);
    }
 
    @Override
@@ -289,9 +289,7 @@ public class ManagementServiceImpl implements ManagementService {
                                           final StorageManager storageManager) throws Exception {
 
       if (addressInfo.isInternal()) {
-         if (logger.isDebugEnabled()) {
-            logger.debug("won't register internal queue: " + queue);
-         }
+         logger.debug("won't register internal queue: {}", queue);
          return;
       }
 
@@ -306,9 +304,7 @@ public class ManagementServiceImpl implements ManagementService {
       registerInRegistry(ResourceNames.QUEUE + queue.getName(), queueControl);
       registerQueueMeters(queue);
 
-      if (logger.isDebugEnabled()) {
-         logger.debug("registered queue " + objectName);
-      }
+      logger.debug("registered queue {}", objectName);
    }
 
    @Override
@@ -375,9 +371,7 @@ public class ManagementServiceImpl implements ManagementService {
       registerInJMX(objectName, divertControl);
       registerInRegistry(ResourceNames.DIVERT + divert.getUniqueName(), divertControl);
 
-      if (logger.isDebugEnabled()) {
-         logger.debug("registered divert " + objectName);
-      }
+      logger.debug("registered divert {}", objectName);
    }
 
    @Override
@@ -492,9 +486,7 @@ public class ManagementServiceImpl implements ManagementService {
       registerInJMX(objectName, connectionRouterControl);
       registerInRegistry(ResourceNames.CONNECTION_ROUTER + router.getName(), connectionRouterControl);
 
-      if (logger.isDebugEnabled()) {
-         logger.debug("registered connection router " + objectName);
-      }
+      logger.debug("registered connection router {}", objectName);
    }
 
    @Override
@@ -533,9 +525,8 @@ public class ManagementServiceImpl implements ManagementService {
       }
 
       String resourceName = message.getStringProperty(ManagementHelper.HDR_RESOURCE_NAME);
-      if (logger.isDebugEnabled()) {
-         logger.debug("handling management message for " + resourceName);
-      }
+
+      logger.debug("handling management message for {}", resourceName);
 
       String operation = message.getStringProperty(ManagementHelper.HDR_OPERATION_NAME);
 
@@ -553,7 +544,7 @@ public class ManagementServiceImpl implements ManagementService {
 
             reply.putBooleanProperty(ManagementHelper.HDR_OPERATION_SUCCEEDED, true);
          } catch (Exception e) {
-            ActiveMQServerLogger.LOGGER.managementOperationError(e, operation, resourceName);
+            ActiveMQServerLogger.LOGGER.managementOperationError(operation, resourceName, e);
             reply.putBooleanProperty(ManagementHelper.HDR_OPERATION_SUCCEEDED, false);
             String exceptionMessage;
             if (e instanceof InvocationTargetException) {
@@ -574,7 +565,7 @@ public class ManagementServiceImpl implements ManagementService {
 
                reply.putBooleanProperty(ManagementHelper.HDR_OPERATION_SUCCEEDED, true);
             } catch (Exception e) {
-               ActiveMQServerLogger.LOGGER.managementAttributeError(e, attribute, resourceName);
+               ActiveMQServerLogger.LOGGER.managementAttributeError(attribute, resourceName, e);
                reply.putBooleanProperty(ManagementHelper.HDR_OPERATION_SUCCEEDED, false);
                String exceptionMessage;
                if (e instanceof InvocationTargetException) {
@@ -779,9 +770,8 @@ public class ManagementServiceImpl implements ManagementService {
    @Override
    public void sendNotification(final Notification notification) throws Exception {
       if (logger.isTraceEnabled()) {
-         logger.trace("Sending Notification = " + notification +
-                         ", notificationEnabled=" + notificationsEnabled +
-                         " messagingServerControl=" + messagingServerControl);
+         logger.trace("Sending Notification = {}, notificationEnabled={} messagingServerControl={}",
+                      notification, notificationsEnabled, messagingServerControl);
       }
       // This needs to be synchronized since we need to ensure notifications are processed in strict sequence
       synchronized (this) {
@@ -805,9 +795,8 @@ public class ManagementServiceImpl implements ManagementService {
                // Note at backup initialisation we don't want to send notifications either
                // https://jira.jboss.org/jira/browse/HORNETQ-317
                if (messagingServer == null || !messagingServer.isActive()) {
-                  if (logger.isDebugEnabled()) {
-                     logger.debug("ignoring message " + notification + " as the server is not initialized");
-                  }
+                  logger.debug("ignoring message {} as the server is not initialized", notification);
+
                   return;
                }
 

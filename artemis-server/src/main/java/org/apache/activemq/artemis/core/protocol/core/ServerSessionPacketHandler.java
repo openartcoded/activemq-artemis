@@ -103,7 +103,9 @@ import org.apache.activemq.artemis.utils.SimpleFuture;
 import org.apache.activemq.artemis.utils.SimpleFutureImpl;
 import org.apache.activemq.artemis.utils.actors.Actor;
 import org.apache.activemq.artemis.utils.actors.ArtemisExecutor;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 import static org.apache.activemq.artemis.core.protocol.core.impl.PacketImpl.CREATE_ADDRESS;
 import static org.apache.activemq.artemis.core.protocol.core.impl.PacketImpl.CREATE_QUEUE;
@@ -147,7 +149,7 @@ public class ServerSessionPacketHandler implements ChannelHandler {
 
    private static final int MAX_CACHED_NULL_RESPONSES = 32;
 
-   private static final Logger logger = Logger.getLogger(ServerSessionPacketHandler.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private final ServerSession session;
 
@@ -268,12 +270,11 @@ public class ServerSessionPacketHandler implements ChannelHandler {
    }
 
    private void onMessagePacket(final Packet packet) {
-      if (logger.isTraceEnabled()) {
-         logger.trace("ServerSessionPacketHandler::handlePacket," + packet);
-      }
+      logger.trace("ServerSessionPacketHandler::handlePacket, {}", packet);
+
       if (AuditLogger.isAnyLoggingEnabled()) {
          AuditLogger.setRemoteAddress(remotingConnection.getRemoteAddress());
-         AuditLogger.setCurrentCaller(remotingConnection.getAuditSubject());
+         AuditLogger.setCurrentCaller(remotingConnection.getSubject());
       }
       final byte type = packet.getType();
       switch (type) {
@@ -913,9 +914,7 @@ public class ServerSessionPacketHandler implements ChannelHandler {
                              final Packet response,
                              final boolean flush,
                              final boolean closeChannel) {
-      if (logger.isTraceEnabled()) {
-         logger.trace("ServerSessionPacketHandler::scheduling response::" + response);
-      }
+      logger.trace("ServerSessionPacketHandler::scheduling response::{}", response);
 
       storageManager.afterCompleteOperations(new IOCallback() {
          @Override
@@ -925,17 +924,12 @@ public class ServerSessionPacketHandler implements ChannelHandler {
             Packet exceptionPacket = convertToExceptionPacket(confirmPacket, ActiveMQExceptionType.createException(errorCode, errorMessage));
             doConfirmAndResponse(confirmPacket, exceptionPacket, flush, closeChannel);
 
-            if (logger.isTraceEnabled()) {
-               logger.trace("ServerSessionPacketHandler::exception response sent::" + exceptionPacket);
-            }
-
+            logger.trace("ServerSessionPacketHandler::exception response sent::{}", exceptionPacket);
          }
 
          @Override
          public void done() {
-            if (logger.isTraceEnabled()) {
-               logger.trace("ServerSessionPacketHandler::regular response sent::" + response);
-            }
+            logger.trace("ServerSessionPacketHandler::regular response sent::{}", response);
 
             doConfirmAndResponse(confirmPacket, response, flush, closeChannel);
          }
@@ -1043,9 +1037,7 @@ public class ServerSessionPacketHandler implements ChannelHandler {
 
       LargeServerMessage largeMsg = storageManager.createLargeMessage(id, message);
 
-      if (logger.isTraceEnabled()) {
-         logger.trace("sendLarge::" + largeMsg);
-      }
+      logger.trace("sendLarge::{}", largeMsg);
 
       if (currentLargeMessage != null) {
          ActiveMQServerLogger.LOGGER.replacingIncompleteLargeMessage(currentLargeMessage.getMessageID());

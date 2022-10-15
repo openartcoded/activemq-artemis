@@ -43,28 +43,23 @@ import org.junit.runners.Parameterized;
 @RunWith(Parameterized.class)
 public class AmqpPagingTest extends AmqpClientTestSupport {
 
-   @Parameterized.Parameters(name = "durability={0}, readWholePage={1}")
+   @Parameterized.Parameters(name = "durability={0}")
    public static Collection getParams() {
       return Arrays.asList(new Object[][]{
-         {Boolean.TRUE, true}, {Boolean.TRUE, false},
-         {Boolean.FALSE, true}, {Boolean.FALSE, false},
-         {null, true}, {null, false}});
+         {Boolean.TRUE}, {Boolean.FALSE}});
    }
 
    private final Boolean durable;
-   private final boolean readWholePage;
 
-   public AmqpPagingTest(Boolean durable, boolean readWholePage) {
+   public AmqpPagingTest(Boolean durable) {
       this.durable = durable;
-      this.readWholePage = readWholePage;
    }
 
    @Override
    protected void addConfiguration(ActiveMQServer server) {
       super.addConfiguration(server);
       final Map<String, AddressSettings> addressesSettings = server.getConfiguration()
-         .setReadWholePage(readWholePage)
-         .getAddressesSettings();
+         .getAddressSettings();
       addressesSettings.get("#")
          .setMaxSizeBytes(100000)
          .setPageSizeBytes(10000);
@@ -104,7 +99,7 @@ public class AmqpPagingTest extends AmqpClientTestSupport {
       Wait.assertEquals(MSG_COUNT, queueView::getMessageCount);
       PagingStore pagingStore = server.getPagingManager().getPageStore(SimpleString.toSimpleString(getQueueName()));
       Assert.assertTrue(pagingStore.isPaging());
-      final int pageCacheMaxSize = server.getConfiguration().getAddressesSettings().get("#").getPageCacheMaxSize();
+      final long pageCacheMaxSize = server.getConfiguration().getAddressSettings().get("#").getPageCacheMaxSize();
       Assert.assertThat("the size of the messages or the number of messages isn't enough",
                         pagingStore.getNumberOfPages(), Matchers.greaterThan(pageCacheMaxSize));
       receiver.flow(MSG_COUNT);

@@ -27,21 +27,23 @@ import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 
 import org.apache.activemq.artemis.api.core.ActiveMQException;
-import org.apache.activemq.artemis.core.filter.Filter;
 import org.apache.activemq.artemis.core.server.MessageReference;
 import org.apache.activemq.artemis.core.server.Queue;
 import org.apache.activemq.artemis.core.server.ScheduledDeliveryHandler;
 import org.apache.activemq.artemis.core.transaction.Transaction;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 /**
  * Handles scheduling deliveries to a queue at the correct time.
  */
 public class ScheduledDeliveryHandlerImpl implements ScheduledDeliveryHandler {
 
-   private static final Logger logger = Logger.getLogger(ScheduledDeliveryHandlerImpl.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private final ScheduledExecutorService scheduledExecutor;
 
@@ -65,7 +67,7 @@ public class ScheduledDeliveryHandlerImpl implements ScheduledDeliveryHandler {
 
       if (deliveryTime > 0 && scheduledExecutor != null) {
          if (logger.isTraceEnabled()) {
-            logger.trace("Scheduling delivery for " + ref + " to occur at " + deliveryTime);
+            logger.trace("Scheduling delivery for {} to occur at {}", ref, deliveryTime);
          }
 
          addInPlace(deliveryTime, ref, tail);
@@ -117,7 +119,7 @@ public class ScheduledDeliveryHandlerImpl implements ScheduledDeliveryHandler {
    }
 
    @Override
-   public List<MessageReference> cancel(final Filter filter) throws ActiveMQException {
+   public List<MessageReference> cancel(Predicate<MessageReference> predicate) throws ActiveMQException {
       List<MessageReference> refs = new ArrayList<>();
 
       synchronized (scheduledReferences) {
@@ -125,7 +127,7 @@ public class ScheduledDeliveryHandlerImpl implements ScheduledDeliveryHandler {
 
          while (iter.hasNext()) {
             MessageReference ref = iter.next().getRef();
-            if (filter == null || filter.match(ref.getMessage())) {
+            if (predicate.test(ref)) {
                iter.remove();
                refs.add(ref);
                metrics.decrementMetrics(ref);
@@ -165,7 +167,7 @@ public class ScheduledDeliveryHandlerImpl implements ScheduledDeliveryHandler {
 
       if (delay < 0) {
          if (logger.isTraceEnabled()) {
-            logger.trace("calling another scheduler now as deliverTime " + deliveryTime + " < now=" + now);
+            logger.trace("calling another scheduler now as deliverTime {} < now={}", deliveryTime, now);
          }
          // if delay == 0 we will avoid races between adding the scheduler and finishing it
          ScheduledDeliveryRunnable runnable = new ScheduledDeliveryRunnable(deliveryTime);
@@ -174,14 +176,14 @@ public class ScheduledDeliveryHandlerImpl implements ScheduledDeliveryHandler {
          ScheduledDeliveryRunnable runnable = new ScheduledDeliveryRunnable(deliveryTime);
 
          if (logger.isTraceEnabled()) {
-            logger.trace("Setting up scheduler for " + deliveryTime + " with a delay of " + delay + " as now=" + now);
+            logger.trace("Setting up scheduler for {} with a delay of {} as now={}", deliveryTime, delay, now);
          }
 
          runnables.put(deliveryTime, runnable);
          scheduledExecutor.schedule(runnable, delay, TimeUnit.MILLISECONDS);
       } else {
          if (logger.isTraceEnabled()) {
-            logger.trace("Couldn't make another scheduler as " + deliveryTime + " is already set, now is " + now);
+            logger.trace("Couldn't make another scheduler as {} is already set, now is {}", deliveryTime, now);
          }
       }
    }
@@ -210,15 +212,13 @@ public class ScheduledDeliveryHandlerImpl implements ScheduledDeliveryHandler {
             // we can't just assume deliveryTime here as we could deliver earlier than what we are supposed to
             // this is basically a hack to work around an OS or JDK bug!
             if (logger.isTraceEnabled()) {
-               logger.trace("Scheduler is working around OS imprecisions on " +
-                               "timing and re-scheduling an executor. now=" + now +
-                               " and deliveryTime=" + deliveryTime);
+               logger.trace("Scheduler is working around OS imprecisions on timing and re-scheduling an executor. now={} and deliveryTime={}", now, deliveryTime);
             }
             ScheduledDeliveryHandlerImpl.this.scheduleDelivery(deliveryTime);
          }
 
          if (logger.isTraceEnabled()) {
-            logger.trace("Is it " + System.currentTimeMillis() + " now and we are running deliveryTime = " + deliveryTime);
+            logger.trace("It is {} now and we are running deliveryTime = {}", System.currentTimeMillis(), deliveryTime);
          }
 
          synchronized (scheduledReferences) {
@@ -244,13 +244,13 @@ public class ScheduledDeliveryHandlerImpl implements ScheduledDeliveryHandler {
                }
 
                if (logger.isTraceEnabled()) {
-                  logger.trace("sending message " + reference + " to delivery, deliveryTime =  " + deliveryTime);
+                  logger.trace("sending message {} to delivery, deliveryTime = {}", reference, deliveryTime);
                }
 
                references.addFirst(reference);
             }
             if (logger.isTraceEnabled()) {
-               logger.trace("Finished loop on deliveryTime = " + deliveryTime);
+               logger.trace("Finished loop on deliveryTime = {}", deliveryTime);
             }
          }
 
@@ -259,7 +259,7 @@ public class ScheduledDeliveryHandlerImpl implements ScheduledDeliveryHandler {
             Queue queue = entry.getKey();
             LinkedList<MessageReference> list = entry.getValue();
             if (logger.isTraceEnabled()) {
-               logger.trace("Delivering " + list.size() + " elements on list to queue " + queue);
+               logger.trace("Delivering {} elements on list to queue {}", list.size(), queue);
             }
             queue.addHead(list, true);
          }

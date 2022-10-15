@@ -104,6 +104,7 @@ public class ResourceLimitTest extends ActiveMQTestBase {
 
       try {
          clientSession.createQueue(new QueueConfiguration("anotherQueue").setAddress("address").setRoutingType(RoutingType.ANYCAST).setDurable(false));
+         fail("Should have thrown an ActiveMQSecurityException");
       } catch (Exception e) {
          assertTrue(e instanceof ActiveMQSecurityException);
       }
@@ -114,12 +115,14 @@ public class ResourceLimitTest extends ActiveMQTestBase {
 
       try {
          clientSession.createQueue(new QueueConfiguration("anotherQueue").setAddress("address").setRoutingType(RoutingType.ANYCAST).setDurable(false));
+         fail("Should have thrown an ActiveMQSecurityException");
       } catch (Exception e) {
          assertTrue(e instanceof ActiveMQSecurityException);
       }
 
       try {
          clientSession.createSharedQueue(new QueueConfiguration("anotherQueue").setAddress("address").setDurable(false));
+         fail("Should have thrown an ActiveMQSecurityException");
       } catch (Exception e) {
          assertTrue(e instanceof ActiveMQSecurityException);
       }

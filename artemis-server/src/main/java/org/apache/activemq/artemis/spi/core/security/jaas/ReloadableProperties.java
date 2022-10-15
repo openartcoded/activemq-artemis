@@ -19,6 +19,7 @@ package org.apache.activemq.artemis.spi.core.security.jaas;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -30,11 +31,18 @@ import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
 import org.apache.activemq.artemis.core.server.ActiveMQServerLogger;
-import org.jboss.logging.Logger;
+import org.apache.activemq.artemis.core.server.impl.ServerStatus;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
+import java.util.zip.Adler32;
+import java.util.zip.Checksum;
+
+import static org.apache.activemq.artemis.core.server.impl.ServerStatus.JAAS_COMPONENT;
 
 public class ReloadableProperties {
 
-   private static final Logger logger = Logger.getLogger(ReloadableProperties.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    // use this whenever writing to the underlying properties files from another component
    public static final ReadWriteLock LOCK = new ReentrantReadWriteLock();
@@ -45,6 +53,8 @@ public class ReloadableProperties {
    private Map<String, Pattern> regexpProps;
    private long reloadTime = -1;
    private final PropertiesLoader.FileNameKey key;
+   private final Checksum adler32 = new Adler32();
+   private long checksum = 0;
 
    public ReloadableProperties(PropertiesLoader.FileNameKey key) {
       this.key = key;
@@ -56,24 +66,48 @@ public class ReloadableProperties {
 
    public synchronized ReloadableProperties obtained() {
       if (reloadTime < 0 || (key.isReload() && hasModificationAfter(reloadTime))) {
-         props = new Properties();
+
+         adler32.reset();
+         props = new Properties() {
+            // want to checksum in read order
+            @Override
+            public synchronized Object put(Object key, Object value) {
+               String sKey = key instanceof String ? (String)key : null;
+               String sValue = value instanceof String ? (String)value : null;
+               if (sKey != null && sValue != null) {
+                  adler32.update(sKey.getBytes(StandardCharsets.UTF_8));
+                  adler32.update('=');
+                  adler32.update(sValue.getBytes(StandardCharsets.UTF_8));
+               }
+               return super.put(key, value);
+            }
+         };
          try {
             load(key.file(), props);
+            checksum = adler32.getValue();
             invertedProps = null;
             invertedValueProps = null;
             regexpProps = null;
             if (key.isDebug()) {
-               logger.debug("Load of: " + key);
+               logger.debug("Load of: {}", key);
             }
          } catch (IOException e) {
-            ActiveMQServerLogger.LOGGER.failedToLoadProperty(e, key.toString(), e.getLocalizedMessage());
+            ActiveMQServerLogger.LOGGER.failedToLoadProperty(key.toString(), e.getLocalizedMessage(), e);
             if (key.isDebug()) {
-               logger.debug("Load of: " + key + ", failure exception" + e);
+               logger.debug("Load of: {}, failure exception {}", key, e);
             }
          }
          reloadTime = System.currentTimeMillis();
+         updateStatus();
       }
       return this;
+   }
+
+   private void updateStatus() {
+      HashMap<String, String> statusAttributes = new HashMap<>();
+      statusAttributes.put("Alder32", String.valueOf(checksum));
+      statusAttributes.put("reloadTime", String.valueOf(reloadTime));
+      ServerStatus.getInstance().update(JAAS_COMPONENT + "/properties/" + key.file.getName(),  statusAttributes);
    }
 
    public synchronized Map<String, String> invertedPropertiesMap() {
@@ -117,7 +151,7 @@ public class ReloadableProperties {
                   Pattern p = Pattern.compile(str.substring(1, str.length() - 1));
                   regexpProps.put((String) val.getKey(), p);
                } catch (PatternSyntaxException e) {
-                  ActiveMQServerLogger.LOGGER.warn("Ignoring invalid regexp: " + str);
+                  logger.warn("Ignoring invalid regexp: {}", str, e);
                }
             }
          }
@@ -135,7 +169,7 @@ public class ReloadableProperties {
          //                } catch (NoClassDefFoundError e) {
          //                    // this Happens whe jasypt is not on the classpath..
          //                    key.setDecrypt(false);
-         //                    ActiveMQServerLogger.LOGGER.info("jasypt is not on the classpath: password decryption disabled.");
+         //                    logger.info("jasypt is not on the classpath: password decryption disabled.");
          //                }
          //            }
       } finally {

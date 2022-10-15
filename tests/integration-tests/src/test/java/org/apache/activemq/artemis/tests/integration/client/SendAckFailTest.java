@@ -19,6 +19,7 @@ package org.apache.activemq.artemis.tests.integration.client;
 
 import javax.transaction.xa.Xid;
 import java.io.File;
+import java.lang.invoke.MethodHandles;
 import java.lang.management.ManagementFactory;
 import java.nio.ByteBuffer;
 import java.util.HashSet;
@@ -93,8 +94,12 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class SendAckFailTest extends SpawnedTestBase {
+
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    @Before
    @After
@@ -191,14 +196,14 @@ public class SendAckFailTest extends SpawnedTestBase {
                ClientMessage message = consumer.receive(1000);
                if (message == null) {
                   for (Integer msgi : listSent) {
-                     instanceLog.debug("Message " + msgi + " was lost");
+                     logger.debug("Message {} was lost", msgi);
                   }
                   fail("missed messages!");
                }
                message.acknowledge();
 
                if (!listSent.remove(message.getIntProperty("myid"))) {
-                  instanceLog.debug("Message " + message + " with id " + message.getIntProperty("myid") + " received in duplicate");
+                  logger.debug("Message {} with id {} received in duplicate", message, message.getIntProperty("myid"));
                   fail("Message " + message + " with id " + message.getIntProperty("myid") + " received in duplicate");
                }
             }
@@ -271,7 +276,7 @@ public class SendAckFailTest extends SpawnedTestBase {
 
 
 
-         instanceLog.debug("Location::" + server.getConfiguration().getJournalLocation().getAbsolutePath());
+         logger.debug("Location::{}", server.getConfiguration().getJournalLocation().getAbsolutePath());
          addServer(server);
          server.start();
          return server;
@@ -355,17 +360,17 @@ public class SendAckFailTest extends SpawnedTestBase {
       }
 
       @Override
-      public void pageClosed(SimpleString storeName, int pageNumber) {
+      public void pageClosed(SimpleString storeName, long pageNumber) {
          manager.pageClosed(storeName, pageNumber);
       }
 
       @Override
-      public void pageDeleted(SimpleString storeName, int pageNumber) {
+      public void pageDeleted(SimpleString storeName, long pageNumber) {
          manager.pageDeleted(storeName, pageNumber);
       }
 
       @Override
-      public void pageWrite(PagedMessage message, int pageNumber) {
+      public void pageWrite(PagedMessage message, long pageNumber) {
          manager.pageWrite(message, pageNumber);
       }
 
@@ -387,21 +392,6 @@ public class SendAckFailTest extends SpawnedTestBase {
       @Override
       public void waitOnOperations() throws Exception {
          manager.waitOnOperations();
-      }
-
-      @Override
-      public void beforePageRead() throws Exception {
-         manager.beforePageRead();
-      }
-
-      @Override
-      public boolean beforePageRead(long timeout, TimeUnit unit) throws InterruptedException {
-         return manager.beforePageRead(timeout, unit);
-      }
-
-      @Override
-      public void afterPageRead() throws Exception {
-         manager.afterPageRead();
       }
 
       @Override

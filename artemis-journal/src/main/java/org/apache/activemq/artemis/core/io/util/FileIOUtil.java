@@ -20,11 +20,13 @@ package org.apache.activemq.artemis.core.io.util;
 import java.nio.ByteBuffer;
 
 import org.apache.activemq.artemis.core.io.SequentialFile;
-import org.jboss.logging.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
+import org.slf4j.Logger;
 
 public class FileIOUtil {
 
-   private static final Logger logger = Logger.getLogger(FileIOUtil.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    public static void copyData(SequentialFile from, SequentialFile to, ByteBuffer buffer) throws Exception {
 
@@ -50,7 +52,7 @@ public class FileIOUtil {
             int bytesRead = from.read(buffer);
 
             if (logger.isTraceEnabled()) {
-               logger.trace("appending " + bytesRead + " bytes on " + to.getFileName());
+               logger.trace("appending {} bytes on {}", bytesRead, to.getFileName());
             }
 
             if (bytesRead > 0) {
@@ -58,7 +60,7 @@ public class FileIOUtil {
             }
 
             if (bytesRead < buffer.capacity()) {
-               logger.trace("Interrupting reading as the whole thing was sent on " + to.getFileName());
+               logger.trace("Interrupting reading as the whole thing was sent on {}", to.getFileName());
                break;
             }
          }

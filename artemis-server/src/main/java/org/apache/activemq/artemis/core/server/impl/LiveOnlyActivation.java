@@ -38,11 +38,13 @@ import org.apache.activemq.artemis.core.server.cluster.ActiveMQServerSideProtoco
 import org.apache.activemq.artemis.core.server.cluster.ha.LiveOnlyPolicy;
 import org.apache.activemq.artemis.core.server.cluster.ha.ScaleDownPolicy;
 import org.apache.activemq.artemis.spi.core.protocol.RemotingConnection;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 public class LiveOnlyActivation extends Activation {
 
-   private static final Logger logger = Logger.getLogger(LiveOnlyActivation.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    //this is how we act when we initially start as live
    private LiveOnlyPolicy liveOnlyPolicy;
@@ -156,7 +158,7 @@ public class LiveOnlyActivation extends Activation {
             try {
                clientSessionFactory = (ClientSessionFactoryInternal) scaleDownServerLocator.createSessionFactory(possibleLive.getA(), 0, false);
             } catch (Exception e) {
-               logger.trace("Failed to connect to " + possibleLive.getA());
+               logger.trace("Failed to connect to {}", possibleLive.getA());
                nodeLocator.notifyRegistrationFailed(false);
                if (clientSessionFactory != null) {
                   clientSessionFactory.close();

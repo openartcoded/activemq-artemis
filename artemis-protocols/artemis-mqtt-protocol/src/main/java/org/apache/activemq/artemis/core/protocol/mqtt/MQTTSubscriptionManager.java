@@ -40,7 +40,6 @@ import org.apache.activemq.artemis.core.server.Queue;
 import org.apache.activemq.artemis.core.server.ServerConsumer;
 import org.apache.activemq.artemis.core.server.impl.AddressInfo;
 import org.apache.activemq.artemis.utils.CompositeAddress;
-import org.jboss.logging.Logger;
 
 import static io.netty.handler.codec.mqtt.MqttProperties.MqttPropertyType.SUBSCRIPTION_IDENTIFIER;
 import static org.apache.activemq.artemis.core.protocol.mqtt.MQTTUtil.DOLLAR;
@@ -48,8 +47,6 @@ import static org.apache.activemq.artemis.core.protocol.mqtt.MQTTUtil.SLASH;
 import static org.apache.activemq.artemis.reader.MessageUtil.CONNECTION_ID_PROPERTY_NAME_STRING;
 
 public class MQTTSubscriptionManager {
-
-   private static final Logger logger = Logger.getLogger(MQTTSubscriptionManager.class);
 
    private final MQTTSession session;
 
@@ -119,7 +116,7 @@ public class MQTTSubscriptionManager {
       int qos = subscription.qualityOfService().value();
       String coreAddress = MQTTUtil.convertMqttTopicFilterToCoreAddress(topicName, session.getWildcardConfiguration());
 
-      Queue q = createQueueForSubscription(coreAddress, qos, sharedSubscriptionName);
+      Queue q = createQueueForSubscription(coreAddress, sharedSubscriptionName);
 
       if (initialStart) {
          createConsumerForSubscriptionQueue(q, topicName, qos, subscription.option().isNoLocal(), null);
@@ -153,7 +150,7 @@ public class MQTTSubscriptionManager {
       }
    }
 
-   private Queue createQueueForSubscription(String address, int qos, String sharedSubscriptionName) throws Exception {
+   private Queue createQueueForSubscription(String address, String sharedSubscriptionName) throws Exception {
       // determine the proper queue name
       SimpleString queue;
       if (sharedSubscriptionName != null) {
@@ -184,14 +181,20 @@ public class MQTTSubscriptionManager {
             addressInfo = session.getServerSession().createAddress(SimpleString.toSimpleString(address),
                                                                    RoutingType.MULTICAST, true);
          }
-         return findOrCreateQueue(bindingQueryResult, addressInfo, queue, qos);
+         return findOrCreateQueue(bindingQueryResult, addressInfo, queue);
       }
       return q;
    }
 
-   private Queue findOrCreateQueue(BindingQueryResult bindingQueryResult, AddressInfo addressInfo, SimpleString queue, int qos) throws Exception {
+   private Queue findOrCreateQueue(BindingQueryResult bindingQueryResult, AddressInfo addressInfo, SimpleString queue) throws Exception {
+      /*
+       * MQTT 3.1 and 3.1.1 clients using a clean session should have a *non-durable* subscription queue. If the broker
+       * restarts the queue should be removed. This is due to [MQTT-3.1.2-6] which states that the session (and any
+       * state) must last only as long as the network connection.
+       */
+      boolean durable = session.getVersion() == MQTTVersion.MQTT_5 || (session.getVersion() != MQTTVersion.MQTT_5 && !session.isClean());
       if (addressInfo.getRoutingTypes().contains(RoutingType.MULTICAST)) {
-         return session.getServerSession().createQueue(new QueueConfiguration(queue).setAddress(addressInfo.getName()).setFilterString(getMessageFilter(addressInfo.getName())).setDurable(MQTTUtil.DURABLE_MESSAGES && qos >= 0));
+         return session.getServerSession().createQueue(new QueueConfiguration(queue).setAddress(addressInfo.getName()).setFilterString(getMessageFilter(addressInfo.getName())).setDurable(durable));
       }
 
       if (addressInfo.getRoutingTypes().contains(RoutingType.ANYCAST)) {
@@ -207,7 +210,7 @@ public class MQTTSubscriptionManager {
             return session.getServer().locateQueue(name);
          } else {
             try {
-               return session.getServerSession().createQueue(new QueueConfiguration(addressInfo.getName()).setRoutingType(RoutingType.ANYCAST).setFilterString(getMessageFilter(addressInfo.getName())).setDurable(MQTTUtil.DURABLE_MESSAGES && qos >= 0));
+               return session.getServerSession().createQueue(new QueueConfiguration(addressInfo.getName()).setRoutingType(RoutingType.ANYCAST).setFilterString(getMessageFilter(addressInfo.getName())).setDurable(durable));
             } catch (ActiveMQQueueExistsException e) {
                return session.getServer().locateQueue(addressInfo.getName());
             }

@@ -31,12 +31,14 @@ import org.apache.activemq.artemis.core.settings.impl.AddressSettings;
 import org.apache.activemq.artemis.jms.client.ActiveMQTextMessage;
 import org.apache.activemq.artemis.tests.util.SpawnedVMCheck;
 import org.apache.activemq.artemis.utils.SpawnedVMSupport;
-import org.jboss.logging.Logger;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 /**
  * A test that makes sure that an ActiveMQ Artemis server cleans up the associated
@@ -44,7 +46,7 @@ import org.junit.Test;
  */
 public class ClientCrashTest extends ClientTestBase {
 
-   private static final Logger log = Logger.getLogger(ClientCrashTest.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    @Rule
    public SpawnedVMCheck spawnedVMCheck = new SpawnedVMCheck();
@@ -146,7 +148,7 @@ public class ClientCrashTest extends ClientTestBase {
       // spawn a JVM that creates a Core client, which sends a message
       p = SpawnedVMSupport.spawnVM(CrashClient2.class.getName());
 
-      ClientCrashTest.log.debug("waiting for the client VM to crash ...");
+      ClientCrashTest.logger.debug("waiting for the client VM to crash ...");
       Assert.assertTrue(p.waitFor(1, TimeUnit.MINUTES));
 
       assertEquals(CrashClient2.OK, p.exitValue());

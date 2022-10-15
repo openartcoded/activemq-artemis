@@ -30,7 +30,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledExecutorService;
 
 import io.netty.channel.ChannelPipeline;
-import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import org.apache.activemq.advisory.AdvisorySupport;
 import org.apache.activemq.artemis.api.core.ActiveMQBuffer;
 import org.apache.activemq.artemis.api.core.ActiveMQSecurityException;
@@ -45,7 +44,6 @@ import org.apache.activemq.artemis.core.remoting.impl.netty.NettyAcceptor;
 import org.apache.activemq.artemis.core.remoting.impl.netty.NettyServerConnection;
 import org.apache.activemq.artemis.core.remoting.impl.netty.TransportConstants;
 import org.apache.activemq.artemis.core.server.ActiveMQServer;
-import org.apache.activemq.artemis.core.server.ActiveMQServerLogger;
 import org.apache.activemq.artemis.core.server.cluster.ClusterConnection;
 import org.apache.activemq.artemis.core.server.cluster.ClusterManager;
 import org.apache.activemq.artemis.reader.MessageUtil;
@@ -57,7 +55,6 @@ import org.apache.activemq.artemis.spi.core.protocol.RemotingConnection;
 import org.apache.activemq.artemis.spi.core.remoting.Acceptor;
 import org.apache.activemq.artemis.spi.core.remoting.Connection;
 import org.apache.activemq.artemis.utils.CompositeAddress;
-import org.apache.activemq.artemis.utils.DataConstants;
 import org.apache.activemq.command.ActiveMQDestination;
 import org.apache.activemq.command.ActiveMQMessage;
 import org.apache.activemq.command.ActiveMQQueue;
@@ -80,10 +77,15 @@ import org.apache.activemq.openwire.OpenWireFormatFactory;
 import org.apache.activemq.util.IdGenerator;
 import org.apache.activemq.util.InetAddressUtil;
 import org.apache.activemq.util.LongSequenceGenerator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 import static org.apache.activemq.artemis.core.protocol.openwire.util.OpenWireUtil.SELECTOR_AWARE_OPTION;
 
 public class OpenWireProtocolManager  extends AbstractProtocolManager<Command, OpenWireInterceptor, OpenWireConnection, OpenWireRoutingHandler> implements ClusterTopologyListener {
+
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private static final List<String> websocketRegistryNames = Collections.EMPTY_LIST;
 
@@ -101,12 +103,13 @@ public class OpenWireProtocolManager  extends AbstractProtocolManager<Command, O
 
    private int actorThresholdBytes = -1;
 
+
    private BrokerId brokerId;
    protected final ProducerId advisoryProducerId = new ProducerId();
 
    private final CopyOnWriteArrayList<OpenWireConnection> connections = new CopyOnWriteArrayList<>();
 
-   private final Map<String, AMQConnectionContext> clientIdSet = new HashMap<>();
+   private final Map<String, AMQConnectionContext> clientIdSet = new ConcurrentHashMap<>();
 
    private String brokerName;
 
@@ -126,6 +129,10 @@ public class OpenWireProtocolManager  extends AbstractProtocolManager<Command, O
 
    private boolean openwireUseDuplicateDetectionOnFailover = true;
 
+   // if positive, packets will sent in chunks avoiding a single allocation
+   // this is to prevent large messages allocating really huge packets
+   private int openwireMaxPacketChunkSize = 100 * 1024;
+
    //http://activemq.apache.org/activemq-inactivitymonitor.html
    private long maxInactivityDuration = 30 * 1000L;
    private long maxInactivityDurationInitalDelay = 10 * 1000L;
@@ -137,6 +144,18 @@ public class OpenWireProtocolManager  extends AbstractProtocolManager<Command, O
    private boolean suppressInternalManagementObjects = true;
 
    private int openWireDestinationCacheSize = 16;
+
+   /** if defined, LargeMessages will be sent in chunks to the network.
+    * Notice that the system will still load the entire file in memory before sending on the stream.
+    * This should avoid just a big buffer allocated. */
+   public int getOpenwireMaxPacketChunkSize() {
+      return openwireMaxPacketChunkSize;
+   }
+
+   public OpenWireProtocolManager setOpenwireMaxPacketChunkSize(int openwireMaxPacketChunkSize) {
+      this.openwireMaxPacketChunkSize = openwireMaxPacketChunkSize;
+      return this;
+   }
 
    private final OpenWireFormat wireFormat;
 
@@ -226,18 +245,16 @@ public class OpenWireProtocolManager  extends AbstractProtocolManager<Command, O
    }
 
    public void removeConnection(ConnectionInfo info, Throwable error) throws InvalidClientIDException {
-      synchronized (clientIdSet) {
-         String clientId = info.getClientId();
-         if (clientId != null) {
-            AMQConnectionContext context = this.clientIdSet.remove(clientId);
-            if (context != null) {
-               //connection is still there and need to close
-               context.getConnection().disconnect(error != null);
-               this.connections.remove(context.getConnection());
-            }
-         } else {
-            throw new InvalidClientIDException("No clientID specified for connection disconnect request");
+      String clientId = info.getClientId();
+      if (clientId != null) {
+         AMQConnectionContext context = this.clientIdSet.remove(clientId);
+         if (context != null) {
+            //connection is still there and need to close
+            context.getConnection().disconnect(error != null);
+            this.connections.remove(context.getConnection());
          }
+      } else {
+         throw new InvalidClientIDException("No clientID specified for connection disconnect request");
       }
    }
 
@@ -272,7 +289,7 @@ public class OpenWireProtocolManager  extends AbstractProtocolManager<Command, O
          try {
             c.updateClient(control);
          } catch (Exception e) {
-            ActiveMQServerLogger.LOGGER.warn(e.getMessage(), e);
+            logger.warn(e.getMessage(), e);
             c.sendException(e);
          }
       }
@@ -343,8 +360,7 @@ public class OpenWireProtocolManager  extends AbstractProtocolManager<Command, O
 
    @Override
    public void addChannelHandlers(ChannelPipeline pipeline) {
-      // each read will have a full packet with this
-      pipeline.addLast("packet-decipher", new LengthFieldBasedFrameDecoder(Integer.MAX_VALUE, 0, DataConstants.SIZE_INT));
+      pipeline.addLast("large-frame-dealer", new OpenWireFrameParser(openwireMaxPacketChunkSize));
    }
 
    @Override
@@ -404,35 +420,33 @@ public class OpenWireProtocolManager  extends AbstractProtocolManager<Command, O
          throw new InvalidClientIDException("No clientID specified for connection request");
       }
 
-      synchronized (clientIdSet) {
-         AMQConnectionContext context;
-         context = clientIdSet.get(clientId);
-         if (context != null) {
-            if (info.isFailoverReconnect()) {
-               OpenWireConnection oldConnection = context.getConnection();
-               oldConnection.disconnect(true);
-               connections.remove(oldConnection);
-               connection.reconnect(context, info);
-            } else {
-               throw new InvalidClientIDException("Broker: " + getBrokerName() + " - Client: " + clientId + " already connected from " + context.getConnection().getRemoteAddress());
-            }
+      AMQConnectionContext context;
+      context = clientIdSet.get(clientId);
+      if (context != null) {
+         if (info.isFailoverReconnect()) {
+            OpenWireConnection oldConnection = context.getConnection();
+            oldConnection.disconnect(true);
+            connections.remove(oldConnection);
+            connection.reconnect(context, info);
          } else {
-            //new connection
-            context = connection.initContext(info);
-            clientIdSet.put(clientId, context);
+            throw new InvalidClientIDException("Broker: " + getBrokerName() + " - Client: " + clientId + " already connected from " + context.getConnection().getRemoteAddress());
          }
-
-         connections.add(connection);
-
-         ActiveMQTopic topic = AdvisorySupport.getConnectionAdvisoryTopic();
-         // do not distribute passwords in advisory messages. usernames okay
-         ConnectionInfo copy = info.copy();
-         copy.setPassword("");
-         fireAdvisory(context, topic, copy);
-
-         // init the conn
-         context.getConnection().addSessions(context.getConnectionState().getSessionIds());
+      } else {
+         //new connection
+         context = connection.initContext(info);
+         clientIdSet.put(clientId, context);
       }
+
+      connections.add(connection);
+
+      ActiveMQTopic topic = AdvisorySupport.getConnectionAdvisoryTopic();
+      // do not distribute passwords in advisory messages. usernames okay
+      ConnectionInfo copy = info.copy();
+      copy.setPassword("");
+      fireAdvisory(context, topic, copy);
+
+      // init the conn
+      context.getConnection().addSessions(context.getConnectionState().getSessionIds());
    }
 
    public void fireAdvisory(AMQConnectionContext context, ActiveMQTopic topic, Command copy) throws Exception {

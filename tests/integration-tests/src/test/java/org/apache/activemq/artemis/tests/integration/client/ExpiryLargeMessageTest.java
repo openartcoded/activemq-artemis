@@ -23,6 +23,7 @@ import javax.jms.MessageConsumer;
 import javax.jms.MessageProducer;
 import javax.jms.Session;
 import java.io.File;
+import java.lang.invoke.MethodHandles;
 
 import org.apache.activemq.artemis.api.core.Message;
 import org.apache.activemq.artemis.api.core.QueueConfiguration;
@@ -42,12 +43,15 @@ import org.apache.activemq.artemis.tests.util.ActiveMQTestBase;
 import org.apache.activemq.artemis.tests.util.CFUtil;
 import org.apache.activemq.artemis.tests.util.Wait;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * This test will send large messages in page-mode, DLQ then, expiry then, and they should be received fine
  */
 public class ExpiryLargeMessageTest extends ActiveMQTestBase {
 
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    final SimpleString EXPIRY = new SimpleString("my-expiry");
 
@@ -68,7 +72,7 @@ public class ExpiryLargeMessageTest extends ActiveMQTestBase {
 
       server.getConfiguration().setMessageExpiryScanPeriod(600000);
 
-      AddressSettings setting = new AddressSettings().setAddressFullMessagePolicy(AddressFullMessagePolicy.PAGE).setMaxDeliveryAttempts(5).setMaxSizeBytes(50 * 1024).setPageSizeBytes(10 * 1024).setExpiryAddress(EXPIRY).setDeadLetterAddress(DLQ);
+      AddressSettings setting = new AddressSettings().setAddressFullMessagePolicy(AddressFullMessagePolicy.PAGE).setMaxDeliveryAttempts(5).setMaxSizeBytes(50 * 1024).setPageSizeBytes(10 * 1024).setExpiryAddress(EXPIRY).setDeadLetterAddress(DLQ).setMaxReadPageBytes(-1).setMaxReadPageMessages(-1);
       server.getAddressSettingsRepository().addMatch(MY_QUEUE.toString(), setting);
       server.getAddressSettingsRepository().addMatch(EXPIRY.toString(), setting);
 
@@ -156,7 +160,7 @@ public class ExpiryLargeMessageTest extends ActiveMQTestBase {
             assertNotNull(message);
 
             if (i % 10 == 0) {
-               instanceLog.debug("Received " + i);
+               logger.debug("Received {}", i);
             }
 
             for (int location = 0; location < messageSize; location++) {
@@ -206,7 +210,7 @@ public class ExpiryLargeMessageTest extends ActiveMQTestBase {
             assertNotNull(message);
 
             if (i % 10 == 0) {
-               instanceLog.debug("Received " + i);
+               logger.debug("Received {}", i);
             }
 
             for (int location = 0; location < messageSize; location++) {
@@ -262,7 +266,7 @@ public class ExpiryLargeMessageTest extends ActiveMQTestBase {
 
       server.getConfiguration().setMessageExpiryScanPeriod(6000);
 
-      AddressSettings setting = new AddressSettings().setAddressFullMessagePolicy(AddressFullMessagePolicy.PAGE).setMaxDeliveryAttempts(5).setMaxSizeBytes(50 * 1024).setPageSizeBytes(10 * 1024).setExpiryAddress(EXPIRY).setDeadLetterAddress(DLQ);
+      AddressSettings setting = new AddressSettings().setAddressFullMessagePolicy(AddressFullMessagePolicy.PAGE).setMaxDeliveryAttempts(5).setMaxSizeBytes(50 * 1024).setPageSizeBytes(10 * 1024).setExpiryAddress(EXPIRY).setDeadLetterAddress(DLQ).setMaxReadPageMessages(-1).setMaxReadPageBytes(-1);
       server.getAddressSettingsRepository().addMatch(MY_QUEUE.toString(), setting);
       server.getAddressSettingsRepository().addMatch(EXPIRY.toString(), setting);
 
@@ -443,7 +447,7 @@ public class ExpiryLargeMessageTest extends ActiveMQTestBase {
          assertNotNull(message);
 
          if (i % 10 == 0) {
-            instanceLog.debug("Received " + i);
+            logger.debug("Received {}", i);
          }
 
          for (int location = 0; location < messageSize; location++) {

@@ -38,7 +38,6 @@ import org.apache.activemq.artemis.api.core.RoutingType;
 import org.apache.activemq.artemis.api.core.SimpleString;
 import org.apache.activemq.artemis.core.client.impl.ClientConsumerImpl;
 import org.apache.activemq.artemis.core.protocol.openwire.OpenWireMessageConverter;
-import org.apache.activemq.artemis.core.server.ActiveMQServerLogger;
 import org.apache.activemq.artemis.core.server.MessageReference;
 import org.apache.activemq.artemis.core.server.QueueQueryResult;
 import org.apache.activemq.artemis.core.server.ServerConsumer;
@@ -49,6 +48,7 @@ import org.apache.activemq.artemis.core.settings.impl.AddressSettings;
 import org.apache.activemq.artemis.core.transaction.Transaction;
 import org.apache.activemq.artemis.reader.MessageUtil;
 import org.apache.activemq.artemis.utils.CompositeAddress;
+import org.apache.activemq.artemis.core.protocol.openwire.OpenWireConstants;
 import org.apache.activemq.artemis.utils.SelectorTranslator;
 import org.apache.activemq.command.ConsumerControl;
 import org.apache.activemq.command.ConsumerId;
@@ -58,8 +58,15 @@ import org.apache.activemq.command.MessageDispatch;
 import org.apache.activemq.command.MessageId;
 import org.apache.activemq.command.MessagePull;
 import org.apache.activemq.command.RemoveInfo;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
+
+import static org.apache.activemq.artemis.core.protocol.openwire.OpenWireConstants.AMQ_MSG_MESSAGE_ID;
 
 public class AMQConsumer {
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
+
    private final AMQSession session;
    private final org.apache.activemq.command.ActiveMQDestination openwireDestination;
    private final ConsumerInfo info;
@@ -117,9 +124,21 @@ public class AMQConsumer {
       return this.rolledbackMessageRefs;
    }
 
+
+   private static String convertOpenWireToActiveMQFilterString(final String selectorString) {
+      if (selectorString == null) {
+         return null;
+      }
+
+      String filterString = SelectorTranslator.convertToActiveMQFilterString(selectorString);
+      filterString = SelectorTranslator.parse(filterString, "AMQUserID", AMQ_MSG_MESSAGE_ID.toString());
+
+      return filterString;
+   }
+
    public void init(SlowConsumerDetectionListener slowConsumerDetectionListener, long nativeId) throws Exception {
 
-      SimpleString selector = info.getSelector() == null ? null : new SimpleString(SelectorTranslator.convertToActiveMQFilterString(info.getSelector()));
+      SimpleString selector = info.getSelector() == null ? null : new SimpleString(convertOpenWireToActiveMQFilterString(info.getSelector()));
       boolean preAck = false;
       if (info.isNoLocal()) {
          if (!AdvisorySupport.isAdvisoryTopic(openwireDestination)) {
@@ -281,7 +300,7 @@ public class AMQConsumer {
          currentWindow.decrementAndGet();
          return size;
       } catch (Throwable t) {
-         ActiveMQServerLogger.LOGGER.warn("Error during message dispatch", t);
+         logger.warn("Error during message dispatch", t);
          return 0;
       }
    }
@@ -327,7 +346,7 @@ public class AMQConsumer {
 
          if (ack.isExpiredAck()) {
             for (MessageReference ref : ackList) {
-               ref.getQueue().expire(ref, serverConsumer);
+               ref.getQueue().expire(ref, serverConsumer, true);
             }
          } else if (removeReferences) {
 
@@ -350,7 +369,7 @@ public class AMQConsumer {
                   Throwable poisonCause = ack.getPoisonCause();
                   if (poisonCause != null) {
                      ((QueueImpl) ref.getQueue()).decDelivering(ref);
-                     ref.getMessage().putStringProperty(OpenWireMessageConverter.AMQ_MSG_DLQ_DELIVERY_FAILURE_CAUSE_PROPERTY, new SimpleString(poisonCause.toString()));
+                     ref.getMessage().putStringProperty(OpenWireConstants.AMQ_MSG_DLQ_DELIVERY_FAILURE_CAUSE_PROPERTY, new SimpleString(poisonCause.toString()));
                      ((QueueImpl) ref.getQueue()).incDelivering(ref);
                   }
                   ref.getQueue().sendToDeadLetterAddress(transaction, ref);

@@ -21,7 +21,6 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
-import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -82,7 +81,7 @@ public class Create extends InputAbstract {
    public static final String BIN_ARTEMIS = "bin/artemis";
    public static final String BIN_ARTEMIS_SERVICE = "bin/artemis-service";
    public static final String ETC_ARTEMIS_PROFILE = "artemis.profile";
-   public static final String ETC_LOGGING_PROPERTIES = "logging.properties";
+   public static final String ETC_LOG4J2_PROPERTIES = "log4j2.properties";
    public static final String ETC_BOOTSTRAP_XML = "bootstrap.xml";
    public static final String ETC_MANAGEMENT_XML = "management.xml";
    public static final String ETC_BROKER_XML = "broker.xml";
@@ -202,6 +201,9 @@ public class Create extends InputAbstract {
 
    @Option(name = "--java-options", description = "Extra java options to be passed to the profile")
    private String javaOptions = "";
+
+   @Option(name = "--java-memory", description = "Define the -Xmx memory parameter for the broker. Default = '2G'")
+   private String javaMemory = "2G";
 
    @Option(name = "--allow-anonymous", description = "Enables anonymous configuration on security, opposite of --require-login (Default: input)")
    private Boolean allowAnonymous = null;
@@ -503,7 +505,7 @@ public class Create extends InputAbstract {
          password = inputPassword("--password", "Please provide the default password:", "admin");
       }
 
-      password = HashUtil.tryHash(context, password);
+      password = HashUtil.tryHash(getActionContext(), password);
 
       return password;
    }
@@ -767,9 +769,6 @@ public class Create extends InputAbstract {
       File dataFolder = createDirectory(data, directory);
       filters.put("${artemis.instance.data}", path(dataFolder));
 
-      filters.put("${logmanager}", getLogManager());
-      filters.put("${wildfly-common}", getWildflyCommon());
-
       if (javaOptions == null || javaOptions.length() == 0) {
          javaOptions = "";
       }
@@ -797,6 +796,7 @@ public class Create extends InputAbstract {
 
 
       filters.put("${java-opts}", javaOptions);
+      filters.put("${java-memory}", javaMemory);
 
       if (allowAnonymous) {
          write(ETC_LOGIN_CONFIG_WITH_GUEST, new File(etcFolder, ETC_LOGIN_CONFIG), filters, false);
@@ -822,7 +822,7 @@ public class Create extends InputAbstract {
          writeEtc(ETC_ARTEMIS_PROFILE, etcFolder, filters, true);
       }
 
-      writeEtc(ETC_LOGGING_PROPERTIES, etcFolder, null, false);
+      writeEtc(ETC_LOG4J2_PROPERTIES, etcFolder, null, false);
 
       if (noWeb) {
          filters.put("${bootstrap-web-settings}", "");
@@ -870,9 +870,9 @@ public class Create extends InputAbstract {
 
       if (jdbc) {
          noAutoTune = true;
-         System.out.println();
+         context.out.println();
          printStar("Copy a jar containing the JDBC Driver '" + jdbcClassName + "' into " + directory.getAbsolutePath() + "/lib");
-         System.out.println();
+         context.out.println();
       }
 
       performAutoTune(filters, journalType, dataFolder);
@@ -954,11 +954,11 @@ public class Create extends InputAbstract {
       for (int i = 0; i < size; i++) {
          buffer.append("*");
       }
-      System.out.println(buffer.toString());
-      System.out.println();
-      System.out.println(message);
-      System.out.println();
-      System.out.println(buffer.toString());
+      getActionContext().out.println(buffer.toString());
+      getActionContext().out.println();
+      getActionContext().out.println(message);
+      getActionContext().out.println();
+      getActionContext().out.println(buffer.toString());
    }
 
    private void setupJournalType() {
@@ -1004,41 +1004,6 @@ public class Create extends InputAbstract {
       return count;
    }
 
-   private String getLogManager() throws IOException {
-      String logManager = "";
-      File dir = new File(path(getHome().toString()) + "/lib");
-
-      File[] matches = dir.listFiles(new FilenameFilter() {
-         @Override
-         public boolean accept(File dir, String name) {
-            return name.startsWith("jboss-logmanager") && name.endsWith(".jar");
-         }
-      });
-
-      if (matches != null && matches.length > 0) {
-         logManager = matches[0].getName();
-      }
-
-      return logManager;
-   }
-
-   private String getWildflyCommon() throws IOException {
-      String logManager = "";
-      File dir = new File(path(getHome().toString()) + "/lib");
-
-      File[] matches = dir.listFiles(new FilenameFilter() {
-         @Override
-         public boolean accept(File dir, String name) {
-            return name.startsWith("wildfly-common") && name.endsWith(".jar");
-         }
-      });
-
-      if (matches != null && matches.length > 0) {
-         logManager = matches[0].getName();
-      }
-
-      return logManager;
-   }
    /**
     * It will create the address and queue configurations
     */
@@ -1077,8 +1042,8 @@ public class Create extends InputAbstract {
       } else {
          try {
             int writes = 250;
-            System.out.println("");
-            System.out.println("Auto tuning journal ...");
+            getActionContext().out.println("");
+            getActionContext().out.println("Auto tuning journal ...");
 
             if (mapped && noJournalSync) {
                HashMap<String, String> syncFilter = new HashMap<>();
@@ -1086,7 +1051,7 @@ public class Create extends InputAbstract {
                syncFilter.put("${writesPerMillisecond}", "0");
                syncFilter.put("${maxaio}", journalType == JournalType.ASYNCIO ? "" + ActiveMQDefaultConfiguration.getDefaultJournalMaxIoAio() : "1");
 
-               System.out.println("...Since you disabled sync and are using MAPPED journal, we are diabling buffer times");
+               getActionContext().out.println("...Since you disabled sync and are using MAPPED journal, we are diabling buffer times");
 
                filters.put("${journal-buffer.settings}", readTextFile(ETC_JOURNAL_BUFFER_SETTINGS, syncFilter));
 
@@ -1103,7 +1068,7 @@ public class Create extends InputAbstract {
                syncFilter.put("${writesPerMillisecond}", writesPerMillisecondStr);
                syncFilter.put("${maxaio}", journalType == JournalType.ASYNCIO ? "" + ActiveMQDefaultConfiguration.getDefaultJournalMaxIoAio() : "1");
 
-               System.out.println("done! Your system can make " + writesPerMillisecondStr +
+               getActionContext().out.println("done! Your system can make " + writesPerMillisecondStr +
                                      " writes per millisecond, your journal-buffer-timeout will be " + nanoseconds);
 
                filters.put("${journal-buffer.settings}", readTextFile(ETC_JOURNAL_BUFFER_SETTINGS, syncFilter));
@@ -1218,7 +1183,7 @@ public class Create extends InputAbstract {
             try {
                content = replace(content, entry.getKey(), entry.getValue());
             } catch (Throwable e) {
-               System.out.println("Error on " + entry.getKey());
+               getActionContext().out.println("Error on " + entry.getKey());
                e.printStackTrace();
                System.exit(-1);
             }

@@ -26,7 +26,9 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.locks.StampedLock;
 
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 import static org.apache.activemq.artemis.utils.Preconditions.checkArgument;
 
@@ -40,7 +42,7 @@ import static org.apache.activemq.artemis.utils.Preconditions.checkArgument;
  */
 public class ConcurrentLongHashSet {
 
-   private static final Logger logger = Logger.getLogger(ConcurrentLongHashSet.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private static final long EmptyItem = -1L;
    private static final long DeletedItem = -2L;
@@ -435,7 +437,7 @@ public class ConcurrentLongHashSet {
 
    static boolean moreThanZero(long n) {
       if (n < 0L) {
-         logger.warn("Keys and values must be >= 0, while it was " + n + ", entry will be ignored", new Exception("invalid record " + n));
+         logger.warn("Keys and values must be >= 0, while it was {}, entry will be ignored", n, new Exception("invalid record " + n));
          return false;
       } else {
          return true;

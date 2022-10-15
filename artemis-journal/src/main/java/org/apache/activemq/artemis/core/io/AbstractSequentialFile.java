@@ -38,11 +38,13 @@ import org.apache.activemq.artemis.core.journal.impl.SimpleWaitIOCallback;
 import org.apache.activemq.artemis.journal.ActiveMQJournalBundle;
 import org.apache.activemq.artemis.journal.ActiveMQJournalLogger;
 import org.apache.activemq.artemis.utils.ByteUtil;
-import org.jboss.logging.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
+import org.slf4j.Logger;
 
 public abstract class AbstractSequentialFile implements SequentialFile {
 
-   private static final Logger logger = Logger.getLogger(AbstractSequentialFile.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    protected File file;
 
@@ -107,7 +109,7 @@ public abstract class AbstractSequentialFile implements SequentialFile {
    @Override
    public void copyTo(SequentialFile newFileName) throws Exception {
       try {
-         ActiveMQJournalLogger.LOGGER.debug("Copying " + this + " as " + newFileName);
+         logger.debug("Copying {} as {}", this, newFileName);
          if (!newFileName.isOpen()) {
             newFileName.open();
          }
@@ -124,7 +126,7 @@ public abstract class AbstractSequentialFile implements SequentialFile {
       } catch (ClosedChannelException e) {
          throw e;
       } catch (IOException e) {
-         factory.onIOError(new ActiveMQIOErrorException(e.getMessage(), e), e.getMessage(), this);
+         factory.onIOError(new ActiveMQIOErrorException(e.getMessage(), e), e.getMessage(), this.file.getName());
          throw e;
       }
    }

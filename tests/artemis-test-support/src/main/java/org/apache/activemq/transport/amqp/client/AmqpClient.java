@@ -26,6 +26,7 @@ import org.apache.activemq.transport.netty.NettyTransportFactory;
 import org.apache.qpid.proton.amqp.Symbol;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 /**
  * Connection instance used to connect to the Broker using Proton as
@@ -33,7 +34,7 @@ import org.slf4j.LoggerFactory;
  */
 public class AmqpClient {
 
-   private static final Logger LOG = LoggerFactory.getLogger(AmqpClient.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private final String username;
    private final String password;
@@ -69,7 +70,7 @@ public class AmqpClient {
 
       AmqpConnection connection = createConnection();
 
-      LOG.debug("Attempting to create new connection to peer: {}", remoteURI);
+      logger.debug("Attempting to create new connection to peer: {}", remoteURI);
       connection.connect();
 
       return connection;
@@ -87,7 +88,7 @@ public class AmqpClient {
       AmqpConnection connection = createConnection();
       connection.setNoContainerID();
 
-      LOG.debug("Attempting to create new connection to peer: {}", remoteURI);
+      logger.debug("Attempting to create new connection to peer: {}", remoteURI);
       connection.connect();
 
       return connection;
@@ -106,7 +107,7 @@ public class AmqpClient {
       AmqpConnection connection = createConnection();
       connection.setContainerId(containerId);
 
-      LOG.debug("Attempting to create new connection to peer: {}", remoteURI);
+      logger.debug("Attempting to create new connection to peer: {}", remoteURI);
       connection.connect();
 
       return connection;

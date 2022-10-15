@@ -37,7 +37,6 @@ import org.apache.activemq.transport.amqp.client.AmqpReceiver;
 import org.apache.activemq.transport.amqp.client.AmqpSender;
 import org.apache.activemq.transport.amqp.client.AmqpSession;
 import org.apache.qpid.proton.amqp.Symbol;
-import org.jboss.logging.Logger;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -47,7 +46,6 @@ import org.junit.Test;
  * This will validate the data added to the queues.
  */
 public class DLQAfterExpiredMessageTest extends AmqpClientTestSupport {
-   private static final Logger log = Logger.getLogger(DLQAfterExpiredMessageTest.class);
 
    protected String getExpiryQueue() {
       return "ActiveMQ.Expiry";
@@ -89,8 +87,8 @@ public class DLQAfterExpiredMessageTest extends AmqpClientTestSupport {
       addressSettings.setDeadLetterAddress(SimpleString.toSimpleString(getDeadLetterAddress()));
       addressSettings.setExpiryAddress(SimpleString.toSimpleString(getExpiryQueue()));
       addressSettings.setMaxDeliveryAttempts(1);
-      server.getConfiguration().getAddressesSettings().put("#", addressSettings);
-      server.getConfiguration().getAddressesSettings().put(getExpiryQueue(), addressSettings);
+      server.getConfiguration().getAddressSettings().put("#", addressSettings);
+      server.getConfiguration().getAddressSettings().put(getExpiryQueue(), addressSettings);
    }
 
    @Test

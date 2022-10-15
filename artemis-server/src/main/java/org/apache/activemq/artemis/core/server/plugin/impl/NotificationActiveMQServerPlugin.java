@@ -33,14 +33,16 @@ import org.apache.activemq.artemis.core.server.management.Notification;
 import org.apache.activemq.artemis.core.server.plugin.ActiveMQServerPlugin;
 import org.apache.activemq.artemis.spi.core.protocol.RemotingConnection;
 import org.apache.activemq.artemis.utils.collections.TypedProperties;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 /**
  *
  */
 public class NotificationActiveMQServerPlugin implements ActiveMQServerPlugin {
 
-   private static final Logger logger = Logger.getLogger(NotificationActiveMQServerPlugin.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    public static final String SEND_CONNECTION_NOTIFICATIONS = "SEND_CONNECTION_NOTIFICATIONS";
    public static final String SEND_ADDRESS_NOTIFICATIONS = "SEND_ADDRESS_NOTIFICATIONS";
@@ -119,7 +121,7 @@ public class NotificationActiveMQServerPlugin implements ActiveMQServerPlugin {
                managementService.sendNotification(new Notification(null, CoreNotificationType.MESSAGE_DELIVERED, props));
             }
          } catch (Exception e) {
-            logger.warn("Error sending notification: " + CoreNotificationType.MESSAGE_DELIVERED, e.getMessage(), e);
+            logger.warn("Error sending notification: {}", CoreNotificationType.MESSAGE_DELIVERED, e);
          }
       }
    }
@@ -145,7 +147,7 @@ public class NotificationActiveMQServerPlugin implements ActiveMQServerPlugin {
                managementService.sendNotification(new Notification(null, CoreNotificationType.MESSAGE_EXPIRED, props));
             }
          } catch (Exception e) {
-            logger.warn("Error sending notification: " + CoreNotificationType.MESSAGE_EXPIRED, e.getMessage(), e);
+            logger.warn("Error sending notification: {}", CoreNotificationType.MESSAGE_EXPIRED, e);
          }
       }
    }
@@ -161,7 +163,7 @@ public class NotificationActiveMQServerPlugin implements ActiveMQServerPlugin {
 
             managementService.sendNotification(new Notification(null, type, props));
          } catch (Exception e) {
-            logger.warn("Error sending notification: " + type, e.getMessage(), e);
+            logger.warn("Error sending notification: {}", type, e);
          }
       }
    }
@@ -179,7 +181,7 @@ public class NotificationActiveMQServerPlugin implements ActiveMQServerPlugin {
 
             managementService.sendNotification(new Notification(null, type, props));
          } catch (Exception e) {
-            logger.warn("Error sending notification: " + type, e.getMessage(), e);
+            logger.warn("Error sending notification: {}", type, e);
          }
       }
    }

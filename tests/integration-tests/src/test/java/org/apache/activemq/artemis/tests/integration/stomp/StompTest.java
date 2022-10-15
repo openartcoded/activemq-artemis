@@ -51,6 +51,7 @@ import org.apache.activemq.artemis.core.postoffice.Binding;
 import org.apache.activemq.artemis.core.postoffice.QueueBinding;
 import org.apache.activemq.artemis.core.postoffice.impl.LocalQueueBinding;
 import org.apache.activemq.artemis.core.protocol.stomp.Stomp;
+import org.apache.activemq.artemis.core.protocol.stomp.StompProtocolManager;
 import org.apache.activemq.artemis.core.protocol.stomp.StompProtocolManagerFactory;
 import org.apache.activemq.artemis.core.server.ActiveMQServer;
 import org.apache.activemq.artemis.core.server.Queue;
@@ -60,6 +61,7 @@ import org.apache.activemq.artemis.core.settings.impl.AddressSettings;
 import org.apache.activemq.artemis.jms.client.ActiveMQMessage;
 import org.apache.activemq.artemis.logs.AssertionLoggerHandler;
 import org.apache.activemq.artemis.reader.MessageUtil;
+import org.apache.activemq.artemis.spi.core.remoting.Acceptor;
 import org.apache.activemq.artemis.tests.integration.mqtt.FuseMQTTClientProvider;
 import org.apache.activemq.artemis.tests.integration.mqtt.MQTTClientProvider;
 import org.apache.activemq.artemis.tests.integration.stomp.util.ClientStompFrame;
@@ -67,20 +69,22 @@ import org.apache.activemq.artemis.tests.integration.stomp.util.StompClientConne
 import org.apache.activemq.artemis.tests.integration.stomp.util.StompClientConnectionFactory;
 import org.apache.activemq.artemis.tests.util.Wait;
 import org.apache.activemq.artemis.utils.RandomUtil;
-import org.jboss.logging.Logger;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 import static org.apache.activemq.artemis.utils.collections.IterableStream.iterableOf;
 
 @RunWith(Parameterized.class)
 public class StompTest extends StompTestBase {
 
-   private static final Logger log = Logger.getLogger(StompTest.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    protected StompClientConnection conn;
 
@@ -103,7 +107,7 @@ public class StompTest extends StompTestBase {
    public void tearDown() throws Exception {
       try {
          boolean connected = conn != null && conn.isConnected();
-         log.debug("Connection 1.0 connected: " + connected);
+         logger.debug("Connection 1.0 connected: {}", connected);
          if (connected) {
             try {
                conn.disconnect();
@@ -191,7 +195,6 @@ public class StompTest extends StompTestBase {
          // It should encounter the exception on logs
          AssertionLoggerHandler.findText("AMQ119119");
       } finally {
-         AssertionLoggerHandler.clear();
          AssertionLoggerHandler.stopCapture();
       }
    }
@@ -663,6 +666,37 @@ public class StompTest extends StompTestBase {
    }
 
    @Test
+   public void testTransactedSessionLeak() throws Exception {
+      for (int i = 0; i < 10; i++) {
+         conn = StompClientConnectionFactory.createClientConnection(uri);
+         conn.connect(defUser, defPass);
+
+
+         for (int s = 0; s < 10; s++) {
+            String txId = "tx" + i + "_" + s;
+            beginTransaction(conn, txId);
+            send(conn, getQueuePrefix() + getQueueName(), null, "Hello World", true, null, txId);
+            commitTransaction(conn, txId, true);
+         }
+
+         Wait.assertEquals(13, () -> server.getSessions().size(), 1000, 100);
+         conn.disconnect();
+      }
+
+      if (connection != null) {
+         connection.close();
+      }
+
+      Wait.assertEquals(0, () -> server.getSessions().size(), 1000, 100);
+
+      Acceptor stompAcceptor = server.getRemotingService().getAcceptors().get("stomp");
+      StompProtocolManager stompProtocolManager = (StompProtocolManager) stompAcceptor.getProtocolHandler().getProtocolMap().get("STOMP");
+      Assert.assertNotNull(stompProtocolManager);
+
+      Assert.assertEquals(0, stompProtocolManager.getTransactedSessions().size());
+   }
+
+   @Test
    public void testIngressTimestamp() throws Exception {
       server.getAddressSettingsRepository().addMatch("#", new AddressSettings().setEnableIngressTimestamp(true));
       conn.connect(defUser, defPass);
@@ -800,11 +834,11 @@ public class StompTest extends StompTestBase {
       subscribe(conn, null, Stomp.Headers.Subscribe.AckModeValues.AUTO);
 
       String text = "A" + "\u00ea" + "\u00f1" + "\u00fc" + "C";
-      log.debug(text);
+      logger.debug(text);
       sendJmsMessage(text);
 
       ClientStompFrame frame = conn.receiveFrame(10000);
-      log.debug(frame);
+      logger.debug("{}", frame);
       Assert.assertEquals(Stomp.Responses.MESSAGE, frame.getCommand());
       Assert.assertEquals(getQueuePrefix() + getQueueName(), frame.getHeader(Stomp.Headers.Message.DESTINATION));
       Assert.assertEquals(text, frame.getBody());
@@ -959,7 +993,7 @@ public class StompTest extends StompTestBase {
       ClientStompFrame frame = conn.receiveFrame(10000);
       Assert.assertEquals(Stomp.Responses.MESSAGE, frame.getCommand());
 
-      log.debug("Reconnecting!");
+      logger.debug("Reconnecting!");
 
       if (sendDisconnect) {
          conn.disconnect();
@@ -1015,7 +1049,7 @@ public class StompTest extends StompTestBase {
       sendJmsMessage("second message");
 
       frame = conn.receiveFrame(100);
-      log.debug("Received frame: " + frame);
+      logger.debug("Received frame: {}", frame);
       Assert.assertNull("No message should have been received since subscription was removed", frame);
    }
 
@@ -1038,7 +1072,7 @@ public class StompTest extends StompTestBase {
       sendJmsMessage("second message");
 
       frame = conn.receiveFrame(100);
-      log.debug("Received frame: " + frame);
+      logger.debug("Received frame: {}", frame);
       Assert.assertNull("No message should have been received since subscription was removed", frame);
 
    }
@@ -1125,7 +1159,7 @@ public class StompTest extends StompTestBase {
          if (length - baselineQueueCount == 1) {
             return true;
          } else {
-            log.debug("Queue count: " + (length - baselineQueueCount));
+            logger.debug("Queue count: {}", (length - baselineQueueCount));
             return false;
          }
       });
@@ -1142,7 +1176,7 @@ public class StompTest extends StompTestBase {
       sendJmsMessage(getName(), topic);
 
       frame = conn.receiveFrame(100);
-      log.debug("Received frame: " + frame);
+      logger.debug("Received frame: {}", frame);
       Assert.assertNull("No message should have been received since subscription was removed", frame);
 
       assertEquals("Subscription queue should be deleted", 0, server.getActiveMQServerControl().getQueueNames().length - baselineQueueCount);
@@ -1177,7 +1211,7 @@ public class StompTest extends StompTestBase {
       sendJmsMessage(getName(), queue);
 
       frame = conn.receiveFrame(100);
-      log.debug("Received frame: " + frame);
+      logger.debug("Received frame: {}", frame);
       Assert.assertNull("No message should have been received since subscription was removed", frame);
 
       assertEquals("Subscription queue should not be deleted", baselineQueueCount, server.getActiveMQServerControl().getQueueNames().length);
@@ -1212,7 +1246,7 @@ public class StompTest extends StompTestBase {
       sendJmsMessage(getName(), ActiveMQJMSClient.createQueue(nonExistentQueue));
 
       frame = conn.receiveFrame(100);
-      log.debug("Received frame: " + frame);
+      logger.debug("Received frame: {}", frame);
       Assert.assertNull("No message should have been received since subscription was removed", frame);
 
       conn.disconnect();
@@ -1376,7 +1410,7 @@ public class StompTest extends StompTestBase {
       send(conn, getTopicPrefix() + getTopicName(), null, "Hello World");
 
       ClientStompFrame frame = conn.receiveFrame(100);
-      log.debug("Received frame: " + frame);
+      logger.debug("Received frame: {}", frame);
       Assert.assertNull("No message should have been received since subscription was removed", frame);
 
       // send message on another JMS connection => it should be received
@@ -1411,7 +1445,7 @@ public class StompTest extends StompTestBase {
 
       // ...and nothing else
       ClientStompFrame frame = conn.receiveFrame(100);
-      log.debug("Received frame: " + frame);
+      logger.debug("Received frame: {}", frame);
       Assert.assertNull(frame);
 
       conn.disconnect();
@@ -1480,7 +1514,7 @@ public class StompTest extends StompTestBase {
       sendJmsMessage(getName(), topic);
 
       ClientStompFrame frame = conn.receiveFrame(NEGATIVE_TIME_OUT);
-      log.debug("Received frame: " + frame);
+      logger.debug("Received frame: {}", frame);
       Assert.assertNull("No message should have been received since subscription was removed", frame);
 
       conn.disconnect();
@@ -1822,7 +1856,7 @@ public class StompTest extends StompTestBase {
 
       frame = conn.receiveFrame(10000);
 
-      log.debug("Received: " + frame);
+      logger.debug("Received: {}", frame);
 
       Assert.assertEquals(Boolean.TRUE.toString(), frame.getHeader(ManagementHelper.HDR_OPERATION_SUCCEEDED.toString()));
       // the address will be returned in the message body in a JSON array
@@ -1845,7 +1879,7 @@ public class StompTest extends StompTestBase {
 
       frame = conn.receiveFrame(10000);
 
-      log.debug("Received: " + frame);
+      logger.debug("Received: {}", frame);
 
       Assert.assertEquals(Boolean.TRUE.toString(), frame.getHeader(ManagementHelper.HDR_OPERATION_SUCCEEDED.toString()));
       // there is no such messages => 0 returned in a JSON array

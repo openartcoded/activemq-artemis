@@ -27,13 +27,17 @@ import javax.jms.MessageListener;
 import javax.jms.Session;
 import javax.naming.InitialContext;
 import javax.naming.NamingException;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.lang.invoke.MethodHandles;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.logging.Logger;
 
 public class SoakReceiver {
 
-   private static final Logger log = Logger.getLogger(SoakReceiver.class.getName());
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private static final String EOF = UUID.randomUUID().toString();
 
@@ -92,8 +96,8 @@ public class SoakReceiver {
 
          try {
             if (SoakReceiver.EOF.equals(msg.getStringProperty("eof"))) {
-               SoakReceiver.log.info(String.format("Received %s messages in %.2f minutes", count, 1.0 * totalDuration / SoakBase.TO_MILLIS));
-               SoakReceiver.log.info("END OF RUN");
+               SoakReceiver.logger.info(String.format("Received %s messages in %.2f minutes", count, 1.0 * totalDuration / SoakBase.TO_MILLIS));
+               SoakReceiver.logger.info("END OF RUN");
 
                return;
             }
@@ -103,7 +107,7 @@ public class SoakReceiver {
          if (count.incrementAndGet() % modulo == 0) {
             double duration = (1.0 * System.currentTimeMillis() - moduloStart) / 1000;
             moduloStart = System.currentTimeMillis();
-            SoakReceiver.log.info(String.format("received %s messages in %2.2fs (total: %.0fs)", modulo, duration, totalDuration / 1000.0));
+            SoakReceiver.logger.info(String.format("received %s messages in %2.2fs (total: %.0fs)", modulo, duration, totalDuration / 1000.0));
          }
       }
    };

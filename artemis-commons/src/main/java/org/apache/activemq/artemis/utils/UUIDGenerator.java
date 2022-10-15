@@ -32,9 +32,13 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.activemq.artemis.api.core.SimpleString;
-import org.apache.activemq.artemis.logs.ActiveMQUtilLogger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 public final class UUIDGenerator {
+
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private static final UUIDGenerator sSingleton = new UUIDGenerator();
 
@@ -122,8 +126,8 @@ public final class UUIDGenerator {
        */
       dummy[0] |= (byte) 0x01;
 
-      if (ActiveMQUtilLogger.LOGGER.isDebugEnabled()) {
-         ActiveMQUtilLogger.LOGGER.debug("using dummy address " + UUIDGenerator.asString(dummy));
+      if (logger.isDebugEnabled()) {
+         logger.debug("using dummy address {}", UUIDGenerator.asString(dummy));
       }
       return dummy;
    }
@@ -137,7 +141,7 @@ public final class UUIDGenerator {
    public static byte[] getHardwareAddress() {
       try {
          // check if we have enough security permissions to create and shutdown an executor
-         ExecutorService executor = Executors.newFixedThreadPool(1, ActiveMQThreadFactory.defaultThreadFactory());
+         ExecutorService executor = Executors.newFixedThreadPool(1, ActiveMQThreadFactory.defaultThreadFactory(UUIDGenerator.class.getName()));
          executor.shutdownNow();
       } catch (Throwable t) {
          // not enough security permission
@@ -153,8 +157,8 @@ public final class UUIDGenerator {
 
          byte[] address = findFirstMatchingHardwareAddress(ifaces);
          if (address != null) {
-            if (ActiveMQUtilLogger.LOGGER.isDebugEnabled()) {
-               ActiveMQUtilLogger.LOGGER.debug("using hardware address " + UUIDGenerator.asString(address));
+            if (logger.isDebugEnabled()) {
+               logger.debug("using hardware address {}", UUIDGenerator.asString(address));
             }
             return address;
          }
@@ -261,7 +265,7 @@ public final class UUIDGenerator {
    }
 
    private static byte[] findFirstMatchingHardwareAddress(List<NetworkInterface> ifaces) {
-      ExecutorService executor = Executors.newFixedThreadPool(ifaces.size(), ActiveMQThreadFactory.defaultThreadFactory());
+      ExecutorService executor = Executors.newFixedThreadPool(ifaces.size(), ActiveMQThreadFactory.defaultThreadFactory(UUIDGenerator.class.getName()));
       Collection<Callable<byte[]>> tasks = new ArrayList<>(ifaces.size());
 
       for (final NetworkInterface networkInterface : ifaces) {

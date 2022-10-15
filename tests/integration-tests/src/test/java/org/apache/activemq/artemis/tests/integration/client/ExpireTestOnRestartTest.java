@@ -16,6 +16,8 @@
  */
 package org.apache.activemq.artemis.tests.integration.client;
 
+import java.lang.invoke.MethodHandles;
+
 import org.apache.activemq.artemis.api.core.QueueConfiguration;
 import org.apache.activemq.artemis.api.core.SimpleString;
 import org.apache.activemq.artemis.api.core.client.ClientConsumer;
@@ -32,8 +34,12 @@ import org.apache.activemq.artemis.tests.util.ActiveMQTestBase;
 import org.apache.activemq.artemis.utils.Wait;
 import org.junit.Before;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ExpireTestOnRestartTest extends ActiveMQTestBase {
+
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    ActiveMQServer server;
 
@@ -42,7 +48,7 @@ public class ExpireTestOnRestartTest extends ActiveMQTestBase {
    public void setUp() throws Exception {
       super.setUp();
       server = createServer(true);
-      AddressSettings setting = new AddressSettings().setExpiryAddress(SimpleString.toSimpleString("exp")).setAddressFullMessagePolicy(AddressFullMessagePolicy.PAGE).setPageSizeBytes(100 * 1024).setMaxSizeBytes(200 * 1024);
+      AddressSettings setting = new AddressSettings().setExpiryAddress(SimpleString.toSimpleString("exp")).setAddressFullMessagePolicy(AddressFullMessagePolicy.PAGE).setPageSizeBytes(100 * 1024).setMaxSizeBytes(200 * 1024).setMaxReadPageBytes(-1).setMaxReadPageMessages(-1);
       server.getConfiguration().setJournalSyncNonTransactional(false);
       server.getConfiguration().setMessageExpiryScanPeriod(-1);
       server.getConfiguration().setJournalSyncTransactional(false);
@@ -106,8 +112,6 @@ public class ExpireTestOnRestartTest extends ActiveMQTestBase {
       assertNull(cons.receiveImmediate());
       cons.close();
 
-      Wait.assertFalse(queue.getPagingStore()::isPaging, 5000, 100);
-
       cons = session.createConsumer("exp");
       for (int i = 0; i < NUMBER_OF_EXPIRED_MESSAGES; i++) {
          ClientMessage msg = cons.receive(5000);
@@ -120,7 +124,7 @@ public class ExpireTestOnRestartTest extends ActiveMQTestBase {
       int extras = 0;
       ClientMessage msg;
       while ((msg = cons.receiveImmediate()) != null) {
-         instanceLog.debug(msg);
+         logger.debug("{}", msg);
          extras++;
       }
 
@@ -131,6 +135,8 @@ public class ExpireTestOnRestartTest extends ActiveMQTestBase {
       session.close();
 
       locator.close();
+
+      Wait.assertFalse(queue.getPagingStore()::isPaging, 5000, 100);
    }
 
 }

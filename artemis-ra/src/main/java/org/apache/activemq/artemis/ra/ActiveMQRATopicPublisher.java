@@ -21,10 +21,16 @@ import javax.jms.Message;
 import javax.jms.Topic;
 import javax.jms.TopicPublisher;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
+
 /**
  * ActiveMQQueueSender.
  */
 public class ActiveMQRATopicPublisher extends ActiveMQRAMessageProducer implements TopicPublisher {
+
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    /**
     * Create a new wrapper
@@ -35,9 +41,7 @@ public class ActiveMQRATopicPublisher extends ActiveMQRAMessageProducer implemen
    public ActiveMQRATopicPublisher(final TopicPublisher producer, final ActiveMQRASession session) {
       super(producer, session);
 
-      if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-         ActiveMQRALogger.LOGGER.trace("constructor(" + producer + ", " + session + ")");
-      }
+      logger.trace("constructor({}, {})", producer, session);
    }
 
    /**
@@ -48,9 +52,7 @@ public class ActiveMQRATopicPublisher extends ActiveMQRAMessageProducer implemen
     */
    @Override
    public Topic getTopic() throws JMSException {
-      if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-         ActiveMQRALogger.LOGGER.trace("getTopic()");
-      }
+      logger.trace("getTopic()");
 
       return ((TopicPublisher) producer).getTopic();
    }
@@ -71,25 +73,16 @@ public class ActiveMQRATopicPublisher extends ActiveMQRAMessageProducer implemen
                        final long timeToLive) throws JMSException {
       session.lock();
       try {
-         if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-            ActiveMQRALogger.LOGGER.trace("send " + this +
-                                             " message=" +
-                                             message +
-                                             " deliveryMode=" +
-                                             deliveryMode +
-                                             " priority=" +
-                                             priority +
-                                             " ttl=" +
-                                             timeToLive);
+         if (logger.isTraceEnabled()) {
+            logger.trace("send {} message={} deliveryMode={} priority={} ttl={}",
+               this, message, deliveryMode, priority, timeToLive);
          }
 
          checkState();
 
          ((TopicPublisher) producer).publish(message, deliveryMode, priority, timeToLive);
 
-         if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-            ActiveMQRALogger.LOGGER.trace("sent " + this + " result=" + message);
-         }
+         logger.trace("sent {} result={}", this, message);
       } finally {
          session.unlock();
       }
@@ -105,17 +98,13 @@ public class ActiveMQRATopicPublisher extends ActiveMQRAMessageProducer implemen
    public void publish(final Message message) throws JMSException {
       session.lock();
       try {
-         if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-            ActiveMQRALogger.LOGGER.trace("send " + this + " message=" + message);
-         }
+         logger.trace("send {} result={}", this, message);
 
          checkState();
 
          ((TopicPublisher) producer).publish(message);
 
-         if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-            ActiveMQRALogger.LOGGER.trace("sent " + this + " result=" + message);
-         }
+         logger.trace("sent {} result={}", this, message);
       } finally {
          session.unlock();
       }
@@ -139,27 +128,16 @@ public class ActiveMQRATopicPublisher extends ActiveMQRAMessageProducer implemen
                        final long timeToLive) throws JMSException {
       session.lock();
       try {
-         if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-            ActiveMQRALogger.LOGGER.trace("send " + this +
-                                             " destination=" +
-                                             destination +
-                                             " message=" +
-                                             message +
-                                             " deliveryMode=" +
-                                             deliveryMode +
-                                             " priority=" +
-                                             priority +
-                                             " ttl=" +
-                                             timeToLive);
+         if (logger.isTraceEnabled()) {
+            logger.trace("send {} destination={} message={} deliveryMode={} priority={} ttl={}",
+               this, destination, message, deliveryMode, priority, timeToLive);
          }
 
          checkState();
 
          ((TopicPublisher) producer).publish(destination, message, deliveryMode, priority, timeToLive);
 
-         if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-            ActiveMQRALogger.LOGGER.trace("sent " + this + " result=" + message);
-         }
+         logger.trace("sent {} result={}", this, message);
       } finally {
          session.unlock();
       }
@@ -176,17 +154,15 @@ public class ActiveMQRATopicPublisher extends ActiveMQRAMessageProducer implemen
    public void publish(final Topic destination, final Message message) throws JMSException {
       session.lock();
       try {
-         if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-            ActiveMQRALogger.LOGGER.trace("send " + this + " destination=" + destination + " message=" + message);
+         if (logger.isTraceEnabled()) {
+            logger.trace("send {} destination={} message={}", this, destination, message);
          }
 
          checkState();
 
          ((TopicPublisher) producer).publish(destination, message);
 
-         if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-            ActiveMQRALogger.LOGGER.trace("sent " + this + " result=" + message);
-         }
+         logger.trace("sent {} result={}", this, message);
       } finally {
          session.unlock();
       }

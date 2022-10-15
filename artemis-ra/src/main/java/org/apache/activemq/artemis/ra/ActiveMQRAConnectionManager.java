@@ -23,11 +23,17 @@ import javax.resource.spi.ManagedConnection;
 import javax.resource.spi.ManagedConnectionFactory;
 
 import org.apache.activemq.artemis.utils.collections.ConcurrentHashSet;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 /**
  * The connection manager used in non-managed environments.
  */
 public class ActiveMQRAConnectionManager implements ConnectionManager {
+
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
+
 
    /**
     * Serial version UID
@@ -38,9 +44,7 @@ public class ActiveMQRAConnectionManager implements ConnectionManager {
     * Constructor
     */
    public ActiveMQRAConnectionManager() {
-      if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-         ActiveMQRALogger.LOGGER.trace("constructor()");
-      }
+      logger.trace("constructor()");
    }
 
    ConcurrentHashSet<ManagedConnection> connections = new ConcurrentHashSet<>();
@@ -56,16 +60,12 @@ public class ActiveMQRAConnectionManager implements ConnectionManager {
    @Override
    public Object allocateConnection(final ManagedConnectionFactory mcf,
                                     final ConnectionRequestInfo cxRequestInfo) throws ResourceException {
-      if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-         ActiveMQRALogger.LOGGER.trace("allocateConnection(" + mcf + ", " + cxRequestInfo + ")");
-      }
+      logger.trace("allocateConnection({}, {})", mcf, cxRequestInfo);
 
       ManagedConnection mc = mcf.createManagedConnection(null, cxRequestInfo);
       Object c = mc.getConnection(null, cxRequestInfo);
 
-      if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-         ActiveMQRALogger.LOGGER.trace("Allocated connection: " + c + ", with managed connection: " + mc);
-      }
+      logger.trace("Allocated connection: {}, with managed connection: {}", c, mc);
 
       connections.add(mc);
       return c;

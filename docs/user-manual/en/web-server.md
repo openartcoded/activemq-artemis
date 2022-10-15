@@ -3,8 +3,7 @@
 Apache ActiveMQ Artemis embeds the [Jetty web
 server](https://www.eclipse.org/jetty/). Its main purpose is to host the [Management
 Console](management-console.md). However, it can also host other web
-applications like the [REST interface](rest.md) or even Spring-based web
-applications (e.g. using Camel).
+applications.
 
 ## Configuration
 
@@ -27,6 +26,10 @@ The `web` element has the following attributes:
   archives (i.e. WAR files). This is a subdirectory of the broker's home or
   instance directory.
 - `customizer` The name of customizer class to load.
+- `rootRedirectLocation` The location to redirect the requests with the root
+  target.
+- `webContentEnabled` Whether or not the content included in the web folder of
+  the home and the instance directories is accessible. Default is false.
 
 The `web` element should contain at least one `binding` element to configure how 
 clients can connect to the web-server. A `binding` element has the following
@@ -123,3 +126,10 @@ Set the `customizer` attribute via the `web` element to enable the [`ForwardedRe
    </binding>
 </web>
 ```
+
+## Management
+
+The embedded web server can be stopped, started, or restarted via any available
+management interface via the `stopEmbeddedWebServer`, `starteEmbeddedWebServer`,
+and `restartEmbeddedWebServer` operations on the `ActiveMQServerControl` 
+respectively.

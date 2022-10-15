@@ -35,11 +35,13 @@ import io.netty.handler.codec.mqtt.MqttTopicSubscription;
 import org.apache.activemq.artemis.api.core.Pair;
 import org.apache.activemq.artemis.core.config.WildcardConfiguration;
 import org.apache.activemq.artemis.core.settings.impl.Match;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 public class MQTTSessionState {
 
-   private static final Logger logger = Logger.getLogger(MQTTSessionState.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    public static final MQTTSessionState DEFAULT = new MQTTSessionState(null);
 
@@ -78,7 +80,7 @@ public class MQTTSessionState {
 
    private List<? extends MqttProperties.MqttProperty> willUserProperties;
 
-   private boolean willSent = false;
+   private WillStatus willStatus = WillStatus.NOT_SENT;
 
    private boolean failed = false;
 
@@ -113,7 +115,7 @@ public class MQTTSessionState {
          willMessage.clear();
          willMessage = null;
       }
-      willSent = false;
+      willStatus = WillStatus.NOT_SENT;
       failed = false;
       willDelayInterval = 0;
       willRetain = false;
@@ -189,7 +191,7 @@ public class MQTTSessionState {
       for (Pair<MqttTopicSubscription, Integer> pair : subscriptions.values()) {
          Pattern pattern = Match.createPattern(pair.getA().topicName(), MQTTUtil.MQTT_WILDCARD, true);
          boolean matches = pattern.matcher(address).matches();
-         logger.debugf("Matching %s with %s: %s", address, pattern, matches);
+         logger.debug("Matching {} with {}: {}", address, pattern, matches);
          if (matches) {
             if (result == null) {
                result = new ArrayList<>();
@@ -282,12 +284,12 @@ public class MQTTSessionState {
       return willUserProperties;
    }
 
-   public boolean isWillSent() {
-      return willSent;
+   public WillStatus getWillStatus() {
+      return willStatus;
    }
 
-   public void setWillSent(boolean willSent) {
-      this.willSent = willSent;
+   public void setWillStatus(WillStatus willStatus) {
+      this.willStatus = willStatus;
    }
 
    public boolean isFailed() {
@@ -447,5 +449,35 @@ public class MQTTSessionState {
    @Override
    public String toString() {
       return "MQTTSessionState[" + "session=" + session + ", clientId='" + clientId + "', subscriptions=" + subscriptions + ", messageRefStore=" + messageRefStore + ", addressMessageMap=" + addressMessageMap + ", pubRec=" + pubRec + ", attached=" + attached + ", outboundStore=" + outboundStore + ", disconnectedTime=" + disconnectedTime + ", sessionExpiryInterval=" + clientSessionExpiryInterval + ", isWill=" + isWill + ", willMessage=" + willMessage + ", willTopic='" + willTopic + "', willQoSLevel=" + willQoSLevel + ", willRetain=" + willRetain + ", willDelayInterval=" + willDelayInterval + ", failed=" + failed + ", maxPacketSize=" + clientMaxPacketSize + ']';
+   }
+
+   public enum WillStatus {
+      NOT_SENT, SENT, SENDING;
+
+      public byte getStatus() {
+         switch (this) {
+            case NOT_SENT:
+               return 0;
+            case SENT:
+               return 1;
+            case SENDING:
+               return 2;
+            default:
+               return -1;
+         }
+      }
+
+      public static WillStatus getStatus(byte status) {
+         switch (status) {
+            case 0:
+               return NOT_SENT;
+            case 1:
+               return SENT;
+            case 2:
+               return SENDING;
+            default:
+               return null;
+         }
+      }
    }
 }

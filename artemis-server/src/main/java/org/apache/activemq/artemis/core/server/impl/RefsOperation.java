@@ -31,11 +31,13 @@ import org.apache.activemq.artemis.core.server.Queue;
 import org.apache.activemq.artemis.core.transaction.Transaction;
 import org.apache.activemq.artemis.core.transaction.TransactionOperationAbstract;
 import org.apache.activemq.artemis.core.transaction.impl.TransactionImpl;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 public class RefsOperation extends TransactionOperationAbstract {
 
-   private static final Logger logger = Logger.getLogger(RefsOperation.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private final AckReason reason;
 
@@ -51,6 +53,8 @@ public class RefsOperation extends TransactionOperationAbstract {
     */
    protected boolean ignoreRedeliveryCheck = false;
 
+   private boolean delivering = true;
+
    private String lingerSessionId = null;
 
    public RefsOperation(Queue queue, AckReason reason, StorageManager storageManager) {
@@ -59,6 +63,15 @@ public class RefsOperation extends TransactionOperationAbstract {
       this.storageManager = storageManager;
    }
 
+
+   public RefsOperation setDelivering(boolean delivering) {
+      this.delivering = delivering;
+      return this;
+   }
+
+   public boolean isDelivering() {
+      return delivering;
+   }
 
    // once turned on, we shouldn't turn it off, that's why no parameters
    public void setIgnoreRedeliveryCheck() {
@@ -97,9 +110,8 @@ public class RefsOperation extends TransactionOperationAbstract {
 
          ref.emptyConsumerID();
 
-         if (logger.isTraceEnabled()) {
-            logger.trace("rolling back " + ref);
-         }
+         logger.trace("rolling back {}", ref);
+
          try {
             if (ref.isAlreadyAcked()) {
                ackedRefs.add(ref);
@@ -175,7 +187,7 @@ public class RefsOperation extends TransactionOperationAbstract {
          clearLingerRef(ref);
 
          synchronized (ref.getQueue()) {
-            ref.getQueue().postAcknowledge(ref, reason);
+            ref.getQueue().postAcknowledge(ref, reason, delivering);
          }
       }
 

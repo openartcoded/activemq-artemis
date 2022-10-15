@@ -26,10 +26,16 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Set;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
+
 /**
  * Credential information
  */
 public class ActiveMQRACredential implements Serializable {
+
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    /**
     * Serial version UID
@@ -50,9 +56,7 @@ public class ActiveMQRACredential implements Serializable {
     * Private constructor
     */
    private ActiveMQRACredential() {
-      if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-         ActiveMQRALogger.LOGGER.trace("constructor()");
-      }
+      logger.trace("constructor()");
    }
 
    /**
@@ -61,9 +65,7 @@ public class ActiveMQRACredential implements Serializable {
     * @return The value
     */
    public String getUserName() {
-      if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-         ActiveMQRALogger.LOGGER.trace("getUserName()");
-      }
+      logger.trace("getUserName()");
 
       return userName;
    }
@@ -74,9 +76,7 @@ public class ActiveMQRACredential implements Serializable {
     * @param userName The value
     */
    private void setUserName(final String userName) {
-      if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-         ActiveMQRALogger.LOGGER.trace("setUserName(" + userName + ")");
-      }
+      logger.trace("setUserName({})", userName);
 
       this.userName = userName;
    }
@@ -87,9 +87,7 @@ public class ActiveMQRACredential implements Serializable {
     * @return The value
     */
    public String getPassword() {
-      if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-         ActiveMQRALogger.LOGGER.trace("getPassword()");
-      }
+      logger.trace("getPassword()");
 
       return password;
    }
@@ -100,9 +98,7 @@ public class ActiveMQRACredential implements Serializable {
     * @param password The value
     */
    private void setPassword(final String password) {
-      if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-         ActiveMQRALogger.LOGGER.trace("setPassword(****)");
-      }
+      logger.trace("setPassword(****)");
 
       this.password = password;
    }
@@ -119,8 +115,8 @@ public class ActiveMQRACredential implements Serializable {
    public static ActiveMQRACredential getCredential(final ManagedConnectionFactory mcf,
                                                     final Subject subject,
                                                     final ConnectionRequestInfo info) throws SecurityException {
-      if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-         ActiveMQRALogger.LOGGER.trace("getCredential(" + mcf + ", " + subject + ", " + info + ")");
+      if (logger.isTraceEnabled()) {
+         logger.trace("getCredential({}, {} ,{})", mcf, subject, info);
       }
 
       ActiveMQRACredential jc = new ActiveMQRACredential();
@@ -150,9 +146,7 @@ public class ActiveMQRACredential implements Serializable {
     */
    @Override
    public String toString() {
-      if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-         ActiveMQRALogger.LOGGER.trace("toString()");
-      }
+      logger.trace("toString()");
 
       return super.toString() + "{ username=" + userName + ", password=**** }";
    }
@@ -179,9 +173,7 @@ public class ActiveMQRACredential implements Serializable {
        * @param mcf     The managed connection factory
        */
       GetCredentialAction(final Subject subject, final ManagedConnectionFactory mcf) {
-         if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-            ActiveMQRALogger.LOGGER.trace("constructor(" + subject + ", " + mcf + ")");
-         }
+         logger.trace("constructor({}, {})", subject, mcf);
 
          this.subject = subject;
          this.mcf = mcf;
@@ -194,9 +186,7 @@ public class ActiveMQRACredential implements Serializable {
        */
       @Override
       public PasswordCredential run() {
-         if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-            ActiveMQRALogger.LOGGER.trace("run()");
-         }
+         logger.trace("run()");
 
          Set<PasswordCredential> creds = subject.getPrivateCredentials(PasswordCredential.class);
          PasswordCredential pwdc = null;
@@ -218,9 +208,7 @@ public class ActiveMQRACredential implements Serializable {
        * @return The credential
        */
       static PasswordCredential getCredential(final Subject subject, final ManagedConnectionFactory mcf) {
-         if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-            ActiveMQRALogger.LOGGER.trace("getCredential(" + subject + ", " + mcf + ")");
-         }
+         logger.trace("getCredential({}, {})", subject, mcf);
 
          GetCredentialAction action = new GetCredentialAction(subject, mcf);
          return AccessController.doPrivileged(action);

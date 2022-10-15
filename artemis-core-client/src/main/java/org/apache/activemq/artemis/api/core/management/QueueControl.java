@@ -770,4 +770,22 @@ public interface QueueControl {
     */
    @Attribute(desc = "return how many messages are stuck in prepared transactions")
    int getPreparedTransactionMessageCount();
+
+   /**
+    * Deliver the scheduled messages which match the filter
+    */
+   @Operation(desc = "Immediately deliver the scheduled messages which match the filter", impact = MBeanOperationInfo.ACTION)
+   void deliverScheduledMessages(@Parameter(name = "filter", desc = "filter to match messages to deliver") String filter) throws Exception;
+
+   /**
+    * Deliver the scheduled message with the specified message ID
+    */
+   @Operation(desc = "Immediately deliver the scheduled message with the specified message ID", impact = MBeanOperationInfo.ACTION)
+   void deliverScheduledMessage(@Parameter(name = "messageID", desc = "ID of the message to deliver") long messageId) throws Exception;
+
+   /**
+    * Returns whether this queue is available for auto deletion.
+    */
+   @Attribute(desc = "whether this queue is available for auto deletion")
+   boolean isAutoDelete();
 }

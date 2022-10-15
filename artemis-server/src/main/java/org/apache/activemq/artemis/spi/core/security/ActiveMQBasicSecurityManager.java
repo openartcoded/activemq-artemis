@@ -38,14 +38,16 @@ import org.apache.activemq.artemis.spi.core.security.jaas.RolePrincipal;
 import org.apache.activemq.artemis.spi.core.security.jaas.UserPrincipal;
 import org.apache.activemq.artemis.utils.ClassloadingUtil;
 import org.apache.activemq.artemis.utils.SecurityManagerUtil;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 /**
  * All user and role state (both in memory and on disk) is maintained by the underlying StorageManager
  */
 public class ActiveMQBasicSecurityManager implements ActiveMQSecurityManager5, UserManagement {
 
-   private static final Logger logger = Logger.getLogger(ActiveMQBasicSecurityManager.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    public static final String BOOTSTRAP_USER = "bootstrapUser";
    public static final String BOOTSTRAP_PASSWORD = "bootstrapPassword";
@@ -90,9 +92,7 @@ public class ActiveMQBasicSecurityManager implements ActiveMQSecurityManager5, U
             }
          }
       } catch (Exception e) {
-         if (logger.isDebugEnabled()) {
-            logger.debug("Couldn't validate user", e);
-         }
+         logger.debug("Couldn't validate user", e);
       }
 
       return null;
@@ -109,9 +109,10 @@ public class ActiveMQBasicSecurityManager implements ActiveMQSecurityManager5, U
                             final CheckType checkType,
                             final String address) {
       boolean authorized = SecurityManagerUtil.authorize(subject, roles, checkType, rolePrincipalClass);
-
-      if (logger.isTraceEnabled()) {
-         logger.trace("user " + (authorized ? " is " : " is NOT ") + "authorized");
+      if (authorized) {
+         logger.trace("user is authorized");
+      } else {
+         logger.trace("user is NOT authorized");
       }
 
       return authorized;
@@ -204,7 +205,7 @@ public class ActiveMQBasicSecurityManager implements ActiveMQSecurityManager5, U
             addNewUser(user, password, roles);
          }
       } catch (Exception e) {
-         ActiveMQServerLogger.LOGGER.failedToCreateBootstrapCredentials(e, user);
+         ActiveMQServerLogger.LOGGER.failedToCreateBootstrapCredentials(user, e);
       }
    }
 

@@ -31,15 +31,17 @@ import org.apache.activemq.artemis.core.protocol.core.impl.RemotingConnectionImp
 import org.apache.activemq.artemis.core.remoting.impl.invm.InVMConnector;
 import org.apache.activemq.artemis.tests.util.ActiveMQTestBase;
 import org.apache.activemq.artemis.utils.RetryRule;
-import org.jboss.logging.Logger;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 public abstract class MultiThreadReattachSupportTestBase extends ActiveMQTestBase {
 
-   private static final Logger log = Logger.getLogger(MultiThreadReattachSupportTestBase.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
    @Rule
    public RetryRule retryRule = new RetryRule(2);
 
@@ -76,7 +78,7 @@ public abstract class MultiThreadReattachSupportTestBase extends ActiveMQTestBas
                                                  final boolean failOnCreateConnection,
                                                  final long failDelay) throws Exception {
       for (int its = 0; its < numIts; its++) {
-         log.debug("Beginning iteration " + its);
+         logger.debug("Beginning iteration {}", its);
 
          start();
 
@@ -109,7 +111,7 @@ public abstract class MultiThreadReattachSupportTestBase extends ActiveMQTestBas
                } catch (Throwable t) {
                   throwable = t;
 
-                  log.error("Failed to run test", t);
+                  logger.error("Failed to run test", t);
 
                   // Case a failure happened here, it should print the Thread dump
                   // Sending it to System.out, as it would show on the Tests report
@@ -185,7 +187,7 @@ public abstract class MultiThreadReattachSupportTestBase extends ActiveMQTestBas
 
       public void checkFail() {
          if (throwable != null) {
-            log.error("Test failed: " + failReason, throwable);
+            logger.error("Test failed: {}", failReason, throwable);
          }
          if (failReason != null) {
             Assert.fail(failReason);
@@ -211,7 +213,7 @@ public abstract class MultiThreadReattachSupportTestBase extends ActiveMQTestBas
 
       @Override
       public synchronized void run() {
-         log.debug("** Failing connection");
+         logger.debug("** Failing connection");
 
          RemotingConnectionImpl conn = (RemotingConnectionImpl) ((ClientSessionInternal) session).getConnection();
 
@@ -222,7 +224,7 @@ public abstract class MultiThreadReattachSupportTestBase extends ActiveMQTestBas
             conn.fail(new ActiveMQNotConnectedException("blah"));
          }
 
-         log.debug("** Fail complete");
+         logger.debug("** Fail complete");
 
          cancel();
 

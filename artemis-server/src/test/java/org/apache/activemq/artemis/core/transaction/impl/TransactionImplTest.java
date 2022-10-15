@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.activemq.artemis.api.core.ActiveMQBuffer;
@@ -68,12 +67,14 @@ import org.apache.activemq.artemis.core.transaction.Transaction;
 import org.apache.activemq.artemis.core.transaction.TransactionOperation;
 import org.apache.activemq.artemis.tests.util.ActiveMQTestBase;
 import org.apache.activemq.artemis.utils.ArtemisCloseable;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 import org.junit.Assert;
 import org.junit.Test;
 
 public class TransactionImplTest extends ActiveMQTestBase {
-   private static final Logger log = Logger.getLogger(TransactionImplTest.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    @Test
    public void testTimeoutAndThenCommitWithARollback() throws Exception {
@@ -101,7 +102,7 @@ public class TransactionImplTest extends ActiveMQTestBase {
 
          @Override
          public void afterCommit(Transaction tx) {
-            log.debug("commit...");
+            logger.debug("commit...");
             commit.incrementAndGet();
          }
 
@@ -112,7 +113,7 @@ public class TransactionImplTest extends ActiveMQTestBase {
 
          @Override
          public void afterRollback(Transaction tx) {
-            log.debug("rollback...");
+            logger.debug("rollback...");
             rollback.incrementAndGet();
          }
 
@@ -169,7 +170,7 @@ public class TransactionImplTest extends ActiveMQTestBase {
 
          @Override
          public void afterCommit(Transaction tx) {
-            log.debug("commit...");
+            logger.debug("commit...");
             commit.incrementAndGet();
          }
 
@@ -180,7 +181,7 @@ public class TransactionImplTest extends ActiveMQTestBase {
 
          @Override
          public void afterRollback(Transaction tx) {
-            log.debug("rollback...");
+            logger.debug("rollback...");
             rollback.incrementAndGet();
          }
 
@@ -269,12 +270,12 @@ public class TransactionImplTest extends ActiveMQTestBase {
       }
 
       @Override
-      public void pageClosed(SimpleString storeName, int pageNumber) {
+      public void pageClosed(SimpleString storeName, long pageNumber) {
 
       }
 
       @Override
-      public void pageDeleted(SimpleString storeName, int pageNumber) {
+      public void pageDeleted(SimpleString storeName, long pageNumber) {
 
       }
 
@@ -289,7 +290,7 @@ public class TransactionImplTest extends ActiveMQTestBase {
       }
 
       @Override
-      public void pageWrite(PagedMessage message, int pageNumber) {
+      public void pageWrite(PagedMessage message, long pageNumber) {
 
       }
 
@@ -310,21 +311,6 @@ public class TransactionImplTest extends ActiveMQTestBase {
 
       @Override
       public void waitOnOperations() throws Exception {
-
-      }
-
-      @Override
-      public void beforePageRead() throws Exception {
-
-      }
-
-      @Override
-      public boolean beforePageRead(long timeout, TimeUnit unit) throws InterruptedException {
-         return true;
-      }
-
-      @Override
-      public void afterPageRead() throws Exception {
 
       }
 

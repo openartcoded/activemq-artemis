@@ -63,7 +63,9 @@ import org.apache.activemq.artemis.core.remoting.impl.netty.TransportConstants;
 import org.apache.activemq.artemis.core.server.ActiveMQServerLogger;
 import org.apache.activemq.artemis.utils.ClassloadingUtil;
 import org.apache.activemq.artemis.utils.ListUtil;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 /**
  * Read XML output from <code>org.apache.activemq.artemis.core.persistence.impl.journal.XmlDataExporter</code>, create a core session, and
@@ -73,7 +75,7 @@ import org.jboss.logging.Logger;
 @Command(name = "imp", description = "Import all message-data using an XML that could be interpreted by any system.")
 public final class XmlDataImporter extends ActionAbstract {
 
-   private static final Logger logger = Logger.getLogger(XmlDataImporter.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private XMLStreamReader reader;
 
@@ -247,8 +249,9 @@ public final class XmlDataImporter extends ActionAbstract {
       try {
          while (reader.hasNext()) {
             if (logger.isDebugEnabled()) {
-               logger.debug("EVENT:[" + reader.getLocation().getLineNumber() + "][" + reader.getLocation().getColumnNumber() + "] ");
+               logger.debug("EVENT:[{}][{}] ", reader.getLocation().getLineNumber(), reader.getLocation().getColumnNumber());
             }
+
             if (reader.getEventType() == XMLStreamConstants.START_ELEMENT) {
                if (XmlDataConstants.OLD_BINDING.equals(reader.getLocalName())) {
                   oldBinding(); // export from 1.x
@@ -291,11 +294,14 @@ public final class XmlDataImporter extends ActionAbstract {
    }
 
    private void sendMessage(List<String> queues, Message message, File tempFileName) throws Exception {
-      StringBuilder logMessage = new StringBuilder();
-      String destination = addressMap.get(queues.get(0));
+      final String destination = addressMap.get(queues.get(0));
+      final ByteBuffer buffer = ByteBuffer.allocate(queues.size() * 8);
 
-      logMessage.append("Sending ").append(message).append(" to address: ").append(destination).append("; routed to queues: ");
-      ByteBuffer buffer = ByteBuffer.allocate(queues.size() * 8);
+      final boolean debugLog = logger.isDebugEnabled();
+      final StringBuilder debugLogMessage = debugLog ? new StringBuilder() : null;
+      if (debugLog) {
+         debugLogMessage.append("Sending ").append(message).append(" to address: ").append(destination).append("; routed to queues: ");
+      }
 
       for (String queue : queues) {
          long queueID;
@@ -310,26 +316,29 @@ public final class XmlDataImporter extends ActionAbstract {
                ClientMessage managementMessage = managementSession.createMessage(false);
                ManagementHelper.putAttribute(managementMessage, ResourceNames.QUEUE + queue, "ID");
                managementSession.start();
-               if (logger.isDebugEnabled()) {
-                  logger.debug("Requesting ID for: " + queue);
+               if (debugLog) {
+                  logger.debug("Requesting ID for: {}", queue);
                }
                ClientMessage reply = requestor.request(managementMessage);
                Number idObject = (Number) ManagementHelper.getResult(reply);
                queueID = idObject.longValue();
             }
-            if (logger.isDebugEnabled()) {
-               logger.debug("ID for " + queue + " is: " + queueID);
+
+            if (debugLog) {
+               logger.debug("ID for {} is: {}", queue, queueID);
             }
             queueIDs.put(queue, queueID);  // store it so we don't have to look it up every time
          }
 
-         logMessage.append(queue).append(", ");
          buffer.putLong(queueID);
+         if (debugLog) {
+            debugLogMessage.append(queue).append(", ");
+         }
       }
 
-      logMessage.delete(logMessage.length() - 2, logMessage.length()); // take off the trailing comma
-      if (logger.isDebugEnabled()) {
-         logger.debug(logMessage);
+      if (debugLog) {
+         debugLogMessage.delete(debugLogMessage.length() - 2, debugLogMessage.length()); // take off the trailing comma+space
+         logger.debug(debugLogMessage.toString());
       }
 
       message.putBytesProperty(Message.HDR_ROUTE_TO_IDS, buffer.array());
@@ -418,12 +427,10 @@ public final class XmlDataImporter extends ActionAbstract {
          if (!queueQuery.isExists()) {
             session.createQueue(new QueueConfiguration(queueName).setAddress(address).setRoutingType(routingType).setFilterString(filter));
             if (logger.isDebugEnabled()) {
-               logger.debug("Binding queue(name=" + queueName + ", address=" + address + ", filter=" + filter + ")");
+               logger.debug("Binding queue(name={}, address={}, filter={})", queueName, address, filter);
             }
          } else {
-            if (logger.isDebugEnabled()) {
-               logger.debug("Binding " + queueName + " already exists so won't re-bind.");
-            }
+            logger.debug("Binding {} already exists so won't re-bind.", queueName);
          }
       }
 
@@ -460,12 +467,10 @@ public final class XmlDataImporter extends ActionAbstract {
       if (!queueQuery.isExists()) {
          session.createQueue(new QueueConfiguration(queueName).setAddress(address).setRoutingType(RoutingType.valueOf(routingType)).setFilterString(filter));
          if (logger.isDebugEnabled()) {
-            logger.debug("Binding queue(name=" + queueName + ", address=" + address + ", filter=" + filter + ")");
+            logger.debug("Binding queue(name={}, address={}, filter={})", queueName, address, filter);
          }
       } else {
-         if (logger.isDebugEnabled()) {
-            logger.debug("Binding " + queueName + " already exists so won't re-bind.");
-         }
+         logger.debug("Binding {} already exists so won't re-bind.", queueName);
       }
 
       addressMap.put(queueName, address);
@@ -495,13 +500,9 @@ public final class XmlDataImporter extends ActionAbstract {
             set.add(RoutingType.valueOf(routingType));
          }
          session.createAddress(SimpleString.toSimpleString(addressName), set, false);
-         if (logger.isDebugEnabled()) {
-            logger.debug("Binding address(name=" + addressName + ", routingTypes=" + routingTypes + ")");
-         }
+         logger.debug("Binding address(name={}, routingTypes={})", addressName, routingTypes);
       } else {
-         if (logger.isDebugEnabled()) {
-            logger.debug("Binding " + addressName + " already exists so won't re-bind.");
-         }
+         logger.debug("Binding {} already exists so won't re-bind.", addressName);
       }
    }
 

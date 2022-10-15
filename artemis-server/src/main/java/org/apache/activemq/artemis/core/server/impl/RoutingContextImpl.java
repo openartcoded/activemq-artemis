@@ -26,7 +26,6 @@ import java.util.concurrent.Executor;
 
 import org.apache.activemq.artemis.api.core.Message;
 import org.apache.activemq.artemis.api.core.SimpleString;
-import org.apache.activemq.artemis.core.server.MessageReference;
 import org.apache.activemq.artemis.core.server.Queue;
 import org.apache.activemq.artemis.core.server.RouteContextList;
 import org.apache.activemq.artemis.core.server.RoutingContext;
@@ -34,11 +33,8 @@ import org.apache.activemq.artemis.api.core.RoutingType;
 import org.apache.activemq.artemis.core.server.cluster.impl.MessageLoadBalancingType;
 import org.apache.activemq.artemis.core.server.mirror.MirrorController;
 import org.apache.activemq.artemis.core.transaction.Transaction;
-import org.jboss.logging.Logger;
 
 public class RoutingContextImpl implements RoutingContext {
-
-   private static final Logger logger  = Logger.getLogger(RoutingContextImpl.class);
 
    // The pair here is Durable and NonDurable
    private final Map<SimpleString, RouteContextList> map = new HashMap<>();
@@ -67,6 +63,8 @@ public class RoutingContextImpl implements RoutingContext {
 
    volatile int version;
 
+   boolean mirrorDisabled = false;
+
    private final Executor executor;
 
    private boolean duplicateDetection = true;
@@ -92,8 +90,14 @@ public class RoutingContextImpl implements RoutingContext {
    }
 
    @Override
-   public boolean isMirrorController() {
-      return false;
+   public boolean isMirrorDisabled() {
+      return mirrorDisabled;
+   }
+
+   @Override
+   public RoutingContextImpl setMirrorDisabled(boolean mirrorDisabled) {
+      this.mirrorDisabled = mirrorDisabled;
+      return this;
    }
 
    @Override
@@ -205,17 +209,6 @@ public class RoutingContextImpl implements RoutingContext {
       printWriter.println("..................................................");
 
       return stringWriter.toString();
-   }
-
-   @Override
-   public void processReferences(final List<MessageReference> refs, final boolean direct) {
-      internalprocessReferences(refs, direct);
-   }
-
-   private void internalprocessReferences(final List<MessageReference> refs, final boolean direct) {
-      for (MessageReference ref : refs) {
-         ref.getQueue().addTail(ref, direct);
-      }
    }
 
    @Override

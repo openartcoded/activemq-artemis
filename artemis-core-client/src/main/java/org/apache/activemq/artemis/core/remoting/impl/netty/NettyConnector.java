@@ -123,7 +123,9 @@ import org.apache.activemq.artemis.spi.core.remoting.ssl.SSLContextFactoryProvid
 import org.apache.activemq.artemis.utils.ConfigurationHelper;
 import org.apache.activemq.artemis.utils.FutureLatch;
 import org.apache.activemq.artemis.utils.IPV6Util;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 import static org.apache.activemq.artemis.utils.Base64.encodeBytes;
 
@@ -133,7 +135,7 @@ public class NettyConnector extends AbstractConnector {
    public static String EPOLL_CONNECTOR_TYPE = "EPOLL";
    public static String KQUEUE_CONNECTOR_TYPE = "KQUEUE";
 
-   private static final Logger logger = Logger.getLogger(NettyConnector.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    public static final String JAVAX_KEYSTORE_PATH_PROP_NAME = "javax.net.ssl.keyStore";
    public static final String JAVAX_KEYSTORE_PASSWORD_PROP_NAME = "javax.net.ssl.keyStorePassword";
@@ -235,6 +237,8 @@ public class NettyConnector extends AbstractConnector {
    private String keyStorePath;
 
    private String keyStorePassword;
+
+   private String keyStoreAlias;
 
    private String trustStoreProvider;
 
@@ -399,6 +403,8 @@ public class NettyConnector extends AbstractConnector {
 
          keyStorePassword = ConfigurationHelper.getPasswordProperty(TransportConstants.KEYSTORE_PASSWORD_PROP_NAME, TransportConstants.DEFAULT_KEYSTORE_PASSWORD, configuration, ActiveMQDefaultConfiguration.getPropMaskPassword(), ActiveMQDefaultConfiguration.getPropPasswordCodec());
 
+         keyStoreAlias = ConfigurationHelper.getStringProperty(TransportConstants.KEYSTORE_ALIAS_PROP_NAME, TransportConstants.DEFAULT_KEYSTORE_ALIAS, configuration);
+
          trustStoreProvider = ConfigurationHelper.getStringProperty(TransportConstants.TRUSTSTORE_PROVIDER_PROP_NAME, TransportConstants.DEFAULT_TRUSTSTORE_PROVIDER, configuration);
 
          trustStoreType = ConfigurationHelper.getStringProperty(TransportConstants.TRUSTSTORE_TYPE_PROP_NAME, TransportConstants.DEFAULT_TRUSTSTORE_TYPE, configuration);
@@ -431,6 +437,7 @@ public class NettyConnector extends AbstractConnector {
          keyStoreType = TransportConstants.DEFAULT_KEYSTORE_TYPE;
          keyStorePath = TransportConstants.DEFAULT_KEYSTORE_PATH;
          keyStorePassword = TransportConstants.DEFAULT_KEYSTORE_PASSWORD;
+         keyStoreAlias = TransportConstants.DEFAULT_KEYSTORE_ALIAS;
          trustStoreProvider = TransportConstants.DEFAULT_TRUSTSTORE_PROVIDER;
          trustStoreType = TransportConstants.DEFAULT_TRUSTSTORE_TYPE;
          trustStorePath = TransportConstants.DEFAULT_TRUSTSTORE_PATH;
@@ -516,7 +523,7 @@ public class NettyConnector extends AbstractConnector {
          }
          connectorType = EPOLL_CONNECTOR_TYPE;
          channelClazz = EpollSocketChannel.class;
-         logger.debug("Connector " + this + " using native epoll");
+         logger.debug("Connector {} using native epoll", this);
       } else if (useKQueue && CheckDependencies.isKQueueAvailable()) {
          if (useGlobalWorkerPool) {
             group = SharedEventLoopGroup.getInstance((threadFactory -> new KQueueEventLoopGroup(remotingThreads, threadFactory)));
@@ -525,7 +532,7 @@ public class NettyConnector extends AbstractConnector {
          }
          connectorType = KQUEUE_CONNECTOR_TYPE;
          channelClazz = KQueueSocketChannel.class;
-         logger.debug("Connector " + this + " using native kqueue");
+         logger.debug("Connector {} using native kqueue", this);
       } else {
          if (useGlobalWorkerPool) {
             channelClazz = NioSocketChannel.class;
@@ -536,7 +543,7 @@ public class NettyConnector extends AbstractConnector {
          }
          connectorType = NIO_CONNECTOR_TYPE;
          channelClazz = NioSocketChannel.class;
-         logger.debug("Connector + " + this + " using nio");
+         logger.debug("Connector {} using nio", this);
       }
       // if we are a servlet wrap the socketChannelFactory
 
@@ -567,6 +574,7 @@ public class NettyConnector extends AbstractConnector {
       final String realKeyStoreProvider;
       final String realKeyStoreType;
       final String realKeyStorePassword;
+      final String realKeyStoreAlias;
       final String realTrustStorePath;
       final String realTrustStoreProvider;
       final String realTrustStoreType;
@@ -578,6 +586,7 @@ public class NettyConnector extends AbstractConnector {
             realKeyStoreProvider = keyStoreProvider;
             realKeyStoreType = keyStoreType;
             realKeyStorePassword = keyStorePassword;
+            realKeyStoreAlias = keyStoreAlias;
             realTrustStorePath = trustStorePath;
             realTrustStoreProvider = trustStoreProvider;
             realTrustStoreType = trustStoreType;
@@ -585,6 +594,7 @@ public class NettyConnector extends AbstractConnector {
          } else {
             realKeyStorePath = Stream.of(System.getProperty(ACTIVEMQ_KEYSTORE_PATH_PROP_NAME), System.getProperty(JAVAX_KEYSTORE_PATH_PROP_NAME), keyStorePath).map(v -> useDefaultSslContext ? keyStorePath : v).filter(Objects::nonNull).findFirst().orElse(null);
             realKeyStorePassword = Stream.of(System.getProperty(ACTIVEMQ_KEYSTORE_PASSWORD_PROP_NAME), System.getProperty(JAVAX_KEYSTORE_PASSWORD_PROP_NAME), keyStorePassword).map(v -> useDefaultSslContext ? keyStorePassword : v).filter(Objects::nonNull).findFirst().orElse(null);
+            realKeyStoreAlias = keyStoreAlias;
 
             Pair<String, String> keyStoreCompat = SSLSupport.getValidProviderAndType(Stream.of(System.getProperty(ACTIVEMQ_KEYSTORE_PROVIDER_PROP_NAME), System.getProperty(JAVAX_KEYSTORE_PROVIDER_PROP_NAME), keyStoreProvider).map(v -> useDefaultSslContext ? keyStoreProvider : v).filter(Objects::nonNull).findFirst().orElse(null),
                                                                                      Stream.of(System.getProperty(ACTIVEMQ_KEYSTORE_TYPE_PROP_NAME), System.getProperty(JAVAX_KEYSTORE_TYPE_PROP_NAME), keyStoreType).map(v -> useDefaultSslContext ? keyStoreType : v).filter(Objects::nonNull).findFirst().orElse(null));
@@ -604,6 +614,7 @@ public class NettyConnector extends AbstractConnector {
          realKeyStoreProvider = null;
          realKeyStoreType = null;
          realKeyStorePassword = null;
+         realKeyStoreAlias = null;
          realTrustStorePath = null;
          realTrustStoreProvider = null;
          realTrustStoreType = null;
@@ -631,7 +642,7 @@ public class NettyConnector extends AbstractConnector {
 
                channel.pipeline().addLast(proxyHandler);
 
-               logger.debug("Using a SOCKS proxy at " + proxyHost + ":" + proxyPort);
+               logger.debug("Using a SOCKS proxy at {}:{}", proxyHost, proxyPort);
 
                if (proxyRemoteDNS) {
                   bootstrap.resolver(NoopAddressResolverGroup.INSTANCE);
@@ -645,6 +656,7 @@ public class NettyConnector extends AbstractConnector {
                   .keystorePath(realKeyStorePath)
                   .keystoreType(realKeyStoreType)
                   .keystorePassword(realKeyStorePassword)
+                  .keystoreAlias(realKeyStoreAlias)
                   .truststoreProvider(realTrustStoreProvider)
                   .truststorePath(realTrustStorePath)
                   .truststoreType(realTrustStoreType)
@@ -730,7 +742,7 @@ public class NettyConnector extends AbstractConnector {
 
             if (handler != null) {
                pipeline.addLast(new ActiveMQClientChannelHandler(channelGroup, handler, new Listener(), closeExecutor));
-               logger.debugf("Added ActiveMQClientChannelHandler to Channel with id = %s ", channel.id());
+               logger.debug("Added ActiveMQClientChannelHandler to Channel with id = {} ", channel.id());
             }
          }
       });
@@ -740,7 +752,7 @@ public class NettyConnector extends AbstractConnector {
 
          batchFlusherFuture = scheduledThreadPool.scheduleWithFixedDelay(flusher, batchDelay, batchDelay, TimeUnit.MILLISECONDS);
       }
-      ActiveMQClientLogger.LOGGER.startedNettyConnector(connectorType, TransportConstants.NETTY_VERSION, host, port);
+      logger.debug("Started {} Netty Connector version {} to {}:{}", connectorType, TransportConstants.NETTY_VERSION, host, port);
    }
 
    private SSLEngine loadJdkSslEngine(final SSLContextConfig sslContextConfig) throws Exception {
@@ -836,7 +848,7 @@ public class NettyConnector extends AbstractConnector {
          remoteDestination = new InetSocketAddress(IPV6Util.stripBracketsAndZoneID(host), port);
       }
 
-      logger.debug("Remote destination: " + remoteDestination);
+      logger.debug("Remote destination: {}", remoteDestination);
 
       ChannelFuture future;
       //port 0 does not work so only use local address if set
@@ -917,7 +929,7 @@ public class NettyConnector extends AbstractConnector {
                request.headers().set(SEC_ACTIVEMQ_REMOTING_KEY, key);
                ch.attr(REMOTING_KEY).set(key);
 
-               logger.debugf("Sending HTTP request %s", request);
+               logger.debug("Sending HTTP request {}", request);
 
                // Send the HTTP request.
                ch.writeAndFlush(request);
@@ -1002,9 +1014,8 @@ public class NettyConnector extends AbstractConnector {
        */
       @Override
       public void channelRead0(ChannelHandlerContext ctx, HttpObject msg) throws Exception {
-         if (logger.isDebugEnabled()) {
-            logger.debug("Received msg=" + msg);
-         }
+         logger.debug("Received msg={}", msg);
+
          if (msg instanceof HttpResponse) {
             HttpResponse response = (HttpResponse) msg;
             if (response.status().code() == HttpResponseStatus.SWITCHING_PROTOCOLS.code() && response.headers().get(HttpHeaderNames.UPGRADE).equals(ACTIVEMQ_REMOTING)) {
@@ -1016,7 +1027,7 @@ public class NettyConnector extends AbstractConnector {
                   handshakeComplete = true;
                } else {
                   // HTTP upgrade failed
-                  ActiveMQClientLogger.LOGGER.httpHandshakeFailed(msg);
+                  logger.debug("HTTP Handshake failed, received {}", msg);
                   ctx.close();
                   latch.countDown();
                }
@@ -1030,7 +1041,7 @@ public class NettyConnector extends AbstractConnector {
             channelHandler.active = true;
          }
          if (!handshakeComplete) {
-            ActiveMQClientLogger.LOGGER.httpHandshakeFailed(msg);
+            logger.debug("HTTP Handshake failed, received {}", msg);
             ctx.close();
          }
          latch.countDown();
@@ -1267,11 +1278,13 @@ public class NettyConnector extends AbstractConnector {
       String host = ConfigurationHelper.getStringProperty(TransportConstants.HOST_PROP_NAME, TransportConstants.DEFAULT_HOST, configuration);
       int port = ConfigurationHelper.getIntProperty(TransportConstants.PORT_PROP_NAME, TransportConstants.DEFAULT_PORT, configuration);
 
-      if (port != this.port)
+      if (port != this.port) {
          return false;
+      }
 
-      if (host.equals(this.host))
+      if (host.equals(this.host)) {
          return true;
+      }
 
       //The host may be an alias. We need to compare raw IP address.
       boolean result = false;
@@ -1280,7 +1293,10 @@ public class NettyConnector extends AbstractConnector {
          InetAddress inetAddr2 = InetAddress.getByName(this.host);
          String ip1 = inetAddr1.getHostAddress();
          String ip2 = inetAddr2.getHostAddress();
-         logger.debug(this + " host 1: " + host + " ip address: " + ip1 + " host 2: " + this.host + " ip address: " + ip2);
+
+         if (logger.isDebugEnabled()) {
+            logger.debug("{} host 1: {} ip address: {} host 2: {} ip address: {}", this, host, ip1, this.host, ip2);
+         }
 
          result = ip1.equals(ip2);
       } catch (UnknownHostException e) {
@@ -1295,7 +1311,7 @@ public class NettyConnector extends AbstractConnector {
          InetAddress address = InetAddress.getByName(host);
          return address.isLoopbackAddress();
       } catch (UnknownHostException e) {
-         ActiveMQClientLogger.LOGGER.error("Cannot resolve host", e);
+         logger.error("Cannot resolve host", e);
       }
       return false;
    }

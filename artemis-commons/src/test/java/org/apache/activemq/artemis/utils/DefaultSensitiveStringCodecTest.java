@@ -16,7 +16,9 @@
  */
 package org.apache.activemq.artemis.utils;
 
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 import org.junit.Test;
 
 import java.util.HashMap;
@@ -24,12 +26,13 @@ import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class DefaultSensitiveStringCodecTest {
 
-   private static final Logger log = Logger.getLogger(DefaultSensitiveStringCodecTest.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    @Test
    public void testDefaultAlgorithm() throws Exception {
@@ -52,7 +55,7 @@ public class DefaultSensitiveStringCodecTest {
 
       String plainText = "some_password";
       String maskedText = codec.encode(plainText);
-      log.debug("encoded value: " + maskedText);
+      logger.debug("encoded value: {}", maskedText);
 
       if (algorithm.equals(DefaultSensitiveStringCodec.ONE_WAY)) {
          //one way can't decode
@@ -63,7 +66,7 @@ public class DefaultSensitiveStringCodecTest {
          }
       } else {
          String decoded = codec.decode(maskedText);
-         log.debug("encoded value: " + maskedText);
+         logger.debug("encoded value: {}", maskedText);
 
          assertEquals("decoded result not match: " + decoded, decoded, plainText);
       }
@@ -72,6 +75,24 @@ public class DefaultSensitiveStringCodecTest {
 
       String otherPassword = "some_other_password";
       assertFalse(codec.verify(otherPassword.toCharArray(), maskedText));
+   }
+
+   @Test
+   public void testInitFromEnvVar() throws Exception {
+      final String someString = "bla";
+      DefaultSensitiveStringCodec codecFromEnvVarConfig = new DefaultSensitiveStringCodec() {
+         @Override
+         public String getFromEnv(String v) {
+            if (v.contains("_") && !v.contains(".")) {
+               return someString;
+            }
+            return null;
+         }
+      };
+      Map<String, String> params = new HashMap<>();
+      codecFromEnvVarConfig.init(params);
+      String blaVersion = codecFromEnvVarConfig.encode(someString);
+      assertNotEquals(blaVersion,  getDefaultSensitiveStringCodec(DefaultSensitiveStringCodec.TWO_WAY).encode(someString));
    }
 
    @Test
@@ -89,7 +110,7 @@ public class DefaultSensitiveStringCodecTest {
 
       String plainText = "some_password";
       String maskedText = codec.encode(plainText);
-      log.debug("encoded value: " + maskedText);
+      logger.debug("encoded value: {}", maskedText);
 
       assertTrue(codec.verify(plainText.toCharArray(), maskedText));
 

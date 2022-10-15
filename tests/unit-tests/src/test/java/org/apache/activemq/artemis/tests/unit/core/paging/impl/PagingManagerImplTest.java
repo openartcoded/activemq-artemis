@@ -18,7 +18,6 @@ package org.apache.activemq.artemis.tests.unit.core.paging.impl;
 
 import java.io.File;
 import java.nio.ByteBuffer;
-import java.util.List;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock.ReadLock;
 
@@ -39,6 +38,7 @@ import org.apache.activemq.artemis.core.settings.impl.AddressSettings;
 import org.apache.activemq.artemis.core.settings.impl.HierarchicalObjectRepository;
 import org.apache.activemq.artemis.tests.util.ActiveMQTestBase;
 import org.apache.activemq.artemis.utils.RandomUtil;
+import org.apache.activemq.artemis.utils.collections.LinkedList;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -55,7 +55,7 @@ public class PagingManagerImplTest extends ActiveMQTestBase {
 
       final StorageManager storageManager = new NullStorageManager();
 
-      PagingStoreFactoryNIO storeFactory = new PagingStoreFactoryNIO(storageManager, getPageDirFile(), 100, null, getOrderedExecutor(), true, null);
+      PagingStoreFactoryNIO storeFactory = new PagingStoreFactoryNIO(storageManager, getPageDirFile(), 100, null, getOrderedExecutor(), getOrderedExecutor(), true, null);
 
       PagingManagerImpl managerImpl = new PagingManagerImpl(storeFactory, addressSettings);
 
@@ -66,17 +66,17 @@ public class PagingManagerImplTest extends ActiveMQTestBase {
       ICoreMessage msg = createMessage(1L, new SimpleString("simple-test"), createRandomBuffer(10));
 
       final RoutingContextImpl ctx = new RoutingContextImpl(null);
-      Assert.assertFalse(store.page(msg, ctx.getTransaction(), ctx.getContextListing(store.getStoreName()), lock));
+      Assert.assertFalse(store.page(msg, ctx.getTransaction(), ctx.getContextListing(store.getStoreName())));
 
       store.startPaging();
 
-      Assert.assertTrue(store.page(msg, ctx.getTransaction(), ctx.getContextListing(store.getStoreName()), lock));
+      Assert.assertTrue(store.page(msg, ctx.getTransaction(), ctx.getContextListing(store.getStoreName())));
 
       Page page = store.depage();
 
       page.open(true);
 
-      List<PagedMessage> msgs = page.read(new NullStorageManager());
+      LinkedList<PagedMessage> msgs = page.read(new NullStorageManager());
 
       page.close(false, false);
 
@@ -89,7 +89,7 @@ public class PagingManagerImplTest extends ActiveMQTestBase {
       Assert.assertNull(store.depage());
 
       final RoutingContextImpl ctx2 = new RoutingContextImpl(null);
-      Assert.assertFalse(store.page(msg, ctx2.getTransaction(), ctx2.getContextListing(store.getStoreName()), lock));
+      Assert.assertFalse(store.page(msg, ctx2.getTransaction(), ctx2.getContextListing(store.getStoreName())));
 
    }
 

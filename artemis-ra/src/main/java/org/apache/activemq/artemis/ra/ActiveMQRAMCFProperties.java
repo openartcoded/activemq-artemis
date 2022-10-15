@@ -20,10 +20,16 @@ import javax.jms.Queue;
 import javax.jms.Topic;
 import java.io.Serializable;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
+
 /**
  * The MCF default properties - these are set in the tx-connection-factory at the jms-ds.xml
  */
 public class ActiveMQRAMCFProperties extends ConnectionFactoryProperties implements Serializable {
+
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    /**
     * Serial version UID
@@ -68,9 +74,7 @@ public class ActiveMQRAMCFProperties extends ConnectionFactoryProperties impleme
     * Constructor
     */
    public ActiveMQRAMCFProperties() {
-      if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-         ActiveMQRALogger.LOGGER.trace("constructor()");
-      }
+      logger.trace("constructor()");
 
       useTryLock = null;
    }
@@ -81,9 +85,7 @@ public class ActiveMQRAMCFProperties extends ConnectionFactoryProperties impleme
     * @return The type
     */
    public int getType() {
-      if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-         ActiveMQRALogger.LOGGER.trace("getType()");
-      }
+      logger.trace("getType()");
 
       return type;
    }
@@ -93,9 +95,7 @@ public class ActiveMQRAMCFProperties extends ConnectionFactoryProperties impleme
    }
 
    public void setConnectorClassName(final String connectorClassName) {
-      if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-         ActiveMQRALogger.LOGGER.trace("setConnectorClassName(" + connectorClassName + ")");
-      }
+      logger.trace("setConnectorClassName({})", connectorClassName);
 
       strConnectorClassName = connectorClassName;
 
@@ -120,9 +120,7 @@ public class ActiveMQRAMCFProperties extends ConnectionFactoryProperties impleme
     * @param defaultType either javax.jms.Topic or javax.jms.Queue
     */
    public void setSessionDefaultType(final String defaultType) {
-      if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-         ActiveMQRALogger.LOGGER.trace("setSessionDefaultType(" + type + ")");
-      }
+      logger.trace("setSessionDefaultType({})", type);
 
       if (defaultType.equals(ActiveMQRAMCFProperties.QUEUE_TYPE)) {
          type = ActiveMQRAConnectionFactory.QUEUE_CONNECTION;
@@ -139,9 +137,7 @@ public class ActiveMQRAMCFProperties extends ConnectionFactoryProperties impleme
     * @return The default session type
     */
    public String getSessionDefaultType() {
-      if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-         ActiveMQRALogger.LOGGER.trace("getSessionDefaultType()");
-      }
+      logger.trace("getSessionDefaultType()");
 
       if (type == ActiveMQRAConnectionFactory.CONNECTION) {
          return "BOTH";
@@ -158,9 +154,7 @@ public class ActiveMQRAMCFProperties extends ConnectionFactoryProperties impleme
     * @return the useTryLock.
     */
    public Integer getUseTryLock() {
-      if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-         ActiveMQRALogger.LOGGER.trace("getUseTryLock()");
-      }
+      logger.trace("getUseTryLock()");
 
       return useTryLock;
    }
@@ -171,9 +165,7 @@ public class ActiveMQRAMCFProperties extends ConnectionFactoryProperties impleme
     * @param useTryLock the useTryLock.
     */
    public void setUseTryLock(final Integer useTryLock) {
-      if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-         ActiveMQRALogger.LOGGER.trace("setUseTryLock(" + useTryLock + ")");
-      }
+      logger.trace("setUseTryLock({})", useTryLock);
 
       this.useTryLock = useTryLock;
    }

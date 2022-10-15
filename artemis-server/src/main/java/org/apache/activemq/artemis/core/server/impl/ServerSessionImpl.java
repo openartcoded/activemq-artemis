@@ -101,16 +101,16 @@ import org.apache.activemq.artemis.utils.JsonLoader;
 import org.apache.activemq.artemis.utils.PrefixUtil;
 import org.apache.activemq.artemis.utils.collections.MaxSizeMap;
 import org.apache.activemq.artemis.utils.collections.TypedProperties;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 /**
  * Server side Session implementation
  */
 public class ServerSessionImpl implements ServerSession, FailureListener {
 
-
-   private static final Logger logger = Logger.getLogger(ServerSessionImpl.class);
-
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
 
    private boolean securityEnabled = true;
@@ -530,7 +530,7 @@ public class ServerSessionImpl implements ServerSession, FailureListener {
                                         final boolean supportLargeMessage,
                                         final Integer credits) throws Exception {
       if (AuditLogger.isBaseLoggingEnabled()) {
-         AuditLogger.createCoreConsumer(this, remotingConnection.getAuditSubject(), remotingConnection.getRemoteAddress(), consumerID, queueName, filterString, priority, browseOnly, supportLargeMessage, credits);
+         AuditLogger.createCoreConsumer(this, remotingConnection.getSubject(), remotingConnection.getRemoteAddress(), consumerID, queueName, filterString, priority, browseOnly, supportLargeMessage, credits);
       }
       final SimpleString unPrefixedQueueName = removePrefix(queueName);
 
@@ -580,7 +580,7 @@ public class ServerSessionImpl implements ServerSession, FailureListener {
       if (!browseOnly) {
          TypedProperties props = new TypedProperties();
 
-         props.putSimpleStringProperty(ManagementHelper.HDR_ADDRESS, address);
+         props.putSimpleStringProperty(ManagementHelper.HDR_ADDRESS, CompositeAddress.isFullyQualified(unPrefixedQueueName) ? unPrefixedQueueName : address);
 
          props.putSimpleStringProperty(ManagementHelper.HDR_CLUSTER_NAME, binding.getClusterName());
 
@@ -616,10 +616,8 @@ public class ServerSessionImpl implements ServerSession, FailureListener {
          Notification notification = new Notification(null, CoreNotificationType.CONSUMER_CREATED, props);
 
          if (logger.isDebugEnabled()) {
-            logger.debug("Session with user=" + username +
-                            ", connection=" + this.remotingConnection +
-                            " created a consumer on queue " + unPrefixedQueueName +
-                            ", filter = " + filterString);
+            logger.debug("Session with user={}, connection={} created a consumer on queue {}, filter = {}",
+                  username, remotingConnection, unPrefixedQueueName, filterString);
          }
 
          managementService.sendNotification(notification);
@@ -720,7 +718,7 @@ public class ServerSessionImpl implements ServerSession, FailureListener {
    @Override
    public Queue createQueue(QueueConfiguration queueConfiguration) throws Exception {
       if (AuditLogger.isBaseLoggingEnabled()) {
-         AuditLogger.createQueue(this, remotingConnection.getAuditSubject(), remotingConnection.getRemoteAddress(), queueConfiguration);
+         AuditLogger.createQueue(this, remotingConnection.getSubject(), remotingConnection.getRemoteAddress(), queueConfiguration);
       }
 
       queueConfiguration
@@ -737,9 +735,9 @@ public class ServerSessionImpl implements ServerSession, FailureListener {
          securityCheck(queueConfiguration.getAddress(), queueConfiguration.getName(), CheckType.CREATE_ADDRESS, this);
       }
 
-      server.checkQueueCreationLimit(getUsername());
+      server.checkQueueCreationLimit(getValidatedUser());
 
-      Queue queue = server.createQueue(queueConfiguration.setUser(getUsername()));
+      Queue queue = server.createQueue(queueConfiguration.setUser(getValidatedUser()));
 
       if (queueConfiguration.isTemporary()) {
          // Temporary queue in core simply means the queue will be deleted if
@@ -760,9 +758,9 @@ public class ServerSessionImpl implements ServerSession, FailureListener {
       }
 
       if (logger.isDebugEnabled()) {
-         logger.debug("Queue " + queueConfiguration.getName() + " created on address " + queueConfiguration.getAddress() +
-                         " with filter=" + queueConfiguration.getFilterString() + " temporary = " +
-                         queueConfiguration.isTemporary() + " durable=" + queueConfiguration.isDurable() + " on session user=" + this.username + ", connection=" + this.remotingConnection);
+         logger.debug("Queue {} created on address {} with filter={} temporary = {} durable={} on session user={}, connection={}",
+               queueConfiguration.getName(), queueConfiguration.getAddress(), queueConfiguration.getFilterString(),
+               queueConfiguration.isTemporary(), queueConfiguration.isDurable(), username, remotingConnection);
       }
 
       return queue;
@@ -930,7 +928,7 @@ public class ServerSessionImpl implements ServerSession, FailureListener {
                                     EnumSet<RoutingType> routingTypes,
                                     final boolean autoCreated) throws Exception {
       if (AuditLogger.isBaseLoggingEnabled()) {
-         AuditLogger.serverSessionCreateAddress(this.getName(), remotingConnection.getAuditSubject(), remotingConnection.getRemoteAddress(), address, routingTypes, autoCreated);
+         AuditLogger.serverSessionCreateAddress(this.getName(), remotingConnection.getSubject(), remotingConnection.getRemoteAddress(), address, routingTypes, autoCreated);
       }
 
       SimpleString realAddress = CompositeAddress.extractAddressName(address);
@@ -950,7 +948,7 @@ public class ServerSessionImpl implements ServerSession, FailureListener {
    @Override
    public AddressInfo createAddress(AddressInfo addressInfo, boolean autoCreated) throws Exception {
       if (AuditLogger.isBaseLoggingEnabled()) {
-         AuditLogger.serverSessionCreateAddress(this.getName(), remotingConnection.getAuditSubject(), remotingConnection.getRemoteAddress(), addressInfo, autoCreated);
+         AuditLogger.serverSessionCreateAddress(this.getName(), remotingConnection.getSubject(), remotingConnection.getRemoteAddress(), addressInfo, autoCreated);
       }
 
       AddressInfo art = getAddressAndRoutingType(addressInfo);
@@ -1040,15 +1038,15 @@ public class ServerSessionImpl implements ServerSession, FailureListener {
    @Override
    public void createSharedQueue(QueueConfiguration queueConfiguration) throws Exception {
       if (AuditLogger.isBaseLoggingEnabled()) {
-         AuditLogger.createSharedQueue(this, remotingConnection.getAuditSubject(), remotingConnection.getRemoteAddress(), queueConfiguration);
+         AuditLogger.createSharedQueue(this, remotingConnection.getSubject(), remotingConnection.getRemoteAddress(), queueConfiguration);
       }
       queueConfiguration.setAddress(removePrefix(queueConfiguration.getAddress()));
 
       securityCheck(queueConfiguration.getAddress(), queueConfiguration.getName(), queueConfiguration.isDurable() ? CheckType.CREATE_DURABLE_QUEUE : CheckType.CREATE_NON_DURABLE_QUEUE, this);
 
-      server.checkQueueCreationLimit(getUsername());
+      server.checkQueueCreationLimit(getValidatedUser());
 
-      server.createSharedQueue(queueConfiguration.setUser(getUsername()));
+      server.createSharedQueue(queueConfiguration.setUser(getValidatedUser()));
    }
 
    @Deprecated
@@ -1125,9 +1123,8 @@ public class ServerSessionImpl implements ServerSession, FailureListener {
 
       private void run() {
          try {
-            if (logger.isDebugEnabled()) {
-               logger.debug("deleting temporary queue " + bindingName);
-            }
+            logger.debug("deleting temporary queue {}", bindingName);
+
             try {
                server.destroyQueue(bindingName, null, false, false, true);
                if (observer != null) {
@@ -1138,7 +1135,7 @@ public class ServerSessionImpl implements ServerSession, FailureListener {
                logger.debug(e.getMessage(), e);
             }
          } catch (Exception e) {
-            ActiveMQServerLogger.LOGGER.errorRemovingTempQueue(e, bindingName);
+            ActiveMQServerLogger.LOGGER.errorRemovingTempQueue(bindingName, e);
          }
       }
 
@@ -1167,7 +1164,7 @@ public class ServerSessionImpl implements ServerSession, FailureListener {
    @Override
    public void deleteQueue(final SimpleString queueToDelete) throws Exception {
       if (AuditLogger.isBaseLoggingEnabled()) {
-         AuditLogger.destroyQueue(this, remotingConnection.getAuditSubject(), remotingConnection.getRemoteAddress(), queueToDelete);
+         AuditLogger.destroyQueue(this, remotingConnection.getSubject(), remotingConnection.getRemoteAddress(), queueToDelete);
       }
       final SimpleString unPrefixedQueueName = removePrefix(queueToDelete);
 
@@ -1241,8 +1238,7 @@ public class ServerSessionImpl implements ServerSession, FailureListener {
          } catch (Exception e) {
             // just ignored
             // will log it just in case
-            logger.debug("Ignored exception while acking messageID " + messageID +
-                            " on a rolledback TX", e);
+            logger.debug("Ignored exception while acking messageID {} on a rolledback TX", messageID, e);
          }
          newTX.rollback();
       } else {
@@ -1306,15 +1302,14 @@ public class ServerSessionImpl implements ServerSession, FailureListener {
       MessageReference ref = consumer.removeReferenceByID(messageID);
 
       if (ref != null) {
-         ref.getQueue().expire(ref, consumer);
+         ref.getQueue().expire(ref, consumer, true);
       }
    }
 
    @Override
    public synchronized void commit() throws Exception {
-      if (logger.isTraceEnabled()) {
-         logger.trace("Calling commit");
-      }
+      logger.trace("Calling commit");
+
       try {
          if (tx != null) {
             tx.commit();
@@ -1382,9 +1377,7 @@ public class ServerSessionImpl implements ServerSession, FailureListener {
       } else {
          Transaction theTx = resourceManager.removeTransaction(xid, remotingConnection);
 
-         if (logger.isTraceEnabled()) {
-            logger.trace("XAcommit into " + theTx + ", xid=" + xid);
-         }
+         logger.trace("XAcommit into {}, xid={}", theTx, xid);
 
          if (theTx == null) {
             // checked heuristic committed transactions
@@ -1394,9 +1387,7 @@ public class ServerSessionImpl implements ServerSession, FailureListener {
                // checked heuristic rolled back transactions
                throw new ActiveMQXAException(XAException.XA_HEURRB, "transaction has been heuristically rolled back: " + xid);
             } else {
-               if (logger.isTraceEnabled()) {
-                  logger.trace("XAcommit into " + theTx + ", xid=" + xid + " cannot find it");
-               }
+               logger.trace("XAcommit into {}, xid={} cannot find it", theTx, xid);
 
                throw new ActiveMQXAException(XAException.XAER_NOTA, "Cannot find xid in resource manager: " + xid);
             }
@@ -1447,7 +1438,12 @@ public class ServerSessionImpl implements ServerSession, FailureListener {
 
             throw new ActiveMQXAException(XAException.XAER_NOTA, msg);
          } else {
-            if (theTx.getState() != Transaction.State.SUSPENDED) {
+            if (theTx.getState() == State.ACTIVE) {
+               // nothing to be done on this case, it's already active, we just ignore it and keep live as usual
+               // TM 1.2 specs expects this as a regular scenario and it should just be ignored by TM Spec
+               return;
+            } else if (theTx.getState() != Transaction.State.SUSPENDED) {
+
                final String msg = "Transaction is not suspended " + xid;
 
                throw new ActiveMQXAException(XAException.XAER_PROTO, msg);
@@ -1526,9 +1522,7 @@ public class ServerSessionImpl implements ServerSession, FailureListener {
          throw new ActiveMQXAException(XAException.XAER_PROTO, msg);
       } else {
          Transaction theTx = resourceManager.removeTransaction(xid, remotingConnection);
-         if (logger.isTraceEnabled()) {
-            logger.trace("xarollback into " + theTx);
-         }
+         logger.trace("xarollback into {}", theTx);
 
          if (theTx == null) {
             // checked heuristic committed transactions
@@ -1538,9 +1532,7 @@ public class ServerSessionImpl implements ServerSession, FailureListener {
                // checked heuristic rolled back transactions
                throw new ActiveMQXAException(XAException.XA_HEURRB, "transaction has ben heuristically rolled back: " + xid);
             } else {
-               if (logger.isTraceEnabled()) {
-                  logger.trace("xarollback into " + theTx + ", xid=" + xid + " forcing a rollback regular");
-               }
+               logger.trace("xarollback into {}, xid={} forcing a rollback regular", theTx, xid);
 
                try {
                   // jbpapp-8845
@@ -1555,9 +1547,7 @@ public class ServerSessionImpl implements ServerSession, FailureListener {
             }
          } else {
             if (theTx.getState() == Transaction.State.SUSPENDED) {
-               if (logger.isTraceEnabled()) {
-                  logger.trace("xarollback into " + theTx + " sending tx back as it was suspended");
-               }
+               logger.trace("xarollback into {} sending tx back as it was suspended", theTx);
 
                // Put it back
                resourceManager.putTransaction(xid, tx, remotingConnection);
@@ -1590,9 +1580,7 @@ public class ServerSessionImpl implements ServerSession, FailureListener {
 
       tx = newTransaction(xid);
 
-      if (logger.isTraceEnabled()) {
-         logger.trace("xastart into tx= " + tx);
-      }
+      logger.trace("xastart into tx= {}", tx);
 
       boolean added = resourceManager.putTransaction(xid, tx, remotingConnection);
 
@@ -1613,24 +1601,19 @@ public class ServerSessionImpl implements ServerSession, FailureListener {
       }
 
       if (theTX.isEffective()) {
-         logger.debug("Client failed with Xid " + xid + " but the server already had it " + theTX.getState());
+         logger.debug("Client failed with Xid {} but the server already had it {}", xid, theTX.getState());
          tx = null;
       } else {
          theTX.markAsRollbackOnly(new ActiveMQException("Can't commit as a Failover happened during the operation"));
          tx = theTX;
       }
 
-      if (logger.isTraceEnabled()) {
-         logger.trace("xastart into tx= " + tx);
-      }
+      logger.trace("xastart into tx= {}", tx);
    }
 
    @Override
    public synchronized void xaSuspend() throws Exception {
-
-      if (logger.isTraceEnabled()) {
-         logger.trace("xasuspend on " + this.tx);
-      }
+      logger.trace("xasuspend on {}", tx);
 
       if (tx == null) {
          final String msg = "Cannot suspend, session is not doing work in a transaction ";
@@ -1658,9 +1641,7 @@ public class ServerSessionImpl implements ServerSession, FailureListener {
       } else {
          Transaction theTx = resourceManager.getTransaction(xid);
 
-         if (logger.isTraceEnabled()) {
-            logger.trace("xaprepare into " + ", xid=" + xid + ", tx= " + tx);
-         }
+         logger.trace("xaprepare into xid={}, tx={}", xid, tx);
 
          if (theTx == null) {
             final String msg = "Cannot find xid in resource manager: " + xid;
@@ -1743,7 +1724,7 @@ public class ServerSessionImpl implements ServerSession, FailureListener {
       ServerConsumer consumer = locateConsumer(consumerID);
 
       if (consumer == null) {
-         logger.debug("There is no consumer with id " + consumerID);
+         logger.debug("There is no consumer with id {}", consumerID);
 
          return;
       }
@@ -1807,10 +1788,6 @@ public class ServerSessionImpl implements ServerSession, FailureListener {
             message.setMessageID(id);
          }
 
-         if (AuditLogger.isMessageLoggingEnabled()) {
-            AuditLogger.coreSendMessage(remotingConnection.getAuditSubject(), remotingConnection.getRemoteAddress(), message.toString(), routingContext);
-         }
-
          SimpleString address = message.getAddressSimpleString();
 
          if (defaultAddress == null && address != null) {
@@ -1823,7 +1800,7 @@ public class ServerSessionImpl implements ServerSession, FailureListener {
          }
 
          if (logger.isTraceEnabled()) {
-            logger.trace("send(message=" + message + ", direct=" + direct + ") being called");
+            logger.trace("send(message={}, direct={}) being called", message, direct);
          }
 
          if (message.getAddress() == null) {
@@ -1839,6 +1816,25 @@ public class ServerSessionImpl implements ServerSession, FailureListener {
             result = doSend(tx, message, address, direct, noAutoCreateQueue, routingContext);
          }
 
+         if (AuditLogger.isMessageLoggingEnabled()) {
+            if (tx != null && !autoCommitSends) {
+               AuditLogger.addSendToTransaction(remotingConnection.getSubject(), remotingConnection.getRemoteAddress(), message.toString(), tx.toString());
+               tx.addOperation(new TransactionOperationAbstract() {
+                  @Override
+                  public void afterCommit(Transaction tx) {
+                     auditLogSend(message, tx);
+                  }
+
+                  @Override
+                  public void afterRollback(Transaction tx) {
+                     AuditLogger.rolledBackTransaction(remotingConnection.getSubject(), remotingConnection.getRemoteAddress(), tx.toString(), message.toString());
+                  }
+               });
+            } else {
+               auditLogSend(message, null);
+            }
+         }
+
       } catch (Exception e) {
          if (server.hasBrokerMessagePlugins()) {
             server.callBrokerMessagePlugins(plugin -> plugin.onSendException(this, tx, message, direct, noAutoCreateQueue, e));
@@ -1846,11 +1842,14 @@ public class ServerSessionImpl implements ServerSession, FailureListener {
          throw e;
       }
       if (server.hasBrokerMessagePlugins()) {
-         server.callBrokerMessagePlugins(plugin -> plugin.afterSend(this, tx, message, direct, noAutoCreateQueue, result));
+         server.callBrokerMessagePlugins(plugin -> plugin.afterSend(this, autoCommitSends ? null : tx, message, direct, noAutoCreateQueue, result));
       }
       return result;
    }
 
+   private void auditLogSend(Message message, Transaction tx) {
+      AuditLogger.coreSendMessage(remotingConnection.getSubject(), remotingConnection.getRemoteAddress(), message.toString(), routingContext, tx == null ? null : tx.toString());
+   }
 
    @Override
    public void requestProducerCredits(SimpleString address, final int credits) throws Exception {
@@ -1973,7 +1972,11 @@ public class ServerSessionImpl implements ServerSession, FailureListener {
 
    @Override
    public String getValidatedUser() {
-      return validatedUser;
+      /*
+       * Security is often disabled in tests so if the validated user is null
+       * then just return the username supplied directly from the client.
+       */
+      return validatedUser != null ? validatedUser : username;
    }
 
    @Override
@@ -2061,7 +2064,7 @@ public class ServerSessionImpl implements ServerSession, FailureListener {
                                                  final Message message,
                                                  final boolean direct) throws Exception {
       if (AuditLogger.isBaseLoggingEnabled()) {
-         AuditLogger.handleManagementMessage(this.getName(), remotingConnection.getAuditSubject(), remotingConnection.getRemoteAddress(), tx, message, direct);
+         AuditLogger.handleManagementMessage(this.getName(), remotingConnection.getSubject(), remotingConnection.getRemoteAddress(), tx, message, direct);
       }
       try {
          securityCheck(removePrefix(message.getAddressSimpleString()), CheckType.MANAGE, this);

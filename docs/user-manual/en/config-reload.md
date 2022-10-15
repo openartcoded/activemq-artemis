@@ -4,6 +4,10 @@ The system will perform a periodic check on the configuration files, configured
 by `configuration-file-refresh-period`, with the default at `5000`, in
 milliseconds. These checks can be disabled by specifying `-1`.
 
+Note that the Log4J2 configuration has its own reload mechanism, configured via its own
+log4j2.properties file. See [Logging configuration reload](logging.md#configuration-reload)
+for more detail.
+
 Once the configuration file is changed (broker.xml) the following modules will
 be reloaded automatically:
 
@@ -136,7 +140,6 @@ attribute `match` | N/A | X | Changing this value is same as deleting the whole 
 `<max-delivery-attempts>` | X (no more than one can be present) | The configured max-delivery-attempts will be removed from running broker after reloading. | The max-delivery-attempts will be updated after reloading.
 `<max-size-bytes>` | X (no more than one can be present) | The configured max-size-bytes will be removed from running broker after reloading. | The max-size-bytes will be updated after reloading.
 `<page-size-bytes>` | X (no more than one can be present) | The configured page-size-bytes will be removed from running broker after reloading. | The page-size-bytes will be updated after reloading.
-`<page-max-cache-size>` | X (no more than one can be present) | The configured page-max-cache-size will be removed from running broker after reloading. | The page-max-cache-size will be updated after reloading.
 `<address-full-policy>` | X (no more than one can be present) | The configured address-full-policy will be removed from running broker after reloading. | The address-full-policy will be updated after reloading.
 `<message-counter-history-day-limit>` | X (no more than one can be present) | The configured message-counter-history-day-limit will be removed from running broker after reloading. | The message-counter-history-day-limit will be updated after reloading.
 `<last-value-queue>` | X (no more than one can be present) | The configured last-value-queue will be removed from running broker after reloading (no longer a last value queue). | The last-value-queue will be updated after reloading.

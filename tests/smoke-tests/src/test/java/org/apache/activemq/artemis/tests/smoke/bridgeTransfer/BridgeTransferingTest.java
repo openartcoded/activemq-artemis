@@ -29,22 +29,24 @@ import java.util.Collection;
 
 import org.apache.activemq.artemis.jms.client.ActiveMQConnectionFactory;
 import org.apache.activemq.artemis.tests.smoke.common.SmokeTestBase;
+import org.apache.activemq.artemis.tests.util.CFUtil;
 import org.apache.activemq.artemis.utils.Wait;
-import org.apache.qpid.jms.JmsConnectionFactory;
-import org.jboss.logging.Logger;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 @RunWith(Parameterized.class)
 public class BridgeTransferingTest extends SmokeTestBase {
 
    public static final String SERVER_NAME_0 = "bridgeTransfer/serverA";
    public static final String SERVER_NAME_1 = "bridgeTransfer/serverB";
-   private static final Logger logger = Logger.getLogger(BridgeTransferingTest.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
    private static final String JMX_SERVER_HOSTNAME = "localhost";
    private static final int JMX_SERVER_PORT = 11099;
 
@@ -74,23 +76,6 @@ public class BridgeTransferingTest extends SmokeTestBase {
       return Arrays.asList(new Object[][]{{"CORE", 200, 1000, 10000, 15_000, 5000, true}, {"CORE", 200, 1000, 10000, 15_000, 5000, false}});
    }
 
-   public static ConnectionFactory createConnectionFactory(String protocol, String uri) {
-      if (protocol.toUpperCase().equals("OPENWIRE")) {
-         return new org.apache.activemq.ActiveMQConnectionFactory(uri);
-      } else if (protocol.toUpperCase().equals("AMQP")) {
-
-         if (uri.startsWith("tcp://")) {
-            // replacing tcp:// by amqp://
-            uri = "amqp" + uri.substring(3);
-         }
-         return new JmsConnectionFactory(uri);
-      } else if (protocol.toUpperCase().equals("CORE") || protocol.toUpperCase().equals("ARTEMIS")) {
-         return new org.apache.activemq.artemis.jms.client.ActiveMQConnectionFactory(uri);
-      } else {
-         throw new IllegalStateException("Unknown:" + protocol);
-      }
-   }
-
    @Before
    public void before() throws Exception {
       cleanupData(SERVER_NAME_0);
@@ -108,7 +93,7 @@ public class BridgeTransferingTest extends SmokeTestBase {
 
    @Test
    public void testTransfer() throws Exception {
-      ConnectionFactory cf = createConnectionFactory(theprotocol, "tcp://localhost:61616");
+      ConnectionFactory cf = CFUtil.createConnectionFactory(theprotocol, "tcp://localhost:61616");
       ((ActiveMQConnectionFactory) cf).setMinLargeMessageSize(minlargeMessageSize);
 
       String body;
@@ -134,13 +119,13 @@ public class BridgeTransferingTest extends SmokeTestBase {
             producer.send(session.createTextMessage(body + " " + i));
 
             if (++txElement == commitInterval) {
-               logger.debug("Sent " + (i + 1) + " messages");
+               logger.debug("Sent {} messages", (i + 1));
                txElement = 0;
                session.commit();
             }
 
             if (++killElement == killServerInterval) {
-               logger.debug("Killing server at " + (i + 1));
+               logger.debug("Killing server at {}", (i + 1));
                killElement = 0;
                if (killBothServers) {
                   serverProcess.destroyForcibly();
@@ -166,7 +151,7 @@ public class BridgeTransferingTest extends SmokeTestBase {
             session.commit();
          }
       }
-      ConnectionFactory cf2 = createConnectionFactory(theprotocol, "tcp://localhost:61617");
+      ConnectionFactory cf2 = CFUtil.createConnectionFactory(theprotocol, "tcp://localhost:61617");
       try (Connection connection = cf2.createConnection()) {
          Session session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
          Queue queue = session.createQueue("bridgeQueue");
@@ -175,7 +160,7 @@ public class BridgeTransferingTest extends SmokeTestBase {
 
          for (int i = 0; i < numberOfMessages; i++) {
             if (i % 100 == 0) {
-               logger.debug("consuming " + i);
+               logger.debug("consuming {}", i);
             }
             TextMessage message = (TextMessage) consumer.receive(5000);
             Assert.assertNotNull(message);

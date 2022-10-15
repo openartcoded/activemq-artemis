@@ -45,6 +45,15 @@ public class ActiveMQServerControlUsingCoreTest extends ActiveMQServerControlTes
    public void testScaleDownWithConnector() throws Exception {
    }
 
+   // the proxy will not work on these tests, ignoring the tests
+   @Override
+   public void testRestartEmbeddedWebServerException() throws Exception {
+   }
+
+   @Override
+   public void testRestartEmbeddedWebServerTimeout() throws Exception {
+   }
+
 
 
    @Override
@@ -588,6 +597,11 @@ public class ActiveMQServerControlUsingCoreTest extends ActiveMQServerControlTes
          }
 
          @Override
+         public String getName() {
+            return (String) proxy.retrieveAttributeValue("name");
+         }
+
+         @Override
          public String getVersion() {
             return proxy.retrieveAttributeValue("version").toString();
          }
@@ -822,6 +836,11 @@ public class ActiveMQServerControlUsingCoreTest extends ActiveMQServerControlTes
          @Override
          public long getAuthorizationCacheSize() {
             return (Long) proxy.retrieveAttributeValue("AuthorizationCacheSize", Long.class);
+         }
+
+         @Override
+         public String getStatus() {
+            return (String) proxy.retrieveAttributeValue("Status", String.class);
          }
 
          @Override
@@ -1574,6 +1593,16 @@ public class ActiveMQServerControlUsingCoreTest extends ActiveMQServerControlTes
          }
 
          @Override
+         public void addConnector(String name, String url) throws Exception {
+            proxy.invokeOperation("addConnector", name, url);
+         }
+
+         @Override
+         public void removeConnector(String name) throws Exception {
+            proxy.invokeOperation("removeConnector", name);
+         }
+
+         @Override
          public String listProducersInfoAsJSON() throws Exception {
             return (String) proxy.invokeOperation("listProducersInfoAsJSON");
          }
@@ -1660,6 +1689,31 @@ public class ActiveMQServerControlUsingCoreTest extends ActiveMQServerControlTes
                             String target,
                             String filter) throws Exception {
             proxy.invokeOperation("replay", startScan, endScan, address, target, filter);
+         }
+
+         @Override
+         public void stopEmbeddedWebServer() throws Exception {
+            proxy.invokeOperation("stopEmbeddedWebServer");
+         }
+
+         @Override
+         public void startEmbeddedWebServer() throws Exception {
+            proxy.invokeOperation("startEmbeddedWebServer");
+         }
+
+         @Override
+         public void restartEmbeddedWebServer() throws Exception {
+            proxy.invokeOperation("restartEmbeddedWebServer");
+         }
+
+         @Override
+         public void restartEmbeddedWebServer(long timeout) throws Exception {
+            proxy.invokeOperation("restartEmbeddedWebServer", timeout);
+         }
+
+         @Override
+         public boolean isEmbeddedWebServerStarted() {
+            return (boolean) proxy.retrieveAttributeValue("embeddedWebServerStarted");
          }
       };
    }

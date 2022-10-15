@@ -32,7 +32,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
-import org.apache.activemq.transport.InactivityIOException;
 import org.apache.activemq.transport.netty.NettyTransport;
 import org.apache.activemq.transport.amqp.client.sasl.SaslAuthenticator;
 import org.apache.activemq.transport.netty.NettyTransportListener;
@@ -55,13 +54,14 @@ import org.apache.qpid.proton.engine.impl.CollectorImpl;
 import org.apache.qpid.proton.engine.impl.TransportImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.util.ReferenceCountUtil;
 
 public class AmqpConnection extends AmqpAbstractResource<Connection> implements NettyTransportListener {
 
-   private static final Logger LOG = LoggerFactory.getLogger(AmqpConnection.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private static final NoOpAsyncResult NOOP_REQUEST = new NoOpAsyncResult();
 
@@ -229,7 +229,7 @@ public class AmqpConnection extends AmqpAbstractResource<Connection> implements 
 
                   pumpToProtonTransport(request);
                } catch (Exception e) {
-                  LOG.debug("Caught exception while closing proton connection");
+                  logger.debug("Caught exception while closing proton connection");
                }
             }
          });
@@ -241,20 +241,20 @@ public class AmqpConnection extends AmqpAbstractResource<Connection> implements 
                request.sync(closeTimeout, TimeUnit.MILLISECONDS);
             }
          } catch (IOException e) {
-            LOG.warn("Error caught while closing Provider: ", e.getMessage());
+            logger.warn("Error caught while closing Provider: ", e.getMessage());
          } finally {
             if (transport != null) {
                try {
                   transport.close();
                } catch (Exception e) {
-                  LOG.debug("Cuaght exception while closing down Transport: {}", e.getMessage());
+                  logger.debug("Cuaght exception while closing down Transport: {}", e.getMessage());
                }
             }
 
             serializer.shutdownNow();
             try {
                if (!serializer.awaitTermination(10, TimeUnit.SECONDS)) {
-                  LOG.warn("Serializer didn't shutdown cleanly");
+                  logger.warn("Serializer didn't shutdown cleanly");
                }
             } catch (InterruptedException e) {
             }
@@ -549,10 +549,10 @@ public class AmqpConnection extends AmqpAbstractResource<Connection> implements 
          @Override
          public void run() {
             ByteBuffer source = incoming.nioBuffer();
-            LOG.trace("Client Received from Broker {} bytes:", source.remaining());
+            logger.trace("Client Received from Broker {} bytes:", source.remaining());
 
             if (protonTransport.isClosed()) {
-               LOG.debug("Ignoring incoming data because transport is closed");
+               logger.debug("Ignoring incoming data because transport is closed");
                return;
             }
 
@@ -579,7 +579,7 @@ public class AmqpConnection extends AmqpAbstractResource<Connection> implements 
 
    @Override
    public void onTransportClosed() {
-      LOG.debug("The transport has unexpectedly closed");
+      logger.debug("The transport has unexpectedly closed");
       failed(getOpenAbortException());
    }
 
@@ -607,14 +607,14 @@ public class AmqpConnection extends AmqpAbstractResource<Connection> implements 
                   public void run() {
                      try {
                         if (getEndpoint().getLocalState() != EndpointState.CLOSED) {
-                           LOG.debug("Client performing next idle check");
+                           logger.debug("Client performing next idle check");
                            // Using nano time since it is not related to the wall clock, which may change
                            long now = TimeUnit.NANOSECONDS.toMillis(System.nanoTime());
                            long deadline = protonTransport.tick(now);
                            pumpToProtonTransport();
                            if (protonTransport.isClosed()) {
-                              LOG.debug("Transport closed after inactivity check.");
-                              throw new InactivityIOException("Channel was inactive for too long");
+                              logger.debug("Transport closed after inactivity check.");
+                              throw new IllegalStateException("Channel was inactive for too long");
                            } else {
                               if (deadline != 0) {
                                  getScheduler().schedule(this, deadline - now, TimeUnit.MILLISECONDS);
@@ -672,7 +672,7 @@ public class AmqpConnection extends AmqpAbstractResource<Connection> implements 
          Event protonEvent = null;
          while ((protonEvent = protonCollector.peek()) != null) {
             if (!protonEvent.getType().equals(Type.TRANSPORT)) {
-               LOG.trace("Client: New Proton Event: {}", protonEvent.getType());
+               logger.trace("Client: New Proton Event: {}", protonEvent.getType());
             }
 
             AmqpEventSink amqpEventSink = null;
@@ -725,7 +725,7 @@ public class AmqpConnection extends AmqpAbstractResource<Connection> implements 
             processSaslAuthentication();
          }
       } catch (Exception ex) {
-         LOG.warn("Caught Exception during update processing: {}", ex.getMessage(), ex);
+         logger.warn("Caught Exception during update processing: {}", ex.getMessage(), ex);
          fireClientException(ex);
       }
    }

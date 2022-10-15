@@ -24,13 +24,14 @@ import java.util.List;
 import org.apache.qpid.proton.engine.Sasl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 /**
  * Manage the SASL authentication process
  */
 public class SaslAuthenticator {
 
-   private static final Logger LOG = LoggerFactory.getLogger(SaslAuthenticator.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private final Sasl sasl;
    private final String username;
@@ -120,7 +121,7 @@ public class SaslAuthenticator {
 
       for (String remoteMechanism : remoteMechanisms) {
          if (mechanismRestriction != null && !mechanismRestriction.equals(remoteMechanism)) {
-            LOG.debug("Skipping {} mechanism because it is not the configured mechanism restriction {}", remoteMechanism, mechanismRestriction);
+            logger.debug("Skipping {} mechanism because it is not the configured mechanism restriction {}", remoteMechanism, mechanismRestriction);
             continue;
          }
 
@@ -132,7 +133,7 @@ public class SaslAuthenticator {
          } else if (remoteMechanism.equalsIgnoreCase("CRAM-MD5")) {
             mechanism = new CramMD5Mechanism();
          } else {
-            LOG.debug("Unknown remote mechanism {}, skipping", remoteMechanism);
+            logger.debug("Unknown remote mechanism {}, skipping", remoteMechanism);
             continue;
          }
 
@@ -148,7 +149,7 @@ public class SaslAuthenticator {
          match = found.get(found.size() - 1);
       }
 
-      LOG.info("Best match for SASL auth was: {}", match);
+      logger.info("Best match for SASL auth was: {}", match);
 
       return match;
    }

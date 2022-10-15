@@ -37,14 +37,16 @@ import org.apache.qpid.proton.engine.Delivery;
 import org.apache.qpid.proton.engine.Receiver;
 import org.apache.qpid.proton.message.Message;
 import org.apache.qpid.proton.message.impl.MessageImpl;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 /**
  * handles an amqp Coordinator to deal with transaction boundaries etc
  */
 public class ProtonTransactionHandler implements ProtonDeliveryHandler {
 
-   private static final Logger log = Logger.getLogger(ProtonTransactionHandler.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private final int amqpCredit;
    private final int amqpLowMark;
@@ -172,7 +174,7 @@ public class ProtonTransactionHandler implements ProtonDeliveryHandler {
    }
 
    private void txError(Delivery delivery, Throwable e) {
-      log.warn(e.getMessage(), e);
+      logger.warn(e.getMessage(), e);
       connection.runNow(() -> {
          delivery.settle();
          if (e instanceof ActiveMQAMQPException) {

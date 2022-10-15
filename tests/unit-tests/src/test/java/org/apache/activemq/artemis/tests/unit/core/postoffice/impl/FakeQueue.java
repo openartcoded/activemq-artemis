@@ -22,6 +22,7 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 
 import org.apache.activemq.artemis.api.config.ActiveMQDefaultConfiguration;
+import org.apache.activemq.artemis.api.core.ActiveMQException;
 import org.apache.activemq.artemis.api.core.Message;
 import org.apache.activemq.artemis.api.core.Pair;
 import org.apache.activemq.artemis.api.core.RoutingType;
@@ -396,7 +397,7 @@ public class FakeQueue extends CriticalComponentImpl implements Queue {
    }
 
    @Override
-   public void acknowledge(Transaction tx, MessageReference ref, AckReason reason, ServerConsumer consumer) throws Exception {
+   public void acknowledge(Transaction tx, MessageReference ref, AckReason reason, ServerConsumer consumer, boolean decDel) throws Exception {
       // no-op
 
    }
@@ -492,7 +493,7 @@ public class FakeQueue extends CriticalComponentImpl implements Queue {
    }
 
    @Override
-   public void expire(final MessageReference ref, final ServerConsumer consumer) throws Exception {
+   public void expire(final MessageReference ref, final ServerConsumer consumer, boolean decDel) throws Exception {
       // no-op
 
    }
@@ -675,6 +676,16 @@ public class FakeQueue extends CriticalComponentImpl implements Queue {
 
    @Override
    public void deliverScheduledMessages() {
+
+   }
+
+   @Override
+   public void deliverScheduledMessages(String filter) throws ActiveMQException {
+
+   }
+
+   @Override
+   public void deliverScheduledMessage(long messageId) throws ActiveMQException {
 
    }
 
@@ -964,6 +975,10 @@ public class FakeQueue extends CriticalComponentImpl implements Queue {
    public LinkedListIterator<MessageReference> browserIterator() {
       // TODO Auto-generated method stub
       return null;
+   }
+
+   @Override
+   public void postAcknowledge(MessageReference ref, AckReason reason, boolean delivering) {
    }
 
    @Override

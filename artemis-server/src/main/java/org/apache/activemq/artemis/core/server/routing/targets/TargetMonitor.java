@@ -18,14 +18,16 @@
 package org.apache.activemq.artemis.core.server.routing.targets;
 
 import org.apache.activemq.artemis.core.server.ActiveMQScheduledComponent;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 public class TargetMonitor extends ActiveMQScheduledComponent implements TargetListener {
-   private static final Logger logger = Logger.getLogger(TargetMonitor.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
 
    private final Target target;
@@ -69,7 +71,7 @@ public class TargetMonitor extends ActiveMQScheduledComponent implements TargetL
       try {
          target.disconnect();
       } catch (Exception e) {
-         logger.debug("Error on disconnecting target " + target, e);
+         logger.debug("Error on disconnecting target {}", target, e);
       }
    }
 
@@ -77,24 +79,20 @@ public class TargetMonitor extends ActiveMQScheduledComponent implements TargetL
    public void run() {
       try {
          if (!target.isConnected()) {
-            if (logger.isDebugEnabled()) {
-               logger.debug("Connecting to " + target);
-            }
+            logger.debug("Connecting to {}", target);
 
             target.connect();
          }
 
          targetReady = target.checkReadiness() &&  checkTargetProbes();
 
-         if (logger.isDebugEnabled()) {
-            if (targetReady) {
-               logger.debug(target + " is ready");
-            } else {
-               logger.debug(target + " is not ready");
-            }
+         if (targetReady) {
+            logger.debug("{} is ready", target);
+         } else {
+            logger.debug("{} is not ready", target);
          }
       } catch (Exception e) {
-         logger.warn("Error monitoring " + target, e);
+         logger.warn("Error monitoring {}", target, e);
 
          targetReady = false;
       }
@@ -103,7 +101,7 @@ public class TargetMonitor extends ActiveMQScheduledComponent implements TargetL
    private boolean checkTargetProbes() {
       for (TargetProbe targetProbe : targetProbes) {
          if (!targetProbe.check(target)) {
-            logger.info(targetProbe.getName() + " has failed on " + target);
+            logger.info("{} has failed on {}", targetProbe.getName(), target);
             return false;
          }
       }

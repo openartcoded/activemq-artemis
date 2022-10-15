@@ -27,7 +27,9 @@ import org.apache.activemq.artemis.jdbc.store.drivers.AbstractJDBCDriver;
 import org.apache.activemq.artemis.jdbc.store.drivers.JDBCConnectionProvider;
 import org.apache.activemq.artemis.jdbc.store.sql.SQLProvider;
 import org.apache.activemq.artemis.utils.UUID;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 /**
  * JDBC implementation of a {@link SharedStateManager}.
@@ -35,11 +37,12 @@ import org.jboss.logging.Logger;
 @SuppressWarnings("SynchronizeOnNonFinalField")
 final class JdbcSharedStateManager extends AbstractJDBCDriver implements SharedStateManager {
 
-   private static final Logger logger = Logger.getLogger(JdbcSharedStateManager.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
    private static final int MAX_SETUP_ATTEMPTS = 20;
    private final String holderId;
    private final long lockExpirationMillis;
    private final long queryTimeoutMillis;
+   private final long allowedTimeDiff;
    private JdbcLeaseLock liveLock;
    private JdbcLeaseLock backupLock;
    private String readNodeId;
@@ -50,18 +53,20 @@ final class JdbcSharedStateManager extends AbstractJDBCDriver implements SharedS
 
    public static JdbcSharedStateManager usingConnectionProvider(String holderId,
                                                                 long locksExpirationMillis,
+                                                                long allowedTimeDiff,
                                                                 JDBCConnectionProvider connectionProvider,
                                                                 SQLProvider provider) {
-      return usingConnectionProvider(holderId, locksExpirationMillis, -1, connectionProvider, provider);
+      return usingConnectionProvider(holderId, locksExpirationMillis, allowedTimeDiff, -1, connectionProvider, provider);
    }
 
    public static JdbcSharedStateManager usingConnectionProvider(String holderId,
                                                                 long locksExpirationMillis,
                                                                 long queryTimeoutMillis,
+                                                                long allowedTimeDiff,
                                                                 JDBCConnectionProvider connectionProvider,
                                                                 SQLProvider provider) {
       final JdbcSharedStateManager sharedStateManager = new JdbcSharedStateManager(holderId, locksExpirationMillis,
-                                                                                   queryTimeoutMillis);
+                                                                                   queryTimeoutMillis, allowedTimeDiff);
       sharedStateManager.setJdbcConnectionProvider(connectionProvider);
       sharedStateManager.setSqlProvider(provider);
       try {
@@ -85,36 +90,41 @@ final class JdbcSharedStateManager extends AbstractJDBCDriver implements SharedS
    static JdbcLeaseLock createLiveLock(String holderId,
                                        JDBCConnectionProvider connectionProvider,
                                        SQLProvider sqlProvider,
-                                       long expirationMillis) {
-      return createLiveLock(holderId, connectionProvider, sqlProvider, expirationMillis, -1);
+                                       long expirationMillis,
+                                       long allowedTimeDiff) {
+      return createLiveLock(holderId, connectionProvider, sqlProvider, expirationMillis, -1, allowedTimeDiff);
    }
 
    static JdbcLeaseLock createLiveLock(String holderId,
                                        JDBCConnectionProvider connectionProvider,
                                        SQLProvider sqlProvider,
                                        long expirationMillis,
-                                       long queryTimeoutMillis) {
+                                       long queryTimeoutMillis,
+                                       long allowedTimeDiff) {
       return new JdbcLeaseLock(holderId, connectionProvider, sqlProvider.tryAcquireLiveLockSQL(),
                                sqlProvider.tryReleaseLiveLockSQL(), sqlProvider.renewLiveLockSQL(),
                                sqlProvider.isLiveLockedSQL(), sqlProvider.currentTimestampSQL(),
-                               sqlProvider.currentTimestampTimeZoneId(), expirationMillis, queryTimeoutMillis, "LIVE");
+                               sqlProvider.currentTimestampTimeZoneId(), expirationMillis, queryTimeoutMillis,
+                               "LIVE", allowedTimeDiff);
    }
 
    static JdbcLeaseLock createBackupLock(String holderId,
                                          JDBCConnectionProvider connectionProvider,
                                          SQLProvider sqlProvider,
                                          long expirationMillis,
-                                         long queryTimeoutMillis) {
+                                         long queryTimeoutMillis,
+                                         long allowedTimeDiff) {
       return new JdbcLeaseLock(holderId, connectionProvider, sqlProvider.tryAcquireBackupLockSQL(),
                                sqlProvider.tryReleaseBackupLockSQL(), sqlProvider.renewBackupLockSQL(),
                                sqlProvider.isBackupLockedSQL(), sqlProvider.currentTimestampSQL(),
-                               sqlProvider.currentTimestampTimeZoneId(), expirationMillis, queryTimeoutMillis, "BACKUP");
+                               sqlProvider.currentTimestampTimeZoneId(), expirationMillis, queryTimeoutMillis,
+                               "BACKUP", allowedTimeDiff);
    }
 
    @Override
    protected void prepareStatements() {
-      this.liveLock = createLiveLock(this.holderId, this.connectionProvider, sqlProvider, lockExpirationMillis, queryTimeoutMillis);
-      this.backupLock = createBackupLock(this.holderId, this.connectionProvider, sqlProvider, lockExpirationMillis, queryTimeoutMillis);
+      this.liveLock = createLiveLock(this.holderId, this.connectionProvider, sqlProvider, lockExpirationMillis, queryTimeoutMillis, allowedTimeDiff);
+      this.backupLock = createBackupLock(this.holderId, this.connectionProvider, sqlProvider, lockExpirationMillis, queryTimeoutMillis, allowedTimeDiff);
       this.readNodeId = sqlProvider.readNodeIdSQL();
       this.writeNodeId = sqlProvider.writeNodeIdSQL();
       this.initializeNodeId = sqlProvider.initializeNodeIdSQL();
@@ -122,10 +132,11 @@ final class JdbcSharedStateManager extends AbstractJDBCDriver implements SharedS
       this.readState = sqlProvider.readStateSQL();
    }
 
-   private JdbcSharedStateManager(String holderId, long lockExpirationMillis, long queryTimeoutMillis) {
+   private JdbcSharedStateManager(String holderId, long lockExpirationMillis, long queryTimeoutMillis, long allowedTimeDiff) {
       this.holderId = holderId;
       this.lockExpirationMillis = lockExpirationMillis;
       this.queryTimeoutMillis = queryTimeoutMillis;
+      this.allowedTimeDiff = allowedTimeDiff;
    }
 
    @Override
@@ -260,12 +271,12 @@ final class JdbcSharedStateManager extends AbstractJDBCDriver implements SharedS
             } else {
                //rawInitializeNodeId has failed just due to contention or nodeId wasn't committed yet
                connection.rollback();
-               logger.debugf("Rollback after failed to update NodeId to %s and haven't found any NodeId", newNodeId);
+               logger.debug("Rollback after failed to update NodeId to {} and haven't found any NodeId", newNodeId);
                return null;
             }
          } catch (SQLException e) {
             connection.rollback();
-            logger.debugf(e, "Rollback while trying to update NodeId to %s", newNodeId);
+            logger.debug("Rollback while trying to update NodeId to {}", newNodeId, e);
             return null;
          } finally {
             connection.setAutoCommit(autoCommit);

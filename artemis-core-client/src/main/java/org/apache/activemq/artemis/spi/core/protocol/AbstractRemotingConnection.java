@@ -26,25 +26,29 @@ import java.util.concurrent.FutureTask;
 import org.apache.activemq.artemis.api.core.ActiveMQBuffer;
 import org.apache.activemq.artemis.api.core.ActiveMQException;
 import org.apache.activemq.artemis.api.core.ActiveMQInterruptedException;
+import org.apache.activemq.artemis.api.core.SimpleString;
 import org.apache.activemq.artemis.core.client.ActiveMQClientLogger;
 import org.apache.activemq.artemis.core.client.ActiveMQClientMessageBundle;
 import org.apache.activemq.artemis.core.remoting.CloseListener;
 import org.apache.activemq.artemis.core.remoting.FailureListener;
 import org.apache.activemq.artemis.spi.core.remoting.Connection;
 import org.apache.activemq.artemis.spi.core.remoting.ReadyListener;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 import javax.security.auth.Subject;
 
 public abstract class AbstractRemotingConnection implements RemotingConnection {
 
-   private static final Logger logger = Logger.getLogger(AbstractRemotingConnection.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    protected final List<FailureListener> failureListeners = new CopyOnWriteArrayList<>();
    protected final List<CloseListener> closeListeners = new CopyOnWriteArrayList<>();
    protected final Connection transportConnection;
    protected final Executor executor;
    protected final long creationTime;
+   protected volatile boolean destroyed;
    protected volatile boolean dataReceived;
    private String clientId;
    private Subject subject;
@@ -63,6 +67,21 @@ public abstract class AbstractRemotingConnection implements RemotingConnection {
    @Override
    public List<FailureListener> getFailureListeners() {
       return new ArrayList<>(failureListeners);
+   }
+
+   @Override
+   public boolean isClient() {
+      return false;
+   }
+
+   @Override
+   public boolean isDestroyed() {
+      return destroyed;
+   }
+
+   @Override
+   public void flush() {
+      // noop
    }
 
    @Override
@@ -161,20 +180,16 @@ public abstract class AbstractRemotingConnection implements RemotingConnection {
 
    @Override
    public List<CloseListener> removeCloseListeners() {
-      List<CloseListener> ret = new ArrayList<>(closeListeners);
-
+      List<CloseListener> deletedCloseListeners = new ArrayList<>(closeListeners);
       closeListeners.clear();
-
-      return ret;
+      return deletedCloseListeners;
    }
 
    @Override
    public List<FailureListener> removeFailureListeners() {
-      List<FailureListener> ret = getFailureListeners();
-
+      List<FailureListener> deletedFailureListeners = getFailureListeners();
       failureListeners.clear();
-
-      return ret;
+      return deletedFailureListeners;
    }
 
    @Override
@@ -208,11 +223,6 @@ public abstract class AbstractRemotingConnection implements RemotingConnection {
       return res;
    }
 
-   @Override
-   public boolean isSupportReconnect() {
-      return false;
-   }
-
    /*
     * This can be called concurrently by more than one thread so needs to be locked
     */
@@ -244,23 +254,28 @@ public abstract class AbstractRemotingConnection implements RemotingConnection {
    }
 
    @Override
-   public boolean isSupportsFlowControl() {
-      return true;
+   public void killMessage(SimpleString nodeID) {
+      // noop
    }
 
    @Override
-   public void setAuditSubject(Subject subject) {
+   public boolean isSupportReconnect() {
+      return false;
+   }
+
+   @Override
+   public boolean isSupportsFlowControl() {
+      return false;
+   }
+
+   @Override
+   public void setSubject(Subject subject) {
       this.subject = subject;
    }
 
    @Override
-   public Subject getAuditSubject() {
-      return subject;
-   }
-
-   @Override
    public Subject getSubject() {
-      return null;
+      return subject;
    }
 
    @Override
@@ -271,5 +286,10 @@ public abstract class AbstractRemotingConnection implements RemotingConnection {
    @Override
    public String getClientID() {
       return clientId;
+   }
+
+   @Override
+   public String getTransportLocalAddress() {
+      return transportConnection.getLocalAddress();
    }
 }

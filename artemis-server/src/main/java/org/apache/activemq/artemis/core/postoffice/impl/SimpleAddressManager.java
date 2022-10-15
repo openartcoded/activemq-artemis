@@ -44,14 +44,16 @@ import org.apache.activemq.artemis.core.server.mirror.MirrorController;
 import org.apache.activemq.artemis.core.settings.impl.AddressSettings;
 import org.apache.activemq.artemis.core.transaction.Transaction;
 import org.apache.activemq.artemis.utils.CompositeAddress;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 /**
  * A simple address manager that maintains the addresses and bindings.
  */
 public class SimpleAddressManager implements AddressManager {
 
-   private static final Logger logger = Logger.getLogger(SimpleAddressManager.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private final ConcurrentMap<SimpleString, AddressInfo> addressInfoMap = new ConcurrentHashMap<>();
 
@@ -93,7 +95,7 @@ public class SimpleAddressManager implements AddressManager {
       }
 
       if (logger.isTraceEnabled()) {
-         logger.trace("Adding binding " + binding + " with address = " + binding.getUniqueName(), new Exception("trace"));
+         logger.trace("Adding binding {} with address = {}", binding, binding.getUniqueName(), new Exception("trace"));
       }
 
       return addMappingInternal(binding.getAddress(), binding);
@@ -354,7 +356,7 @@ public class SimpleAddressManager implements AddressManager {
       final Bindings bindings = this.mappings.get(addressName);
       if (bindings != null) {
          for (Binding binding : bindings.getBindings()) {
-            if (binding instanceof QueueBinding) {
+            if (binding instanceof QueueBinding && binding.isLocal()) {
                final QueueBinding queueBinding = (QueueBinding) binding;
                final RoutingType routingType = queueBinding.getQueue().getRoutingType();
                if (!routingTypes.contains(routingType) && binding.getAddress().equals(addressName)) {

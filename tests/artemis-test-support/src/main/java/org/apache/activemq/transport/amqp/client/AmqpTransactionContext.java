@@ -25,6 +25,7 @@ import org.apache.activemq.transport.amqp.client.util.ClientFuture;
 import org.apache.activemq.transport.amqp.client.util.ClientFutureSynchronization;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 /**
  * Defines a context under which resources in a given session
@@ -32,7 +33,7 @@ import org.slf4j.LoggerFactory;
  */
 public class AmqpTransactionContext {
 
-   private static final Logger LOG = LoggerFactory.getLogger(AmqpTransactionContext.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private final AmqpSession session;
    private final Set<AmqpReceiver> txReceivers = new LinkedHashSet<>();
@@ -68,21 +69,21 @@ public class AmqpTransactionContext {
          }
       });
 
-      LOG.info("Attempting to Begin TX:[{}]", txId);
+      logger.info("Attempting to Begin TX:[{}]", txId);
 
       session.getScheduler().execute(new Runnable() {
 
          @Override
          public void run() {
             if (coordinator == null || coordinator.isClosed()) {
-               LOG.info("Creating new Coordinator for TX:[{}]", txId);
+               logger.info("Creating new Coordinator for TX:[{}]", txId);
                coordinator = new AmqpTransactionCoordinator(session);
                coordinator.open(new AsyncResult() {
 
                   @Override
                   public void onSuccess() {
                      try {
-                        LOG.info("Attempting to declare TX:[{}]", txId);
+                        logger.info("Attempting to declare TX:[{}]", txId);
                         coordinator.declare(txId, request);
                      } catch (Exception e) {
                         request.onFailure(e);
@@ -101,7 +102,7 @@ public class AmqpTransactionContext {
                });
             } else {
                try {
-                  LOG.info("Attempting to declare TX:[{}]", txId);
+                  logger.info("Attempting to declare TX:[{}]", txId);
                   coordinator.declare(txId, request);
                } catch (Exception e) {
                   request.onFailure(e);
@@ -142,13 +143,13 @@ public class AmqpTransactionContext {
          }
       });
 
-      LOG.debug("Commit on TX[{}] initiated", transactionId);
+      logger.debug("Commit on TX[{}] initiated", transactionId);
       session.getScheduler().execute(new Runnable() {
 
          @Override
          public void run() {
             try {
-               LOG.info("Attempting to commit TX:[{}]", transactionId);
+               logger.info("Attempting to commit TX:[{}]", transactionId);
                coordinator.discharge(transactionId, request, true);
                session.pumpToProtonTransport(request);
             } catch (Exception e) {
@@ -187,13 +188,13 @@ public class AmqpTransactionContext {
          }
       });
 
-      LOG.debug("Rollback on TX[{}] initiated", transactionId);
+      logger.debug("Rollback on TX[{}] initiated", transactionId);
       session.getScheduler().execute(new Runnable() {
 
          @Override
          public void run() {
             try {
-               LOG.info("Attempting to roll back TX:[{}]", transactionId);
+               logger.info("Attempting to roll back TX:[{}]", transactionId);
                coordinator.discharge(transactionId, request, false);
                session.pumpToProtonTransport(request);
             } catch (Exception e) {

@@ -20,6 +20,7 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 
 import org.apache.activemq.artemis.api.core.QueueConfiguration;
 import org.apache.activemq.artemis.api.core.RoutingType;
@@ -48,6 +49,12 @@ public class CoreAddressConfiguration implements Serializable {
       return routingTypes;
    }
 
+   public void setRoutingTypes(Set<String> rawRootingTypes) {
+      for (String routingTypeString : rawRootingTypes) {
+         routingTypes.add(RoutingType.valueOf(routingTypeString));
+      }
+   }
+
    public CoreAddressConfiguration addRoutingType(RoutingType routingType) {
       routingTypes.add(routingType);
       return this;
@@ -74,6 +81,10 @@ public class CoreAddressConfiguration implements Serializable {
    public CoreAddressConfiguration addQueueConfiguration(QueueConfiguration queueConfiguration) {
       this.queueConfigurations.add(queueConfiguration);
       return this;
+   }
+
+   public CoreAddressConfiguration addQueueConfig(QueueConfiguration queueConfiguration) {
+      return addQueueConfiguration(queueConfiguration);
    }
 
    @Deprecated

@@ -19,6 +19,7 @@ package org.apache.activemq.hawtio.branding;
 import io.hawt.web.plugin.HawtioPlugin;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 import javax.servlet.ServletContext;
 import javax.servlet.ServletContextEvent;
@@ -29,7 +30,7 @@ import javax.servlet.ServletContextListener;
  **/
 public class PluginContextListener implements ServletContextListener {
 
-   private static final Logger LOG = LoggerFactory.getLogger(PluginContextListener.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    HawtioPlugin plugin = null;
 
@@ -50,7 +51,7 @@ public class PluginContextListener implements ServletContextListener {
          throw createServletException(e);
       }
 
-      LOG.info("Initialized {} plugin", plugin.getName());
+      logger.info("Initialized {} plugin", plugin.getName());
    }
 
    @Override
@@ -61,7 +62,7 @@ public class PluginContextListener implements ServletContextListener {
          throw createServletException(e);
       }
 
-      LOG.info("Destroyed {} plugin", plugin.getName());
+      logger.info("Destroyed {} plugin", plugin.getName());
    }
 
    protected RuntimeException createServletException(Exception e) {

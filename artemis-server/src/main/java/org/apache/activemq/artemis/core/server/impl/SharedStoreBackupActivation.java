@@ -41,11 +41,13 @@ import org.apache.activemq.artemis.core.server.cluster.ha.ScaleDownPolicy;
 import org.apache.activemq.artemis.core.server.cluster.ha.SharedStoreSlavePolicy;
 import org.apache.activemq.artemis.core.server.group.GroupingHandler;
 import org.apache.activemq.artemis.core.server.management.ManagementService;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 public final class SharedStoreBackupActivation extends Activation {
 
-   private static final Logger logger = Logger.getLogger(SharedStoreBackupActivation.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    //this is how we act as a backup
    private final SharedStoreSlavePolicy sharedStoreSlavePolicy;
@@ -286,7 +288,7 @@ public final class SharedStoreBackupActivation extends Activation {
                   @Override
                   public void run() {
                      try {
-                        logger.debug(activeMQServer + "::Stopping live node in favor of failback");
+                        logger.debug("{}::Stopping live node in favor of failback", activeMQServer);
 
                         NodeManager nodeManager = activeMQServer.getNodeManager();
                         activeMQServer.stop(true, false, true);
@@ -304,7 +306,7 @@ public final class SharedStoreBackupActivation extends Activation {
                               return;
 
                            activeMQServer.setHAPolicy(sharedStoreSlavePolicy);
-                           logger.debug(activeMQServer + "::Starting backup node now after failback");
+                           logger.debug("{}::Starting backup node now after failback", activeMQServer);
                            activeMQServer.start();
 
                            LockListener lockListener = activeLockListener;

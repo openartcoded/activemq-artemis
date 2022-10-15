@@ -48,17 +48,19 @@ import org.apache.activemq.artemis.ra.ActiveMQRAXAResource;
 import org.apache.activemq.artemis.tests.util.ActiveMQTestBase;
 import org.apache.activemq.artemis.utils.UUIDGenerator;
 import org.apache.activemq.artemis.utils.Wait;
-import org.jboss.logging.Logger;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 @RunWith(Parameterized.class)
 public class BasicXaTest extends ActiveMQTestBase {
 
-   private static final Logger log = Logger.getLogger(BasicXaTest.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private final Map<String, AddressSettings> addressSettings = new HashMap<>();
 
@@ -206,6 +208,12 @@ public class BasicXaTest extends ActiveMQTestBase {
       clientSession.start(xid2, XAResource.TMNOFLAGS);
       clientProducer.send(m2);
       clientSession.end(xid, XAResource.TMSUCCESS);
+
+      // this is calling resume twice
+      // the TM may eventually do it, and if the state is ACTIVE, the
+      // broker should just ignore the call and keep going
+      clientSession.end(xid, XAResource.TMSUCCESS);
+
       clientSession.commit(xid, true);
       ClientMessage message = clientConsumer.receiveImmediate();
       assertNotNull(message);
@@ -303,7 +311,7 @@ public class BasicXaTest extends ActiveMQTestBase {
 
       clientSession = sessionFactory.createSession(true, false, false);
 
-      log.debug("committing");
+      logger.debug("committing");
 
       clientSession.commit(xid, false);
       clientSession.start();
@@ -667,7 +675,7 @@ public class BasicXaTest extends ActiveMQTestBase {
 
       String[] preparedTransactions = messagingService.getActiveMQServerControl().listPreparedTransactions();
       Assert.assertEquals(1, preparedTransactions.length);
-      instanceLog.debug(preparedTransactions[0]);
+      logger.debug(preparedTransactions[0]);
       Assert.assertTrue(messagingService.getActiveMQServerControl().commitPreparedTransaction(XidImpl.toBase64String(xid)));
       Assert.assertEquals(1, messagingService.getActiveMQServerControl().listHeuristicCommittedTransactions().length);
 
@@ -685,7 +693,7 @@ public class BasicXaTest extends ActiveMQTestBase {
 
       String[] preparedTransactions = messagingService.getActiveMQServerControl().listPreparedTransactions();
       Assert.assertEquals(1, preparedTransactions.length);
-      instanceLog.debug(preparedTransactions[0]);
+      logger.debug(preparedTransactions[0]);
 
       Assert.assertTrue(messagingService.getActiveMQServerControl().rollbackPreparedTransaction(XidImpl.toBase64String(xid)));
       Assert.assertEquals(1, messagingService.getActiveMQServerControl().listHeuristicRolledBackTransactions().length);
@@ -1016,7 +1024,7 @@ public class BasicXaTest extends ActiveMQTestBase {
          try {
             message.acknowledge();
          } catch (ActiveMQException e) {
-            BasicXaTest.log.error("Failed to process message", e);
+            BasicXaTest.logger.error("Failed to process message", e);
          }
          try {
             session.end(xid, XAResource.TMSUCCESS);

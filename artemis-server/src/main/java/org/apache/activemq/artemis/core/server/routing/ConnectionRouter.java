@@ -25,13 +25,15 @@ import org.apache.activemq.artemis.core.server.routing.pools.Pool;
 import org.apache.activemq.artemis.core.server.routing.targets.Target;
 import org.apache.activemq.artemis.core.server.routing.targets.TargetResult;
 import org.apache.activemq.artemis.spi.core.remoting.Connection;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 import java.util.List;
 import java.util.regex.Pattern;
 
 public class ConnectionRouter implements ActiveMQComponent {
-   private static final Logger logger = Logger.getLogger(ConnectionRouter.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
 
    public static final String CLIENT_ID_PREFIX = ActiveMQDefaultConfiguration.DEFAULT_INTERNAL_NAMING_PREFIX + "router.client.";
@@ -153,9 +155,7 @@ public class ConnectionRouter implements ActiveMQComponent {
 
    public TargetResult getTarget(Connection connection, String clientID, String username) {
       if (clientID != null && clientID.startsWith(ConnectionRouter.CLIENT_ID_PREFIX)) {
-         if (logger.isDebugEnabled()) {
-            logger.debug("The clientID [" + clientID + "] starts with ConnectionRouter.CLIENT_ID_PREFIX");
-         }
+         logger.debug("The clientID [{}] starts with ConnectionRouter.CLIENT_ID_PREFIX", clientID);
 
          return localTarget;
       }
@@ -170,55 +170,55 @@ public class ConnectionRouter implements ActiveMQComponent {
 
       if (this.localTargetFilter != null && this.localTargetFilter.matcher(key).matches()) {
          if (logger.isDebugEnabled()) {
-            logger.debug("The " + keyType + "[" + key + "] matches the localTargetFilter " + localTargetFilter.pattern());
+            logger.debug("The {}[{}] matches the localTargetFilter {}", keyType, key, localTargetFilter.pattern());
          }
 
          return localTarget;
       }
 
-      if (pool == null) {
+      if (policy == null || pool == null) {
          return TargetResult.REFUSED_USE_ANOTHER_RESULT;
       }
 
       TargetResult result = null;
 
       if (cache != null) {
-         String nodeId = cache.get(key);
+         final String nodeId = cache.get(key);
 
          if (logger.isDebugEnabled()) {
-            logger.debug("The cache returns target [" + nodeId + "] for " + keyType + "[" + key + "]");
+            logger.debug("The cache returns target [{}] for {}[{}]", nodeId, keyType, key);
          }
 
          if (nodeId != null) {
             Target target = pool.getReadyTarget(nodeId);
             if (target != null) {
                if (logger.isDebugEnabled()) {
-                  logger.debug("The target [" + nodeId + "] is ready for " + keyType + "[" + key + "]");
+                  logger.debug("The target [{}] is ready for {}[{}]", nodeId, keyType, key);
                }
 
                return new TargetResult(target);
             }
 
             if (logger.isDebugEnabled()) {
-               logger.debug("The target [" + nodeId + "] is not ready for " + keyType + "[" + key + "]");
+               logger.debug("The target [{}] is not ready for {}[{}]", nodeId, keyType, key);
             }
          }
       }
 
-      List<Target> targets = pool.getTargets();
-
-      Target target = policy.selectTarget(targets, key);
+      final List<Target> targets = pool.getTargets();
+      final Target target = policy.selectTarget(targets, key);
 
       if (logger.isDebugEnabled()) {
-         logger.debug("The policy selects [" + target + "] from " + targets + " for " + keyType + "[" + key + "]");
+         logger.debug("The policy selects [{}] from {} for {}[{}]", target, targets, keyType, key);
       }
 
       if (target != null) {
          result = new TargetResult(target);
          if (cache != null) {
             if (logger.isDebugEnabled()) {
-               logger.debug("Caching " + keyType + "[" + key + "] for [" + target + "]");
+               logger.debug("Caching {}[{}] for [{}]", keyType, key, target);
             }
+
             cache.put(key, target.getNodeID());
          }
       }

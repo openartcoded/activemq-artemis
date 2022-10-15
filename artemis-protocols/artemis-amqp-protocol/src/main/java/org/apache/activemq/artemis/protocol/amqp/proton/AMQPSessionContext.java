@@ -40,11 +40,13 @@ import org.apache.qpid.proton.engine.EndpointState;
 import org.apache.qpid.proton.engine.Receiver;
 import org.apache.qpid.proton.engine.Sender;
 import org.apache.qpid.proton.engine.Session;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 public class AMQPSessionContext extends ProtonInitializable {
 
-   private static final Logger log = Logger.getLogger(AMQPSessionContext.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
    protected final AMQPConnectionContext connection;
 
    protected final AMQPSessionCallback sessionSPI;
@@ -130,7 +132,7 @@ public class AMQPSessionContext extends ProtonInitializable {
          try {
             protonProducer.close(false);
          } catch (Exception e) {
-            log.warn(e.getMessage(), e);
+            logger.warn(e.getMessage(), e);
          }
       }
       receivers.clear();
@@ -142,7 +144,7 @@ public class AMQPSessionContext extends ProtonInitializable {
          try {
             protonConsumer.close(false);
          } catch (Exception e) {
-            log.warn(e.getMessage(), e);
+            logger.warn(e.getMessage(), e);
          }
       }
       senders.clear();
@@ -152,7 +154,7 @@ public class AMQPSessionContext extends ProtonInitializable {
             sessionSPI.close();
          }
       } catch (Exception e) {
-         log.warn(e.getMessage(), e);
+         logger.warn(e.getMessage(), e);
       }
       closed = true;
    }

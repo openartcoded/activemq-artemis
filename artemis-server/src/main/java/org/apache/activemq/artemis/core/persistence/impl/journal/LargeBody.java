@@ -33,13 +33,15 @@ import org.apache.activemq.artemis.core.message.LargeBodyReader;
 import org.apache.activemq.artemis.core.persistence.StorageManager;
 import org.apache.activemq.artemis.core.server.ActiveMQServerLogger;
 import org.apache.activemq.artemis.core.server.LargeServerMessage;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 public class LargeBody {
 
    static final int MEMORY_OFFSET = 56;
 
-   private static final Logger logger = Logger.getLogger(LargeBody.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private long bodySize = -1;
 
@@ -101,6 +103,13 @@ public class LargeBody {
 
       file = null;
    }
+
+   public void releaseComplete() {
+      if (!paged) {
+         deleteFile();
+      }
+   }
+
 
    public synchronized void deleteFile() {
       try {
@@ -230,7 +239,7 @@ public class LargeBody {
       if (message.toMessage().getRefCount() <= 0 && message.toMessage().getUsage() <= 0 && message.toMessage().getDurableCount() <= 0) {
          if (logger.isTraceEnabled()) {
             try {
-               logger.trace("Deleting file " + getAppendFile() + " as the usage was complete");
+               logger.trace("Deleting file {} as the usage was complete", getAppendFile());
             } catch (Exception e) {
                // this is only after a trace, no need to do any special logging handling here
                logger.warn(e.getMessage(), e);
@@ -276,7 +285,7 @@ public class LargeBody {
          final long fileSize = file.size();
          int fileSizeAsInt = (int) fileSize;
          if (fileSizeAsInt < 0) {
-            logger.warnf("suspicious large message file size of %d bytes for %s, will use %d instead.", fileSize, file.getFileName(), Integer.MAX_VALUE);
+            logger.warn("suspicious large message file size of {} bytes for {}, will use {} instead.", fileSize, file.getFileName(), Integer.MAX_VALUE);
             fileSizeAsInt = Integer.MAX_VALUE;
          }
          return fileSizeAsInt;

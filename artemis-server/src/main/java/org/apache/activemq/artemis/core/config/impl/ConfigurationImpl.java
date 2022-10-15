@@ -16,12 +16,14 @@
  */
 package org.apache.activemq.artemis.core.config.impl;
 
+import java.beans.IndexedPropertyDescriptor;
 import java.beans.PropertyDescriptor;
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FilenameFilter;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.PrintWriter;
@@ -32,6 +34,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URI;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.security.AccessController;
 import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
@@ -51,10 +54,12 @@ import java.util.concurrent.TimeUnit;
 import org.apache.activemq.artemis.api.config.ActiveMQDefaultConfiguration;
 import org.apache.activemq.artemis.api.core.BroadcastGroupConfiguration;
 import org.apache.activemq.artemis.api.core.DiscoveryGroupConfiguration;
+import org.apache.activemq.artemis.api.core.JsonUtil;
 import org.apache.activemq.artemis.api.core.Pair;
 import org.apache.activemq.artemis.api.core.QueueConfiguration;
 import org.apache.activemq.artemis.api.core.SimpleString;
 import org.apache.activemq.artemis.api.core.TransportConfiguration;
+import org.apache.activemq.artemis.core.config.TransformerConfiguration;
 import org.apache.activemq.artemis.core.config.routing.ConnectionRouterConfiguration;
 import org.apache.activemq.artemis.core.config.amqpBrokerConnectivity.AMQPBrokerConnectConfiguration;
 import org.apache.activemq.artemis.core.config.BridgeConfiguration;
@@ -97,24 +102,36 @@ import org.apache.activemq.artemis.core.server.plugin.ActiveMQServerResourcePlug
 import org.apache.activemq.artemis.core.server.plugin.ActiveMQServerSessionPlugin;
 import org.apache.activemq.artemis.core.settings.impl.AddressSettings;
 import org.apache.activemq.artemis.core.settings.impl.ResourceLimitSettings;
+import org.apache.activemq.artemis.json.JsonArrayBuilder;
+import org.apache.activemq.artemis.json.JsonObject;
+import org.apache.activemq.artemis.json.JsonObjectBuilder;
 import org.apache.activemq.artemis.utils.ByteUtil;
 import org.apache.activemq.artemis.utils.Env;
+import org.apache.activemq.artemis.utils.JsonLoader;
 import org.apache.activemq.artemis.utils.ObjectInputStreamWithClassLoader;
+import org.apache.activemq.artemis.utils.PasswordMaskingUtil;
 import org.apache.activemq.artemis.utils.XMLUtil;
 import org.apache.activemq.artemis.utils.critical.CriticalAnalyzerPolicy;
 import org.apache.activemq.artemis.utils.uri.BeanSupport;
 import org.apache.commons.beanutils.BeanUtilsBean;
 import org.apache.commons.beanutils.ConvertUtilsBean;
 import org.apache.commons.beanutils.Converter;
+import org.apache.commons.beanutils.DynaBean;
 import org.apache.commons.beanutils.MappedPropertyDescriptor;
 import org.apache.commons.beanutils.MethodUtils;
 import org.apache.commons.beanutils.PropertyUtilsBean;
 import org.apache.commons.beanutils.expression.DefaultResolver;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
+import java.util.zip.Adler32;
+import java.util.zip.Checksum;
+
+import org.apache.commons.beanutils.expression.Resolver;
 
 public class ConfigurationImpl implements Configuration, Serializable {
 
-   private static final Logger logger = Logger.getLogger(ConfigurationImpl.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    public static final JournalType DEFAULT_JOURNAL_TYPE = JournalType.ASYNCIO;
 
@@ -299,7 +316,7 @@ public class ConfigurationImpl implements Configuration, Serializable {
 
    protected GroupingHandlerConfiguration groupingHandlerConfiguration;
 
-   private Map<String, AddressSettings> addressesSettings = new HashMap<>();
+   private Map<String, AddressSettings> addressSettings = new HashMap<>();
 
    private Map<String, ResourceLimitSettings> resourceLimitSettings = new HashMap<>();
 
@@ -398,6 +415,27 @@ public class ConfigurationImpl implements Configuration, Serializable {
     * Parent folder for all data folders.
     */
    private File artemisInstance;
+   private transient JsonObject jsonStatus = JsonLoader.createObjectBuilder().build();
+   private transient Checksum transientChecksum = null;
+
+
+   private JsonObject getJsonStatus() {
+      if (jsonStatus == null) {
+         jsonStatus = JsonLoader.createObjectBuilder().build();
+      }
+      return jsonStatus;
+   }
+
+   // Checksum would be otherwise final
+   // however some Quorum actiations are using Serialization to make a deep copy of ConfigurationImpl and it would become null
+   // for that reason this i making the proper initialization when needed.
+   private Checksum getCheckSun() {
+      if (transientChecksum == null) {
+         transientChecksum = new Adler32();
+      }
+      return transientChecksum;
+   }
+
 
    @Override
    public String getJournalRetentionDirectory() {
@@ -467,25 +505,37 @@ public class ConfigurationImpl implements Configuration, Serializable {
    @Override
    public Configuration parseProperties(String fileUrlToProperties) throws Exception {
       // system property overrides location of file(s)
-      fileUrlToProperties = System.getProperty(ActiveMQDefaultConfiguration.BROKER_PROPERTIES_SYSTEM_PROPERTY_NAME, fileUrlToProperties);
+      fileUrlToProperties = resolvePropertiesSources(fileUrlToProperties);
       if (fileUrlToProperties != null) {
          for (String fileUrl : fileUrlToProperties.split(",")) {
-            Properties brokerProperties = new Properties() {
-               final LinkedHashMap<Object, Object> orderedMap = new LinkedHashMap<>();
-
-               @Override
-               public Object put(Object key, Object value) {
-                  return orderedMap.put(key.toString(), value.toString());
+            Properties brokerProperties = new InsertionOrderedProperties();
+            if (fileUrl.endsWith("/")) {
+               // treat as a directory and parse every property file in alphabetical order
+               File dir = new File(fileUrl);
+               if (dir.exists()) {
+                  String[] files = dir.list(new FilenameFilter() {
+                     @Override
+                     public boolean accept(File file, String s) {
+                        return s.endsWith(".properties");
+                     }
+                  });
+                  if (files != null && files.length > 0) {
+                     Arrays.sort(files);
+                     for (String fileName : files) {
+                        try (FileInputStream fileInputStream = new FileInputStream(new File(dir, fileName)); BufferedInputStream reader = new BufferedInputStream(fileInputStream)) {
+                           brokerProperties.clear();
+                           brokerProperties.load(reader);
+                           parsePrefixedProperties(fileName, brokerProperties, null);
+                        }
+                     }
+                  }
                }
-
-               @Override
-               public Set<Map.Entry<Object, Object>> entrySet() {
-                  return orderedMap.entrySet();
+            } else {
+               File file = new File(fileUrl);
+               try (FileInputStream fileInputStream = new FileInputStream(file); BufferedInputStream reader = new BufferedInputStream(fileInputStream)) {
+                  brokerProperties.load(reader);
+                  parsePrefixedProperties(file.getName(), brokerProperties, null);
                }
-            };
-            try (FileInputStream fileInputStream = new FileInputStream(fileUrl); BufferedInputStream reader = new BufferedInputStream(fileInputStream)) {
-               brokerProperties.load(reader);
-               parsePrefixedProperties(brokerProperties, null);
             }
          }
       }
@@ -494,9 +544,16 @@ public class ConfigurationImpl implements Configuration, Serializable {
    }
 
    public void parsePrefixedProperties(Properties properties, String prefix) throws Exception {
-      Map<String, Object> beanProperties = new LinkedHashMap<>();
+      parsePrefixedProperties("system", properties, prefix);
+   }
 
+   public void parsePrefixedProperties(String name, Properties properties, String prefix) throws Exception {
+      Map<String, Object> beanProperties = new LinkedHashMap<>();
+      long alder32Hash = 0;
       synchronized (properties) {
+         Checksum checksum = getCheckSun();
+
+         checksum.reset();
          String key = null;
          for (Map.Entry<Object, Object> entry : properties.entrySet()) {
             key = entry.getKey().toString();
@@ -506,20 +563,143 @@ public class ConfigurationImpl implements Configuration, Serializable {
                }
                key = entry.getKey().toString().substring(prefix.length());
             }
-            String value = XMLUtil.replaceSystemPropsInString(entry.getValue().toString());
+            String value = entry.getValue().toString();
+
+            checksum.update(key.getBytes(StandardCharsets.UTF_8));
+            checksum.update('=');
+            checksum.update(value.getBytes(StandardCharsets.UTF_8));
+
+            value = XMLUtil.replaceSystemPropsInString(value);
+            value = PasswordMaskingUtil.resolveMask(isMaskPassword(), value, getPasswordCodec());
             key = XMLUtil.replaceSystemPropsInString(key);
-            logger.debug("Property config, " + key + "=" + value);
+            logger.debug("Property config, {}={}", key, value);
             beanProperties.put(key, value);
          }
+         alder32Hash = checksum.getValue();
       }
+      updateReadPropertiesStatus(name, alder32Hash);
 
       if (!beanProperties.isEmpty()) {
-         populateWithProperties(beanProperties);
+         populateWithProperties(name, beanProperties);
       }
    }
 
-   public void populateWithProperties(Map<String, Object> beanProperties) throws InvocationTargetException, IllegalAccessException {
-      BeanUtilsBean beanUtils = new BeanUtilsBean(new ConvertUtilsBean(), new CollectionAutoFillPropertiesUtil());
+   public void populateWithProperties(final String propsId, Map<String, Object> beanProperties) throws InvocationTargetException, IllegalAccessException {
+      CollectionAutoFillPropertiesUtil autoFillCollections = new CollectionAutoFillPropertiesUtil();
+      BeanUtilsBean beanUtils = new BeanUtilsBean(new ConvertUtilsBean(), autoFillCollections) {
+         // override to treat missing properties as errors, not skip as the default impl does
+         @Override
+         public void setProperty(final Object bean, String name, final Object value) throws InvocationTargetException, IllegalAccessException {
+            {
+               if (logger.isDebugEnabled()) {
+                  logger.debug("setProperty on {}, name: {}, value: {}", bean.getClass(), name, value);
+               }
+               // Resolve any nested expression to get the actual target bean
+               Object target = bean;
+               final Resolver resolver = getPropertyUtils().getResolver();
+               while (resolver.hasNested(name)) {
+                  try {
+                     target = getPropertyUtils().getProperty(target, resolver.next(name));
+                     if (target == null) {
+                        throw new InvocationTargetException(null, "Resolved nested property for:" + name + ", on: " + bean + " was null");
+                     }
+                     name = resolver.remove(name);
+                  } catch (final NoSuchMethodException e) {
+                     throw new InvocationTargetException(e, "No getter for property:" + name + ", on: " + bean);
+                  }
+               }
+               logger.trace("resolved target, bean: {}, name: {}", target.getClass(), name);
+
+               // Declare local variables we will require
+               final String propName = resolver.getProperty(name); // Simple name of target property
+               Class<?> type = null;                         // Java type of target property
+               final int index = resolver.getIndex(name);         // Indexed subscript value (if any)
+               final String key = resolver.getKey(name);           // Mapped key value (if any)
+
+               // Calculate the property type
+               if (target instanceof DynaBean) {
+                  throw new InvocationTargetException(null, "Cannot determine DynaBean type to access: " + name + " on: " + target);
+               } else if (target instanceof Map) {
+                  type = Object.class;
+               } else if (target != null && target.getClass().isArray() && index >= 0) {
+                  type = Array.get(target, index).getClass();
+               } else {
+                  PropertyDescriptor descriptor = null;
+                  try {
+                     descriptor = getPropertyUtils().getPropertyDescriptor(target, name);
+                     if (descriptor == null) {
+                        throw new InvocationTargetException(null, "No accessor method descriptor for: " + name + " on: " + target.getClass());
+                     }
+                  } catch (final NoSuchMethodException e) {
+                     throw new InvocationTargetException(e, "Failed to get descriptor for: " + name + " on: " + target.getClass());
+                  }
+                  if (descriptor instanceof MappedPropertyDescriptor) {
+                     if (((MappedPropertyDescriptor) descriptor).getMappedWriteMethod() == null) {
+                        throw new InvocationTargetException(null, "No mapped Write method for: " + name + " on: " + target.getClass());
+                     }
+                     type = ((MappedPropertyDescriptor) descriptor).getMappedPropertyType();
+                  } else if (index >= 0 && descriptor instanceof IndexedPropertyDescriptor) {
+                     if (((IndexedPropertyDescriptor) descriptor).getIndexedWriteMethod() == null) {
+                        throw new InvocationTargetException(null, "No indexed Write method for: " + name + " on: " + target.getClass());
+                     }
+                     type = ((IndexedPropertyDescriptor) descriptor).getIndexedPropertyType();
+                  } else if (index >= 0 && List.class.isAssignableFrom(descriptor.getPropertyType())) {
+                     type = Object.class;
+                  } else if (key != null) {
+                     if (descriptor.getReadMethod() == null) {
+                        throw new InvocationTargetException(null, "No Read method for: " + name + " on: " + target.getClass());
+                     }
+                     type = (value == null) ? Object.class : value.getClass();
+                  } else {
+                     if (descriptor.getWriteMethod() == null) {
+                        throw new InvocationTargetException(null, "No Write method for: " + name + " on: " + target.getClass());
+                     }
+                     type = descriptor.getPropertyType();
+                  }
+               }
+
+               // Convert the specified value to the required type
+               Object newValue = null;
+               if (type.isArray() && (index < 0)) { // Scalar value into array
+                  if (value == null) {
+                     final String[] values = new String[1];
+                     values[0] = null;
+                     newValue = getConvertUtils().convert(values, type);
+                  } else if (value instanceof String) {
+                     newValue = getConvertUtils().convert(value, type);
+                  } else if (value instanceof String[]) {
+                     newValue = getConvertUtils().convert((String[]) value, type);
+                  } else {
+                     newValue = convert(value, type);
+                  }
+               } else if (type.isArray()) {         // Indexed value into array
+                  if (value instanceof String || value == null) {
+                     newValue = getConvertUtils().convert((String) value, type.getComponentType());
+                  } else if (value instanceof String[]) {
+                     newValue = getConvertUtils().convert(((String[]) value)[0], type.getComponentType());
+                  } else {
+                     newValue = convert(value, type.getComponentType());
+                  }
+               } else {                             // Value into scalar
+                  if (value instanceof String) {
+                     newValue = getConvertUtils().convert((String) value, type);
+                  } else if (value instanceof String[]) {
+                     newValue = getConvertUtils().convert(((String[]) value)[0], type);
+                  } else {
+                     newValue = convert(value, type);
+                  }
+               }
+
+               // Invoke the setter method
+               try {
+                  getPropertyUtils().setProperty(target, name, newValue);
+               } catch (final NoSuchMethodException e) {
+                  throw new InvocationTargetException(e, "Cannot set: " + propName + " on: " + target.getClass());
+               }
+            }
+         }
+      };
+      autoFillCollections.setBeanUtilsBean(beanUtils);
       // nested property keys delimited by . and enclosed by '"' if they key's themselves contain dots
       beanUtils.getPropertyUtils().setResolver(new SurroundResolver(getBrokerPropertiesKeySurround(beanProperties)));
       beanUtils.getConvertUtils().register(new Converter() {
@@ -539,6 +719,36 @@ public class ConfigurationImpl implements Configuration, Serializable {
          }
       }, NamedPropertyConfiguration.class);
 
+      beanUtils.getConvertUtils().register(new Converter() {
+         @Override
+         public <T> T convert(Class<T> type, Object value) {
+            TransformerConfiguration instance = new TransformerConfiguration(value.toString());
+            return (T) instance;
+         }
+      }, TransformerConfiguration.class);
+
+      beanUtils.getConvertUtils().register(new Converter() {
+         @Override
+         public <T> T convert(Class<T> type, Object value) {
+            List convertedValue = new ArrayList<String>();
+            for (String entry : value.toString().split(",")) {
+               convertedValue.add(entry);
+            }
+            return (T) convertedValue;
+         }
+      }, java.util.List.class);
+
+      beanUtils.getConvertUtils().register(new Converter() {
+         @Override
+         public <T> T convert(Class<T> type, Object value) {
+            Set convertedValue = new HashSet();
+            for (String entry : value.toString().split(",")) {
+               convertedValue.add(entry);
+            }
+            return (T) convertedValue;
+         }
+      }, java.util.Set.class);
+
       // support 25K or 25m etc like xml config
       beanUtils.getConvertUtils().register(new Converter() {
          @Override
@@ -549,7 +759,54 @@ public class ConfigurationImpl implements Configuration, Serializable {
 
       BeanSupport.customise(beanUtils);
 
-      beanUtils.populate(this, beanProperties);
+      logger.trace("populate: bean: {} with {}", this, beanProperties);
+
+      HashMap<String, String> errors = new HashMap<>();
+      // Loop through the property name/value pairs to be set
+      for (final Map.Entry<String, ? extends Object> entry : beanProperties.entrySet()) {
+         // Identify the property name and value(s) to be assigned
+         final String name = entry.getKey();
+         try {
+            // Perform the assignment for this property
+            beanUtils.setProperty(this, name, entry.getValue());
+         } catch (InvocationTargetException invocationTargetException) {
+            logger.trace("failed to populate property with key: {}", name, invocationTargetException);
+            Throwable toLog = invocationTargetException;
+            if (invocationTargetException.getCause() != null) {
+               toLog = invocationTargetException.getCause();
+            }
+            trackError(errors, entry, toLog);
+
+         } catch (Exception oops) {
+            trackError(errors, entry, oops);
+         }
+      }
+      updateApplyStatus(propsId, errors);
+   }
+
+   private void trackError(HashMap<String, String> errors, Map.Entry<String,?> entry, Throwable oops) {
+      logger.debug("failed to populate property entry({}), reason: {}", entry, oops);
+      errors.put(entry.toString(), oops.getLocalizedMessage());
+   }
+
+   private synchronized void updateApplyStatus(String propsId, HashMap<String, String> errors) {
+      JsonArrayBuilder errorsObjectArrayBuilder = JsonLoader.createArrayBuilder();
+      for (Map.Entry<String, String> entry : errors.entrySet()) {
+         errorsObjectArrayBuilder.add(JsonLoader.createObjectBuilder().add("value", entry.getKey()).add("reason", entry.getValue()));
+      }
+
+      JsonObject status = getJsonStatus();
+      JsonObjectBuilder jsonObjectBuilder =
+         JsonUtil.objectBuilderWithValueAtPath("properties/" + propsId + "/errors", errorsObjectArrayBuilder.build());
+      this.jsonStatus = JsonUtil.mergeAndUpdate(status, jsonObjectBuilder.build());
+   }
+
+   private synchronized void updateReadPropertiesStatus(String propsId, long alder32Hash) {
+      JsonObjectBuilder propertiesReadStatusBuilder = JsonLoader.createObjectBuilder();
+      propertiesReadStatusBuilder.add("alder32", String.valueOf(alder32Hash));
+      JsonObjectBuilder jsonObjectBuilder = JsonUtil.objectBuilderWithValueAtPath("properties/" + propsId, propertiesReadStatusBuilder.build());
+      JsonObject jsonStatus = getJsonStatus();
+      this.jsonStatus = JsonUtil.mergeAndUpdate(jsonStatus, jsonObjectBuilder.build());
    }
 
    private String getBrokerPropertiesKeySurround(Map<String, Object> propertiesToApply) {
@@ -1135,6 +1392,10 @@ public class ConfigurationImpl implements Configuration, Serializable {
    }
 
    @Override
+   public String getNodeManagerLockDirectory() {
+      return nodeManagerLockDirectory;
+   }
+   @Override
    public JournalType getJournalType() {
       return journalType;
    }
@@ -1644,26 +1905,50 @@ public class ConfigurationImpl implements Configuration, Serializable {
    }
 
    @Override
+   public Map<String, AddressSettings> getAddressSettings() {
+      return addressSettings;
+   }
+
+   @Override
+   public ConfigurationImpl setAddressSettings(final Map<String, AddressSettings> addressesSettings) {
+      this.addressSettings = addressesSettings;
+      return this;
+   }
+
+   @Override
+   public ConfigurationImpl addAddressSetting(String key, AddressSettings addressesSetting) {
+      this.addressSettings.put(key, addressesSetting);
+      return this;
+   }
+
+   @Override
+   public ConfigurationImpl clearAddressSettings() {
+      this.addressSettings.clear();
+      return this;
+   }
+
+   @Override
+   @Deprecated
    public Map<String, AddressSettings> getAddressesSettings() {
-      return addressesSettings;
+      return getAddressSettings();
    }
 
    @Override
+   @Deprecated
    public ConfigurationImpl setAddressesSettings(final Map<String, AddressSettings> addressesSettings) {
-      this.addressesSettings = addressesSettings;
-      return this;
+      return setAddressSettings(addressesSettings);
    }
 
    @Override
+   @Deprecated
    public ConfigurationImpl addAddressesSetting(String key, AddressSettings addressesSetting) {
-      this.addressesSettings.put(key, addressesSetting);
-      return this;
+      return addAddressSetting(key, addressesSetting);
    }
 
    @Override
+   @Deprecated
    public ConfigurationImpl clearAddressesSettings() {
-      this.addressesSettings.clear();
-      return this;
+      return clearAddressSettings();
    }
 
    @Override
@@ -1700,6 +1985,12 @@ public class ConfigurationImpl implements Configuration, Serializable {
 
    @Override
    public ConfigurationImpl putSecurityRoles(String match, Set<Role> roles) {
+      securitySettings.put(match, new RoleSet(match, roles));
+      return this;
+   }
+
+   // to provide type information to creation from properties
+   public ConfigurationImpl addSecurityRole(String match, RoleSet roles) {
       securitySettings.put(match, roles);
       return this;
    }
@@ -1888,6 +2179,10 @@ public class ConfigurationImpl implements Configuration, Serializable {
    @Override
    public List<FederationConfiguration> getFederationConfigurations() {
       return federationConfigurations;
+   }
+
+   public void addFederationConfiguration(FederationConfiguration federationConfiguration) {
+      federationConfigurations.add(federationConfiguration);
    }
 
    @Override
@@ -2126,7 +2421,7 @@ public class ConfigurationImpl implements Configuration, Serializable {
       final int prime = 31;
       int result = 1;
       result = prime * result + ((acceptorConfigs == null) ? 0 : acceptorConfigs.hashCode());
-      result = prime * result + ((addressesSettings == null) ? 0 : addressesSettings.hashCode());
+      result = prime * result + ((addressSettings == null) ? 0 : addressSettings.hashCode());
       result = prime * result + (asyncConnectionExecutionEnabled ? 1231 : 1237);
       result = prime * result + ((bindingsDirectory == null) ? 0 : bindingsDirectory.hashCode());
       result = prime * result + ((bridgeConfigurations == null) ? 0 : bridgeConfigurations.hashCode());
@@ -2212,10 +2507,10 @@ public class ConfigurationImpl implements Configuration, Serializable {
             return false;
       } else if (!acceptorConfigs.equals(other.acceptorConfigs))
          return false;
-      if (addressesSettings == null) {
-         if (other.addressesSettings != null)
+      if (addressSettings == null) {
+         if (other.addressSettings != null)
             return false;
-      } else if (!addressesSettings.equals(other.addressesSettings))
+      } else if (!addressSettings.equals(other.addressSettings))
          return false;
       if (asyncConnectionExecutionEnabled != other.asyncConnectionExecutionEnabled)
          return false;
@@ -2451,7 +2746,6 @@ public class ConfigurationImpl implements Configuration, Serializable {
 
    @Override
    public Configuration copy() throws Exception {
-
       return AccessController.doPrivileged(new PrivilegedExceptionAction<Configuration>() {
          @Override
          public Configuration run() throws Exception {
@@ -2593,6 +2887,12 @@ public class ConfigurationImpl implements Configuration, Serializable {
 
    @Override
    public Configuration setNetworCheckNIC(String nic) {
+      this.networkCheckNIC = nic;
+      return this;
+   }
+
+   @Override
+   public Configuration setNetworkCheckNIC(String nic) {
       this.networkCheckNIC = nic;
       return this;
    }
@@ -2757,12 +3057,24 @@ public class ConfigurationImpl implements Configuration, Serializable {
       return this;
    }
 
+   @Override
+   public synchronized String getStatus() {
+      return getJsonStatus().toString();
+   }
+
+   @Override
+   public synchronized void setStatus(String status) {
+      JsonObject update = JsonUtil.readJsonObject(status);
+      this.jsonStatus = JsonUtil.mergeAndUpdate(getJsonStatus(), update);
+   }
+
    // extend property utils with ability to auto-fill and locate from collections
    // collection entries are identified by the name() property
    private static class CollectionAutoFillPropertiesUtil extends PropertyUtilsBean {
 
       private static final Object[] EMPTY_OBJECT_ARRAY = new Object[]{};
       final Stack<Pair<String, Object>> collections = new Stack<>();
+      private BeanUtilsBean beanUtilsBean;
 
       @Override
       public void setProperty(final Object bean, final String name, final Object value) throws InvocationTargetException, IllegalAccessException, NoSuchMethodException {
@@ -2786,27 +3098,47 @@ public class ConfigurationImpl implements Configuration, Serializable {
                if (!map.containsKey(key)) {
                   map.put(key, newNamedInstanceForCollection(collectionInfo.getA(), collectionInfo.getB(), key));
                }
-               return map.get(key);
+               Object value = map.get(key);
+               return trackCollectionOrMap(null, value, value);
             } else { // collection
-               // locate on name property
-               for (Object candidate : (Collection) bean) {
-                  if (key.equals(getProperty(candidate, "name"))) {
-                     return candidate;
-                  }
+               Object value = findByNameProperty(key, (Collection)bean);
+               if (value == null) {
+                  // create it
+                  value = newNamedInstanceForCollection(collectionInfo.getA(), collectionInfo.getB(), key);
+                  ((Collection) bean).add(value);
                }
-               // or create it
-               Object created = newNamedInstanceForCollection(collectionInfo.getA(), collectionInfo.getB(), key);
-               ((Collection) bean).add(created);
-               return created;
+               return trackCollectionOrMap(null, value, value);
             }
          }
 
-         Object resolved = getNestedProperty(bean, name);
+         Object resolved = null;
 
+         try {
+            resolved = getNestedProperty(bean, name);
+         } catch (final NoSuchMethodException e) {
+            // to avoid it being swallowed by caller wrap
+            throw new InvocationTargetException(e, "Cannot access property with key: " + name);
+         }
+
+         return trackCollectionOrMap(name, resolved, bean);
+      }
+
+      private Object trackCollectionOrMap(String name, Object resolved, Object bean) {
          if (resolved instanceof Collection || resolved instanceof Map) {
             collections.push(new Pair<String, Object>(name, bean));
          }
          return resolved;
+      }
+
+      private Object findByNameProperty(String key, Collection collection) throws InvocationTargetException, IllegalAccessException, NoSuchMethodException {
+         // locate on name property, may be a SimpleString
+         for (Object candidate : collection) {
+            Object candidateName = getProperty(candidate, "name");
+            if (candidateName != null && key.equals(candidateName.toString())) {
+               return candidate;
+            }
+         }
+         return null;
       }
 
       // allow finding beans in collections via name() such that a mapped key (key)
@@ -2858,12 +3190,7 @@ public class ConfigurationImpl implements Configuration, Serializable {
                if (invokeResult instanceof Map) {
                   result = ((Map<?, ?>)invokeResult).get(key);
                } else if (invokeResult instanceof Collection) {
-                  // locate on name property
-                  for (Object candidate : (Collection) invokeResult) {
-                     if (key.equals(getProperty(candidate, "name"))) {
-                        return candidate;
-                     }
-                  }
+                  result = findByNameProperty(key, (Collection) invokeResult);
                }
             } else {
                throw new NoSuchMethodException("Property '" + name +
@@ -2877,41 +3204,55 @@ public class ConfigurationImpl implements Configuration, Serializable {
       private Object newNamedInstanceForCollection(String collectionPropertyName, Object hostingBean, String name) {
          // find the add X and init an instance of the type with name=name
 
-         // expect an add... without the plural
-         String addPropertyName = "add" + Character.toUpperCase(collectionPropertyName.charAt(0)) + collectionPropertyName.substring(1, collectionPropertyName.length() - 1);
+         StringBuilder addPropertyNameBuilder = new StringBuilder("add");
+         // expect an add... without the plural for named accessors
+         if (collectionPropertyName != null && collectionPropertyName.length() > 0) {
+            addPropertyNameBuilder.append(Character.toUpperCase(collectionPropertyName.charAt(0)));
+            addPropertyNameBuilder.append(collectionPropertyName, 1, collectionPropertyName.length() - 1);
+         }
 
          // we don't know the type, infer from add method add(X x) or add(String key, X x)
+         final String addPropertyName = addPropertyNameBuilder.toString();
          final Method[] methods = hostingBean.getClass().getMethods();
-         for (Method candidate : methods) {
-            if (candidate.getName().equals(addPropertyName) &&
-               (candidate.getParameterCount() == 1 ||
-                  (candidate.getParameterCount() == 2
-                     // has a String key
-                     && String.class.equals(candidate.getParameterTypes()[0])
-                     // but not initialised from a String form (eg: uri)
-                     && !String.class.equals(candidate.getParameterTypes()[1])))) {
+         final Method candidate = Arrays.stream(methods).filter(method -> method.getName().equals(addPropertyName) &&
+            ((method.getParameterCount() == 1) || (method.getParameterCount() == 2
+               // has a String key
+               && String.class.equals(method.getParameterTypes()[0])
+               // but not initialised from a String form (eg: uri)
+               && !String.class.equals(method.getParameterTypes()[1]))))
+            .sorted((method1, method2) -> method2.getParameterCount() - method1.getParameterCount()).findFirst().orElse(null);
 
-               // create one and initialise with name
-               try {
-                  Object instance = candidate.getParameterTypes()[candidate.getParameterCount() - 1].getDeclaredConstructor().newInstance(null);
-                  try {
-                     setProperty(instance, "name", name);
-                  } catch (NoSuchMethodException okIgnore) {
-                  }
-
-                  // this is always going to be a little hacky b/c our config is not natively property friendly
-                  if (instance instanceof TransportConfiguration) {
-                     setProperty(instance, "factoryClassName", "invm".equals(name) ? InVMConnectorFactory.class.getName() : NettyConnectorFactory.class.getName());
-                  }
-                  return instance;
-
-               } catch (Exception e) {
-                  logger.debug("Failed to add entry for " + name + " with method: " + candidate, e);
-                  throw new IllegalArgumentException("failed to add entry for collection key " + name, e);
-               }
-            }
+         if (candidate == null) {
+            throw new IllegalArgumentException("failed to locate add method for collection property " + addPropertyName);
          }
-         throw new IllegalArgumentException("failed to locate add method for collection property " + addPropertyName);
+
+         // create one and initialise with name
+         try {
+            Object instance = candidate.getParameterTypes()[candidate.getParameterCount() - 1].getDeclaredConstructor().newInstance();
+
+            try {
+               beanUtilsBean.setProperty(instance, "name", name);
+            } catch (Throwable ignored) {
+               // for maps a name attribute is not mandatory
+            }
+
+            // this is always going to be a little hacky b/c our config is not natively property friendly
+            if (instance instanceof TransportConfiguration) {
+               beanUtilsBean.setProperty(instance, "factoryClassName", "invm".equals(name) ? InVMConnectorFactory.class.getName() : NettyConnectorFactory.class.getName());
+            }
+            return instance;
+
+         } catch (Exception e) {
+            if (logger.isDebugEnabled()) {
+               logger.debug("Failed to add entry for {} with method: {}", name, candidate, e);
+            }
+            throw new IllegalArgumentException("failed to add entry for collection key " + name, e);
+         }
+      }
+
+      public void setBeanUtilsBean(BeanUtilsBean beanUtilsBean) {
+         // we want type conversion
+         this.beanUtilsBean = beanUtilsBean;
       }
    }
 
@@ -2941,6 +3282,26 @@ public class ConfigurationImpl implements Configuration, Serializable {
             return expression.substring(surroundString.length(), expression.length() - surroundString.length());
          }
          return super.getProperty(expression);
+      }
+   }
+
+   public static class InsertionOrderedProperties extends Properties {
+
+      final LinkedHashMap<Object, Object> orderedMap = new LinkedHashMap<>();
+
+      @Override
+      public Object put(Object key, Object value) {
+         return orderedMap.put(key.toString(), value.toString());
+      }
+
+      @Override
+      public Set<Map.Entry<Object, Object>> entrySet() {
+         return orderedMap.entrySet();
+      }
+
+      @Override
+      public void clear() {
+         orderedMap.clear();
       }
    }
 }

@@ -27,13 +27,15 @@ import java.util.concurrent.locks.LockSupport;
 
 import org.apache.activemq.artemis.utils.ReusableLatch;
 import org.apache.activemq.artemis.utils.Wait;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 import org.junit.Assert;
 import org.junit.Test;
 
 public class MultiThreadCriticalMeasureTest {
 
-   private static final Logger logger = Logger.getLogger(MultiThreadCriticalMeasureTest.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    @Test
    public void testMultiThread() throws Throwable {
@@ -50,9 +52,9 @@ public class MultiThreadCriticalMeasureTest {
 
          Runnable runnable = () -> {
             try {
-               logger.debug("Thread " + Thread.currentThread().getName() + " waiting to Start");
+               logger.debug("Thread {} waiting to Start", Thread.currentThread().getName());
                barrier.await();
-               logger.debug("Thread " + Thread.currentThread().getName() + " Started");
+               logger.debug("Thread {} Started", Thread.currentThread().getName());
                while (running.get()) {
                   if (!load.get()) {
                      // 1st barrier will let the unit test do its job

@@ -60,13 +60,15 @@ import org.apache.activemq.artemis.utils.collections.NodeStore;
 import org.apache.activemq.artemis.utils.collections.LinkedListIterator;
 import org.apache.activemq.artemis.utils.critical.CriticalComponentImpl;
 import org.apache.activemq.artemis.utils.critical.EmptyCriticalAnalyzer;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 import org.junit.Assert;
 import org.junit.Test;
 
 public class ScheduledDeliveryHandlerTest extends Assert {
 
-   private static final Logger log = Logger.getLogger(ScheduledDeliveryHandlerTest.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    @Test
    public void testScheduleRandom() throws Exception {
@@ -182,8 +184,8 @@ public class ScheduledDeliveryHandlerTest extends Assert {
    @Test
    public void testScheduleNow() throws Exception {
 
-      ExecutorService executor = Executors.newFixedThreadPool(50, ActiveMQThreadFactory.defaultThreadFactory());
-      ScheduledThreadPoolExecutor scheduler = new ScheduledThreadPoolExecutor(1, ActiveMQThreadFactory.defaultThreadFactory());
+      ExecutorService executor = Executors.newFixedThreadPool(50, ActiveMQThreadFactory.defaultThreadFactory(getClass().getName()));
+      ScheduledThreadPoolExecutor scheduler = new ScheduledThreadPoolExecutor(1, ActiveMQThreadFactory.defaultThreadFactory(getClass().getName()));
       try {
          for (int i = 0; i < 100; i++) {
             // it's better to run the test a few times instead of run millions of messages here
@@ -283,7 +285,7 @@ public class ScheduledDeliveryHandlerTest extends Assert {
             assertTrue(ref.getScheduledDeliveryTime() >= lastTime);
          } else {
             if (ref.getScheduledDeliveryTime() < lastTime) {
-               log.debug("^^^fail at " + ref.getScheduledDeliveryTime());
+               logger.debug("^^^fail at {}", ref.getScheduledDeliveryTime());
             }
          }
          lastTime = ref.getScheduledDeliveryTime();
@@ -1213,7 +1215,7 @@ public class ScheduledDeliveryHandlerTest extends Assert {
       }
 
       @Override
-      public void acknowledge(Transaction tx, MessageReference ref, AckReason reason, ServerConsumer consumer) throws Exception {
+      public void acknowledge(Transaction tx, MessageReference ref, AckReason reason, ServerConsumer consumer, boolean delivering) throws Exception {
 
       }
 
@@ -1418,7 +1420,7 @@ public class ScheduledDeliveryHandlerTest extends Assert {
       }
 
       @Override
-      public void expire(MessageReference ref, ServerConsumer consumer) throws Exception {
+      public void expire(MessageReference ref, ServerConsumer consumer, boolean delivering) throws Exception {
 
       }
 
@@ -1624,12 +1626,27 @@ public class ScheduledDeliveryHandlerTest extends Assert {
       }
 
       @Override
+      public void deliverScheduledMessages(String filter) throws ActiveMQException {
+
+      }
+
+      @Override
+      public void deliverScheduledMessage(long messageId) throws ActiveMQException {
+
+      }
+
+      @Override
       public void route(Message message, RoutingContext context) throws Exception {
 
       }
 
       @Override
       public void routeWithAck(Message message, RoutingContext context) {
+
+      }
+
+      @Override
+      public void postAcknowledge(MessageReference ref, AckReason reason, boolean delivering) {
 
       }
 

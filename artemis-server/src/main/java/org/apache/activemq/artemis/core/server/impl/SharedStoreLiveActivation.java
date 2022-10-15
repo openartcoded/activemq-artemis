@@ -27,11 +27,13 @@ import org.apache.activemq.artemis.core.server.NodeManager;
 import org.apache.activemq.artemis.core.server.NodeManager.LockListener;
 import org.apache.activemq.artemis.core.server.NodeManager.NodeManagerException;
 import org.apache.activemq.artemis.core.server.cluster.ha.SharedStoreMasterPolicy;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 public final class SharedStoreLiveActivation extends LiveActivation {
 
-   private static final Logger logger = Logger.getLogger(SharedStoreLiveActivation.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    // this is how we act when we initially start as live
    private final SharedStoreMasterPolicy sharedStoreMasterPolicy;
@@ -59,9 +61,7 @@ public final class SharedStoreLiveActivation extends LiveActivation {
 
          activeMQServer.checkJournalDirectory();
 
-         if (logger.isDebugEnabled()) {
-            logger.debug("First part initialization on " + this);
-         }
+         logger.debug("First part initialization on {}", this);
 
          if (!activeMQServer.initialisePart1(false))
             return;
@@ -71,9 +71,8 @@ public final class SharedStoreLiveActivation extends LiveActivation {
              * looks like we've failed over at some point need to inform that we are the
              * backup so when the current live goes down they failover to us
              */
-            if (logger.isDebugEnabled()) {
-               logger.debug("announcing backup to the former live" + this);
-            }
+            logger.debug("announcing backup to the former live {}", this);
+
             activeMQServer.getBackupManager().start();
 
             if (!sharedStoreMasterPolicy.isWaitForActivation())

@@ -26,10 +26,16 @@ import javax.jms.ObjectMessage;
 import javax.jms.StreamMessage;
 import javax.jms.TextMessage;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
+
 /**
  * A wrapper for a message consumer
  */
 public class ActiveMQRAMessageConsumer implements MessageConsumer {
+
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    /**
     * The wrapped message consumer
@@ -51,12 +57,8 @@ public class ActiveMQRAMessageConsumer implements MessageConsumer {
       this.consumer = consumer;
       this.session = session;
 
-      if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-         ActiveMQRALogger.LOGGER.trace("new ActiveMQMessageConsumer " + this +
-                                          " consumer=" +
-                                          consumer +
-                                          " session=" +
-                                          session);
+      if (logger.isTraceEnabled()) {
+         logger.trace("new ActiveMQMessageConsumer {} consumer={} session={}", this, consumer, session);
       }
    }
 
@@ -67,9 +69,8 @@ public class ActiveMQRAMessageConsumer implements MessageConsumer {
     */
    @Override
    public void close() throws JMSException {
-      if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-         ActiveMQRALogger.LOGGER.trace("close " + this);
-      }
+      logger.trace("close {}", this);
+
       try {
          closeConsumer();
       } finally {
@@ -83,9 +84,8 @@ public class ActiveMQRAMessageConsumer implements MessageConsumer {
     * @throws JMSException Thrown if an error occurs
     */
    void checkState() throws JMSException {
-      if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-         ActiveMQRALogger.LOGGER.trace("checkState()");
-      }
+      logger.trace("checkState()");
+
       session.checkState();
    }
 
@@ -97,9 +97,7 @@ public class ActiveMQRAMessageConsumer implements MessageConsumer {
     */
    @Override
    public MessageListener getMessageListener() throws JMSException {
-      if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-         ActiveMQRALogger.LOGGER.trace("getMessageListener()");
-      }
+      logger.trace("getMessageListener()");
 
       checkState();
       session.checkStrict();
@@ -136,9 +134,7 @@ public class ActiveMQRAMessageConsumer implements MessageConsumer {
     */
    @Override
    public String getMessageSelector() throws JMSException {
-      if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-         ActiveMQRALogger.LOGGER.trace("getMessageSelector()");
-      }
+      logger.trace("getMessageSelector()");
 
       checkState();
       return consumer.getMessageSelector();
@@ -154,16 +150,12 @@ public class ActiveMQRAMessageConsumer implements MessageConsumer {
    public Message receive() throws JMSException {
       session.lock();
       try {
-         if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-            ActiveMQRALogger.LOGGER.trace("receive " + this);
-         }
+         logger.trace("receive {}", this);
 
          checkState();
          Message message = consumer.receive();
 
-         if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-            ActiveMQRALogger.LOGGER.trace("received " + this + " result=" + message);
-         }
+         logger.trace("received {} result={}", this, message);
 
          if (message == null) {
             return null;
@@ -186,16 +178,14 @@ public class ActiveMQRAMessageConsumer implements MessageConsumer {
    public Message receive(final long timeout) throws JMSException {
       session.lock();
       try {
-         if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-            ActiveMQRALogger.LOGGER.trace("receive " + this + " timeout=" + timeout);
+         if (logger.isTraceEnabled()) {
+            logger.trace("receive {} timeout={}", this, timeout);
          }
 
          checkState();
          Message message = consumer.receive(timeout);
 
-         if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-            ActiveMQRALogger.LOGGER.trace("received " + this + " result=" + message);
-         }
+         logger.trace("received {} result={}", this, message);
 
          if (message == null) {
             return null;
@@ -217,16 +207,12 @@ public class ActiveMQRAMessageConsumer implements MessageConsumer {
    public Message receiveNoWait() throws JMSException {
       session.lock();
       try {
-         if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-            ActiveMQRALogger.LOGGER.trace("receiveNoWait " + this);
-         }
+         logger.trace("receiveNoWait {}", this);
 
          checkState();
          Message message = consumer.receiveNoWait();
 
-         if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-            ActiveMQRALogger.LOGGER.trace("received " + this + " result=" + message);
-         }
+         logger.trace("received {} result={}", this, message);
 
          if (message == null) {
             return null;
@@ -244,9 +230,7 @@ public class ActiveMQRAMessageConsumer implements MessageConsumer {
     * @throws JMSException Thrown if an error occurs
     */
    void closeConsumer() throws JMSException {
-      if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-         ActiveMQRALogger.LOGGER.trace("closeConsumer()");
-      }
+      logger.trace("closeConsumer()");
 
       consumer.close();
    }
@@ -258,9 +242,7 @@ public class ActiveMQRAMessageConsumer implements MessageConsumer {
     * @return The wrapped message
     */
    Message wrapMessage(final Message message) {
-      if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-         ActiveMQRALogger.LOGGER.trace("wrapMessage(" + message + ")");
-      }
+      logger.trace("wrapMessage({})", message);
 
       if (message instanceof BytesMessage) {
          return new ActiveMQRABytesMessage((BytesMessage) message, session);
@@ -283,9 +265,7 @@ public class ActiveMQRAMessageConsumer implements MessageConsumer {
     * @return The wrapped listener
     */
    MessageListener wrapMessageListener(final MessageListener listener) {
-      if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-         ActiveMQRALogger.LOGGER.trace("getMessageSelector()");
-      }
+      logger.trace("getMessageSelector()");
 
       return new ActiveMQRAMessageListener(listener, this);
    }

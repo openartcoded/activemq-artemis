@@ -116,7 +116,6 @@ import org.apache.activemq.artemis.core.remoting.impl.netty.NettyConnectorFactor
 import org.apache.activemq.artemis.core.replication.ReplicationEndpoint;
 import org.apache.activemq.artemis.core.server.ActiveMQComponent;
 import org.apache.activemq.artemis.core.server.ActiveMQServer;
-import org.apache.activemq.artemis.core.server.ActiveMQServerLogger;
 import org.apache.activemq.artemis.core.server.ActiveMQServers;
 import org.apache.activemq.artemis.core.server.JournalType;
 import org.apache.activemq.artemis.core.server.MessageReference;
@@ -147,12 +146,15 @@ import org.apache.activemq.artemis.utils.Env;
 import org.apache.activemq.artemis.utils.FileUtil;
 import org.apache.activemq.artemis.utils.PortCheckRule;
 import org.apache.activemq.artemis.utils.RandomUtil;
+import org.apache.activemq.artemis.utils.RunnableEx;
 import org.apache.activemq.artemis.utils.ThreadDumpUtil;
 import org.apache.activemq.artemis.utils.ThreadLeakCheckRule;
 import org.apache.activemq.artemis.utils.UUIDGenerator;
 import org.apache.activemq.artemis.utils.Wait;
 import org.apache.activemq.artemis.utils.actors.OrderedExecutorFactory;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -171,17 +173,11 @@ import org.junit.runner.Description;
  */
 public abstract class ActiveMQTestBase extends Assert {
 
-   private static final Logger log = Logger.getLogger(ActiveMQTestBase.class);
-
-   private static final Logger baseLog = Logger.getLogger(ActiveMQTestBase.class);
-
-   protected final Logger instanceLog = Logger.getLogger(this.getClass());
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    static {
       Env.setTestEnv(true);
    }
-
-   private static final Logger logger = Logger.getLogger(ActiveMQTestBase.class);
 
    /** This will make sure threads are not leaking between tests */
    @ClassRule
@@ -228,6 +224,31 @@ public abstract class ActiveMQTestBase extends Assert {
    // There is a verification about thread leakages. We only fail a single thread when this happens
    private static Set<Thread> alreadyFailedThread = new HashSet<>();
 
+   private LinkedList<RunnableEx> runAfter;
+
+   protected synchronized void runAfter(RunnableEx run) {
+      Assert.assertNotNull(run);
+      if (runAfter == null) {
+         runAfter = new LinkedList();
+      }
+      runAfter.add(run);
+   }
+
+   @After
+   public void runAfter() {
+      if (runAfter != null) {
+         runAfter.forEach((r) -> {
+            try {
+               r.run();
+            } catch (Exception e) {
+               logger.warn(e.getMessage(), e);
+            }
+         });
+      }
+   }
+
+
+
    private final Collection<ActiveMQServer> servers = new ArrayList<>();
    private final Collection<ServerLocator> locators = new ArrayList<>();
    private final Collection<ClientSessionFactory> sessionFactories = new ArrayList<>();
@@ -256,12 +277,12 @@ public abstract class ActiveMQTestBase extends Assert {
       @Override
       protected void starting(Description description) {
          testClassName = description.getClassName();
-         baseLog.info(String.format("**** start #test %s() ***", description.getMethodName()));
+         logger.info("**** start #test {}() ***", description.getMethodName());
       }
 
       @Override
       protected void finished(Description description) {
-         baseLog.info(String.format("**** end #test %s() ***", description.getMethodName()));
+         logger.info("**** end #test {}() ***", description.getMethodName());
       }
    };
 
@@ -291,7 +312,7 @@ public abstract class ActiveMQTestBase extends Assert {
    }
 
    protected <T> T serialClone(Object object) throws Exception {
-      log.debug("object::" + object);
+      logger.debug("object::{}", object);
       ByteArrayOutputStream bout = new ByteArrayOutputStream();
       ObjectOutputStream obOut = new ObjectOutputStream(bout);
       obOut.writeObject(object);
@@ -538,6 +559,7 @@ public abstract class ActiveMQTestBase extends Assert {
       dbStorageConfiguration.setJdbcLockExpirationMillis(getJdbcLockExpirationMillis());
       dbStorageConfiguration.setJdbcLockRenewPeriodMillis(getJdbcLockRenewPeriodMillis());
       dbStorageConfiguration.setJdbcNetworkTimeout(-1);
+      dbStorageConfiguration.setJdbcAllowedTimeDiff(250L);
       return dbStorageConfiguration;
    }
 
@@ -634,7 +656,7 @@ public abstract class ActiveMQTestBase extends Assert {
    }
 
    protected final OrderedExecutorFactory getOrderedExecutor() {
-      final ExecutorService executor = Executors.newCachedThreadPool(ActiveMQThreadFactory.defaultThreadFactory());
+      final ExecutorService executor = Executors.newCachedThreadPool(ActiveMQThreadFactory.defaultThreadFactory(getClass().getName()));
       executorSet.add(executor);
       return new OrderedExecutorFactory(executor);
    }
@@ -721,8 +743,7 @@ public abstract class ActiveMQTestBase extends Assert {
       if (e != null) {
          e.printStackTrace(System.out);
       }
-      ActiveMQServerLogger log0 = ActiveMQServerLogger.LOGGER;
-      log0.debug(message, e);
+      logger.debug(message, e);
    }
 
    /**
@@ -1126,16 +1147,16 @@ public abstract class ActiveMQTestBase extends Assert {
          } else if (prop.getPropertyType() == Double.class || prop.getPropertyType() == Double.TYPE) {
             value = RandomUtil.randomDouble();
          } else {
-            log.debug("Can't validate property of type " + prop.getPropertyType() + " on " + prop.getName());
+            logger.debug("Can't validate property of type {} on {}", prop.getPropertyType(), prop.getName());
             value = null;
          }
 
          if (value != null && prop.getWriteMethod() != null && prop.getReadMethod() == null) {
-            log.debug("WriteOnly property " + prop.getName() + " on " + pojo.getClass());
+            logger.debug("WriteOnly property {} on {}", prop.getName(), pojo.getClass());
          } else if (value != null && prop.getWriteMethod() != null &&
             prop.getReadMethod() != null &&
             !ignoreSet.contains(prop.getName())) {
-            log.debug("Validating " + prop.getName() + " type = " + prop.getPropertyType());
+            logger.debug("Validating {} type = {}", prop.getName(), prop.getPropertyType());
             prop.getWriteMethod().invoke(pojo, value);
 
             Assert.assertEquals("Property " + prop.getName(), value, prop.getReadMethod().invoke(pojo));
@@ -1173,7 +1194,7 @@ public abstract class ActiveMQTestBase extends Assert {
                                       final int liveNodes,
                                       final int backupNodes,
                                       final long timeout) throws Exception {
-      logger.debug("waiting for " + liveNodes + " on the topology for server = " + server);
+      logger.debug("waiting for {} on the topology for server = {}", liveNodes, server);
 
       Set<ClusterConnection> ccs = server.getClusterManager().getClusterConnections();
 
@@ -1193,7 +1214,6 @@ public abstract class ActiveMQTestBase extends Assert {
       final long start = System.currentTimeMillis();
 
       int liveNodesCount = 0;
-
       int backupNodesCount = 0;
 
       do {
@@ -1223,7 +1243,7 @@ public abstract class ActiveMQTestBase extends Assert {
          topology.describe() +
          ")";
 
-      ActiveMQServerLogger.LOGGER.error(msg);
+      logger.error(msg);
 
       throw new Exception(msg);
    }
@@ -1232,12 +1252,11 @@ public abstract class ActiveMQTestBase extends Assert {
                                   String clusterConnectionName,
                                   final int nodes,
                                   final long timeout) throws Exception {
-      logger.debug("waiting for " + nodes + " on the topology for server = " + server);
+      logger.debug("waiting for {} on the topology for server = {}", nodes, server);
 
       long start = System.currentTimeMillis();
 
       ClusterConnection clusterConnection = server.getClusterManager().getClusterConnection(clusterConnectionName);
-
       Topology topology = clusterConnection.getTopology();
 
       do {
@@ -1256,7 +1275,7 @@ public abstract class ActiveMQTestBase extends Assert {
          topology +
          ")";
 
-      ActiveMQServerLogger.LOGGER.error(msg);
+      logger.error(msg);
 
       throw new Exception(msg);
    }
@@ -1345,7 +1364,7 @@ public abstract class ActiveMQTestBase extends Assert {
       }
 
       if (!server.isStarted()) {
-         baseLog.info(threadDump("Server didn't start"));
+         logger.info(threadDump("Server didn't start"));
          fail("server didn't start: " + server);
       }
 
@@ -1367,7 +1386,7 @@ public abstract class ActiveMQTestBase extends Assert {
       }
 
       if (server.isStarted()) {
-         baseLog.info(threadDump("Server didn't start"));
+         logger.info(threadDump("Server didn't start"));
          fail("Server didn't start: " + server);
       }
    }
@@ -1458,31 +1477,74 @@ public abstract class ActiveMQTestBase extends Assert {
       }
    }
 
-   protected ActiveMQServer createServer(final boolean realFiles,
-                                               final Configuration configuration,
-                                               final int pageSize,
-                                               final long maxAddressSize) {
+   protected final ActiveMQServer createServer(final boolean realFiles,
+                                         final Configuration configuration,
+                                         final int pageSize,
+                                         final long maxAddressSize) {
       return createServer(realFiles, configuration, pageSize, maxAddressSize, (Map<String, AddressSettings>) null);
    }
 
-   protected ActiveMQServer createServer(final boolean realFiles,
+   protected final ActiveMQServer createServer(final boolean realFiles,
                                          final Configuration configuration,
                                          final int pageSize,
                                          final long maxAddressSize,
+                                         final int maxReadMessages,
+                                         final int maxReadBytes) {
+      return createServer(realFiles, configuration, pageSize, maxAddressSize, maxReadMessages, maxReadBytes, (Map<String, AddressSettings>) null);
+   }
+
+   protected final ActiveMQServer createServer(final boolean realFiles,
+                                         final Configuration configuration,
+                                         final int pageSize,
+                                         final long maxAddressSize,
+                                         final Map<String, AddressSettings> settings) {
+
+      return createServer(realFiles, configuration, pageSize, maxAddressSize, null, null, settings);
+   }
+
+   protected final ActiveMQServer createServer(final boolean realFiles,
+                                         final Configuration configuration,
+                                         final int pageSize,
+                                         final long maxAddressSize,
+                                         final Integer maxReadPageMessages,
+                                         final Integer maxReadPageBytes,
                                          final Map<String, AddressSettings> settings) {
       ActiveMQServer server = addServer(ActiveMQServers.newActiveMQServer(configuration, realFiles));
 
       if (settings != null) {
          for (Map.Entry<String, AddressSettings> setting : settings.entrySet()) {
+            if (maxReadPageBytes != null) {
+               setting.getValue().setMaxReadPageBytes(maxReadPageBytes.intValue());
+            }
+            if (maxReadPageMessages != null) {
+               setting.getValue().setMaxReadPageMessages(maxReadPageMessages.intValue());
+            }
             server.getAddressSettingsRepository().addMatch(setting.getKey(), setting.getValue());
          }
       }
 
       AddressSettings defaultSetting = new AddressSettings().setPageSizeBytes(pageSize).setMaxSizeBytes(maxAddressSize).setAddressFullMessagePolicy(AddressFullMessagePolicy.PAGE);
+      if (maxReadPageBytes != null) {
+         defaultSetting.setMaxReadPageBytes(maxReadPageBytes.intValue());
+      }
+      if (maxReadPageMessages != null) {
+         defaultSetting.setMaxReadPageMessages(maxReadPageMessages.intValue());
+      }
 
       server.getAddressSettingsRepository().addMatch("#", defaultSetting);
 
+      applySettings(server, configuration, pageSize, maxAddressSize, maxReadPageMessages, maxReadPageBytes, settings);
+
       return server;
+   }
+
+   protected void applySettings(ActiveMQServer server,
+                                final Configuration configuration,
+                                final int pageSize,
+                                final long maxAddressSize,
+                                final Integer maxReadPageMessages,
+                                final Integer maxReadPageBytes,
+                                final Map<String, AddressSettings> settings) {
    }
 
    protected final ActiveMQServer createServer(final boolean realFiles,
@@ -1494,7 +1556,7 @@ public abstract class ActiveMQTestBase extends Assert {
       if (storeType == StoreConfiguration.StoreType.DATABASE) {
          setDBStoreType(configuration);
       }
-      return createServer(realFiles, configuration, pageSize, maxAddressSize, settings);
+      return createServer(realFiles, configuration, pageSize, maxAddressSize, -1, -1, settings);
    }
 
    protected final ActiveMQServer createServer(final boolean realFiles) throws Exception {
@@ -1502,7 +1564,7 @@ public abstract class ActiveMQTestBase extends Assert {
    }
 
    protected final ActiveMQServer createServer(final boolean realFiles, final boolean netty) throws Exception {
-      return createServer(realFiles, createDefaultConfig(netty), AddressSettings.DEFAULT_PAGE_SIZE, AddressSettings.DEFAULT_MAX_SIZE_BYTES);
+      return createServer(realFiles, createDefaultConfig(netty), AddressSettings.DEFAULT_PAGE_SIZE, AddressSettings.DEFAULT_MAX_SIZE_BYTES, -1, -1);
    }
 
    protected ActiveMQServer createServer(final boolean realFiles, final Configuration configuration) {
@@ -1548,7 +1610,7 @@ public abstract class ActiveMQTestBase extends Assert {
 
          AddressSettings defaultSetting = new AddressSettings();
          defaultSetting.setPageSizeBytes(pageSize);
-         defaultSetting.setMaxSizeBytes(maxAddressSize);
+         defaultSetting.setMaxSizeBytes(maxAddressSize).setMaxReadPageBytes(-1).setMaxSizeBytes(-1);
 
          server.getAddressSettingsRepository().addMatch("#", defaultSetting);
 
@@ -1954,12 +2016,10 @@ public abstract class ActiveMQTestBase extends Assert {
       long start = System.currentTimeMillis();
 
       int bindingCount = 0;
-
       int totConsumers = 0;
 
       do {
          bindingCount = 0;
-
          totConsumers = 0;
 
          Bindings bindings = po.getBindingsForAddress(new SimpleString(address));
@@ -1982,18 +2042,9 @@ public abstract class ActiveMQTestBase extends Assert {
       }
       while (System.currentTimeMillis() - start < timeout);
 
-      String msg = "Timed out waiting for bindings (bindingCount = " + bindingCount +
-         " (expecting " +
-         expectedBindingCount +
-         ") " +
-         ", totConsumers = " +
-         totConsumers +
-         " (expecting " +
-         expectedConsumerCount +
-         ")" +
-         ")";
+      logger.error("Timed out waiting for bindings (bindingCount = {} (expecting {}) , totConsumers = {} (expecting {}))",
+                     bindingCount, expectedBindingCount, totConsumers, expectedConsumerCount);
 
-      baseLog.error(msg);
       return false;
    }
 
@@ -2088,7 +2139,7 @@ public abstract class ActiveMQTestBase extends Assert {
 
       long totalMaxIO = LibaioContext.getTotalMaxIO();
       if (totalMaxIO != 0) {
-         log.error("LibaioContext TotalMaxIO > 0 before beginning test class. Issue presumably arose in a preceding class (not possible to be sure of which here). TotalMaxIO = " + totalMaxIO);
+         logger.error("LibaioContext TotalMaxIO > 0 before beginning test class. Issue presumably arose in a preceding class (not possible to be sure of which here). TotalMaxIO = {}", totalMaxIO);
       }
    }
 
@@ -2107,7 +2158,7 @@ public abstract class ActiveMQTestBase extends Assert {
 
          // Now fail this run
          String message = String.format("LibaioContext TotalMaxIO > 0 leak detected after class %s(), TotalMaxIO=%s(). Check output to determine if occurred before/during.", testClassName, totalMaxIO);
-         log.error(message);
+         logger.error(message);
          Assert.fail(message);
       }
    }
@@ -2116,7 +2167,7 @@ public abstract class ActiveMQTestBase extends Assert {
       int invmSize = InVMRegistry.instance.size();
       if (invmSize > 0) {
          InVMRegistry.instance.clear();
-         baseLog.info(threadDump("Thread dump"));
+         logger.info(threadDump("Thread dump"));
          fail("invm registry still had acceptors registered");
       }
    }
@@ -2128,14 +2179,14 @@ public abstract class ActiveMQTestBase extends Assert {
       try {
          ServerLocatorImpl.clearThreadPools();
       } catch (Throwable e) {
-         baseLog.info(threadDump(e.getMessage()));
+         logger.info(threadDump(e.getMessage()));
          System.err.println(threadDump(e.getMessage()));
       }
 
       try {
          NettyConnector.clearThreadPools();
       } catch (Exception e) {
-         baseLog.info(threadDump(e.getMessage()));
+         logger.info(threadDump(e.getMessage()));
          System.err.println(threadDump(e.getMessage()));
       }
    }

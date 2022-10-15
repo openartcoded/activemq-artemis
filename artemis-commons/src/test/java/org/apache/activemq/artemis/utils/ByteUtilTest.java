@@ -27,7 +27,9 @@ import java.util.Map;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.util.internal.PlatformDependent;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
@@ -39,7 +41,7 @@ import static org.junit.Assert.fail;
 
 public class ByteUtilTest {
 
-   private static final Logger log = Logger.getLogger(ByteUtilTest.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    @Test
    public void testBytesToString() {
@@ -54,13 +56,13 @@ public class ByteUtilTest {
    public void testNonASCII() {
       assertEquals("aA", ByteUtil.toSimpleString(new byte[]{97, 0, 65, 0}));
       assertEquals(ByteUtil.NON_ASCII_STRING, ByteUtil.toSimpleString(new byte[]{0, 97, 0, 65}));
-      log.debug(ByteUtil.toSimpleString(new byte[]{0, 97, 0, 65}));
+      logger.debug(ByteUtil.toSimpleString(new byte[]{0, 97, 0, 65}));
    }
 
    @Test
    public void testMaxString() {
       byte[] byteArray = new byte[20 * 1024];
-      log.debug(ByteUtil.maxString(ByteUtil.bytesToHex(byteArray, 2), 150));
+      logger.debug(ByteUtil.maxString(ByteUtil.bytesToHex(byteArray, 2), 150));
    }
 
    void testEquals(String string1, String string2) {
