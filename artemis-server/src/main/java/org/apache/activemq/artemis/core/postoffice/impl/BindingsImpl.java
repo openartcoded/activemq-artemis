@@ -46,11 +46,13 @@ import org.apache.activemq.artemis.core.server.group.GroupingHandler;
 import org.apache.activemq.artemis.core.server.group.impl.Proposal;
 import org.apache.activemq.artemis.core.server.group.impl.Response;
 import org.apache.activemq.artemis.utils.CompositeAddress;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 public final class BindingsImpl implements Bindings {
 
-   private static final Logger logger = Logger.getLogger(BindingsImpl.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    // This is public as we use on test assertions
    public static final int MAX_GROUP_RETRY = 10;
@@ -117,9 +119,8 @@ public final class BindingsImpl implements Bindings {
    @Override
    public void addBinding(final Binding binding) {
       try {
-         if (logger.isTraceEnabled()) {
-            logger.trace("addBinding(" + binding + ") being called");
-         }
+         logger.trace("addBinding({}) being called", binding);
+
          if (binding.isExclusive()) {
             exclusiveBindings.add(binding);
          } else {
@@ -133,7 +134,7 @@ public final class BindingsImpl implements Bindings {
             setMessageLoadBalancingType(((RemoteQueueBinding) binding).getMessageLoadBalancingType());
          }
          if (logger.isTraceEnabled()) {
-            logger.trace("Adding binding " + binding + " into " + this + " bindingTable: " + debugBindings());
+            logger.trace("Adding binding {} into {} bindingTable: {}", binding, this, debugBindings());
          }
       } finally {
          updated();
@@ -166,7 +167,7 @@ public final class BindingsImpl implements Bindings {
          assert !bindingsNameMap.containsKey(binding.getUniqueName());
 
          if (logger.isTraceEnabled()) {
-            logger.trace("Removing binding " + binding + " from " + this + " bindingTable: " + debugBindings());
+            logger.trace("Removing binding {} from {} bindingTable: {}", binding, this, debugBindings());
          }
          return binding;
       } finally {
@@ -188,11 +189,9 @@ public final class BindingsImpl implements Bindings {
          return false;
       }
 
-      if (logger.isTraceEnabled()) {
-         logger.tracef("Redistributing message %s", message);
-      }
+      logger.trace("Redistributing message {}", message);
 
-      final SimpleString routingName = originatingQueue.getName();
+      final SimpleString routingName = CompositeAddress.isFullyQualified(message.getAddress()) && originatingQueue.getRoutingType() == RoutingType.ANYCAST ? CompositeAddress.extractAddressName(message.getAddressSimpleString()) : originatingQueue.getName();
 
       final Pair<Binding[], CopyOnWriteBindings.BindingIndex> bindingsAndPosition = routingNameBindingMap.getBindings(routingName);
 
@@ -337,7 +336,7 @@ public final class BindingsImpl implements Bindings {
                               final RoutingContext context,
                               final int currentVersion) throws Exception {
       if (logger.isTraceEnabled()) {
-         logger.tracef("Routing message %s on binding=%s current context::$s", message, this, context);
+         logger.trace("Routing message {} on binding={} current context::{}", message, this, context);
       }
 
       routingNameBindingMap.forEachBindings((bindings, nextPosition) -> {
@@ -453,7 +452,7 @@ public final class BindingsImpl implements Bindings {
             resp = groupingGroupingHandler.propose(new Proposal(fullID, theBinding.getClusterName()));
 
             if (resp == null) {
-               logger.debug("it got a timeout on propose, trying again, number of retries: " + tries);
+               logger.debug("it got a timeout on propose, trying again, number of retries: {}", tries);
                // it timed out, so we will check it through routeAndcheckNull
                theBinding = null;
             }

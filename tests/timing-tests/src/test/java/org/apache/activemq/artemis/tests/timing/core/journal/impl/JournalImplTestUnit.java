@@ -22,14 +22,16 @@ import org.apache.activemq.artemis.core.journal.PreparedTransactionInfo;
 import org.apache.activemq.artemis.core.journal.RecordInfo;
 import org.apache.activemq.artemis.nativo.jlibaio.LibaioContext;
 import org.apache.activemq.artemis.tests.unit.core.journal.impl.JournalImplTestBase;
-import org.jboss.logging.Logger;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 public abstract class JournalImplTestUnit extends JournalImplTestBase {
 
-   private static final Logger log = Logger.getLogger(JournalImplTestBase.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    @Override
    @After
@@ -141,7 +143,7 @@ public abstract class JournalImplTestUnit extends JournalImplTestBase {
          }
 
          if (count % 100 == 0) {
-            JournalImplTestUnit.log.debug("Done: " + count);
+            JournalImplTestUnit.logger.debug("Done: {}", count);
          }
       }
 
@@ -149,9 +151,9 @@ public abstract class JournalImplTestUnit extends JournalImplTestBase {
 
       double rate = 1000 * (double) NUMBER_OF_RECORDS / (end - start);
 
-      log.debug("Rate of " + rate + " adds/removes per sec");
+      logger.debug("Rate of {} adds/removes per sec", rate);
 
-      log.debug("Reclaim status = " + debugJournal());
+      logger.debug("Reclaim status = {}", debugJournal());
 
       stopJournal();
       createJournal();

@@ -23,12 +23,8 @@ import org.apache.activemq.artemis.api.core.SimpleString;
 import org.apache.activemq.artemis.core.postoffice.Binding;
 import org.apache.activemq.artemis.core.server.QueueQueryResult;
 import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class MQTTFQQNTest extends MQTTTestSupport {
-
-   private static final Logger LOG = LoggerFactory.getLogger(MQTTFQQNTest.class);
 
    @Test
    public void testMQTTSubNames() throws Exception {

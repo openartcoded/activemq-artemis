@@ -28,7 +28,6 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.activemq.artemis.api.core.ActiveMQBuffer;
@@ -70,11 +69,13 @@ import org.apache.activemq.artemis.journal.ActiveMQJournalBundle;
 import org.apache.activemq.artemis.utils.ArtemisCloseable;
 import org.apache.activemq.artemis.utils.ExecutorFactory;
 import org.apache.activemq.artemis.utils.critical.CriticalAnalyzer;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 public class JournalStorageManager extends AbstractJournalStorageManager {
 
-   private static final Logger logger = Logger.getLogger(JournalStorageManager.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
    public static final String ACTIVEMQ_DATA = "activemq-data";
 
    protected SequentialFileFactory journalFF;
@@ -183,13 +184,6 @@ public class JournalStorageManager extends AbstractJournalStorageManager {
       largeMessagesDirectory = config.getLargeMessagesDirectory();
 
       largeMessagesFactory = new NIOSequentialFileFactory(config.getLargeMessagesLocation(), false, criticalErrorListener, 1);
-
-      // it doesn't make sense to limit paging concurrency < 0
-      if (config.getPageMaxConcurrentIO() >= 0) {
-         pageMaxConcurrentIO = new Semaphore(config.getPageMaxConcurrentIO());
-      } else {
-         pageMaxConcurrentIO = null;
-      }
    }
 
    /**
@@ -341,7 +335,7 @@ public class JournalStorageManager extends AbstractJournalStorageManager {
             try {
                msg.delete();
             } catch (Exception e) {
-               ActiveMQServerLogger.LOGGER.journalErrorDeletingMessage(e, messageId);
+               ActiveMQServerLogger.LOGGER.journalErrorDeletingMessage(messageId, e);
             }
             if (replicator != null) {
                replicator.largeMessageDelete(messageId, JournalStorageManager.this);
@@ -388,7 +382,7 @@ public class JournalStorageManager extends AbstractJournalStorageManager {
    }
 
    @Override
-   public void pageClosed(final SimpleString storeName, final int pageNumber) {
+   public void pageClosed(final SimpleString storeName, final long pageNumber) {
       if (isReplicated()) {
          try (ArtemisCloseable lock = closeableReadLock()) {
             if (isReplicated())
@@ -398,7 +392,7 @@ public class JournalStorageManager extends AbstractJournalStorageManager {
    }
 
    @Override
-   public void pageDeleted(final SimpleString storeName, final int pageNumber) {
+   public void pageDeleted(final SimpleString storeName, final long pageNumber) {
       if (isReplicated()) {
          try (ArtemisCloseable lock = closeableReadLock()) {
             if (isReplicated())
@@ -408,7 +402,7 @@ public class JournalStorageManager extends AbstractJournalStorageManager {
    }
 
    @Override
-   public void pageWrite(final PagedMessage message, final int pageNumber) {
+   public void pageWrite(final PagedMessage message, final long pageNumber) {
       if (messageJournal.isHistory()) {
          try (ArtemisCloseable lock = closeableReadLock()) {
 
@@ -510,7 +504,7 @@ public class JournalStorageManager extends AbstractJournalStorageManager {
                   confirmLargeMessage(largeServerMessage);
                }
             } catch (Exception e) {
-               ActiveMQServerLogger.LOGGER.journalErrorDeletingMessage(e, largeServerMessage.toMessage().getMessageID());
+               ActiveMQServerLogger.LOGGER.journalErrorDeletingMessage(largeServerMessage.toMessage().getMessageID(), e);
             }
          }
 
@@ -568,9 +562,7 @@ public class JournalStorageManager extends AbstractJournalStorageManager {
             if (messageEncodeSize > maxRecordSize) {
                ActiveMQServerLogger.LOGGER.messageWithHeaderTooLarge(largeMessage.getMessageID(), logger.getName());
 
-               if (logger.isDebugEnabled()) {
-                  logger.debug("Message header too large for " + largeMessage);
-               }
+               logger.debug("Message header too large for {}", largeMessage);
 
                throw ActiveMQJournalBundle.BUNDLE.recordLargerThanStoreMax(messageEncodeSize, maxRecordSize);
             }
@@ -888,7 +880,7 @@ public class JournalStorageManager extends AbstractJournalStorageManager {
       try {
          messageJournal.appendAddEvent(messageId, JournalRecordIds.ADD_MESSAGE_BODY, EncoderPersister.getInstance(), partialBuffer, true, null);
       } catch (Exception e) {
-         logger.warn("Error processing history large message body for " + messageId + " - " + e.getMessage(), e);
+         logger.warn("Error processing history large message body for {}", messageId, e);
       }
 
    }

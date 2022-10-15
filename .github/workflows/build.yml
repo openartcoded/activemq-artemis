@@ -5,30 +5,27 @@ on: [push, pull_request, workflow_dispatch]
 jobs:
   test:
     name: Test (${{ matrix.java }})
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     strategy:
       fail-fast: false
       matrix:
         java: [ 11, 17 ]
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: Cache Maven Local Repo
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: |
-            ~/.m2/repository/*/*/*/*/*
-            !~/.m2/repository/org/apache/activemq/**/*-SNAPSHOT
-            !~/.m2/repository/org/apache/activemq/examples
-            !~/.m2/repository/org/apache/activemq/tests
-          key: ${{ runner.os }}-maven-test-${{ hashFiles('**/pom.xml') }}
+            ~/.m2/repository/
+          key: ${{ runner.os }}-mvn-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
-            ${{ runner.os }}-maven-test-
+            ${{ runner.os }}-mvn-
 
       - name: Install JDK ${{ matrix.java }}
-        uses: actions/setup-java@v2
+        uses: actions/setup-java@v3
         with:
           java-version: ${{ matrix.java }}
           distribution: 'temurin'
@@ -37,43 +34,44 @@ jobs:
       # By setting anything to org.apache.activemq.artemis.core.io.aio.AIOSequentialFileFactory.DISABLED we are disabling libaio loading on the testsuite
       - name: Fast Tests
         run: |
-          mvn -s .github/maven-settings.xml -Dorg.apache.activemq.artemis.core.io.aio.AIOSequentialFileFactory.DISABLED=AnythingNotNull -Pfast-tests -Ptests-CI install
+          mvn -s .github/maven-settings.xml -Dorg.apache.activemq.artemis.core.io.aio.AIOSequentialFileFactory.DISABLED=AnythingNotNull -Pfast-tests install
 
+      - name: Clean Up Before Caching
+        run: |
+          rm -rf ~/.m2/repository/org/apache/activemq/tests
+          rm -rf ~/.m2/repository/org/apache/activemq/examples
+          if [ -d ~/.m2/repository/org/apache/activemq ]; then find ~/.m2/repository/org/apache/activemq -name "*-SNAPSHOT" -type d -prune -exec rm -r '{}' \; ; fi
 
   checks:
     name: Checks (${{ matrix.java }})
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     strategy:
       fail-fast: false
       matrix:
         java: [ 11, 17 ]
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: Cache Maven Local Repo
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: |
-            ~/.m2/repository/*/*/*/*/*
-            !~/.m2/repository/org/apache/activemq/**/*-SNAPSHOT
-            !~/.m2/repository/org/apache/activemq/examples
-            !~/.m2/repository/org/apache/activemq/tests
-          key: ${{ runner.os }}-maven-checks-${{ hashFiles('**/pom.xml') }}
+            ~/.m2/repository/
+          key: ${{ runner.os }}-mvn-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
-            ${{ runner.os }}-maven-checks-
-            ${{ runner.os }}-maven-test-
+            ${{ runner.os }}-mvn-
 
       - name: Install JDK ${{ matrix.java }}
-        uses: actions/setup-java@v2
+        uses: actions/setup-java@v3
         with:
           java-version: ${{ matrix.java }}
           distribution: 'temurin'
 
       - name: Build Main
         run: |
-          mvn -s .github/maven-settings.xml -DskipTests -Derrorprone -Pdev -Pextra-tests -Pjmh install
+          mvn -s .github/maven-settings.xml -DskipTests -Derrorprone -Pdev -Pjmh install
 
       - name: Build Examples (JDK11 / -Prelease)
         if: matrix.java == '11'
@@ -90,9 +88,20 @@ jobs:
       - name: Javadoc Check (JDK11 / -Prelease)
         if: matrix.java == '11'
         run: |
-          mvn -s .github/maven-settings.xml javadoc:javadoc -Prelease
+          mvn -s .github/maven-settings.xml javadoc:javadoc -Prelease -DskipWebsiteDocGeneration=true -DskipWebsiteJavadocGeneration=true
 
       - name: Javadoc Check (JDK >11)
         if: matrix.java != '11'
         run: |
           mvn -s .github/maven-settings.xml javadoc:javadoc
+
+      - name: Website Content Check (JDK11 only / -Prelease)
+        if: matrix.java == '11'
+        run: |
+          mvn -s .github/maven-settings.xml clean install -DskipTests -Prelease -am -pl "artemis-website"
+
+      - name: Clean Up Before Caching
+        run: |
+          rm -rf ~/.m2/repository/org/apache/activemq/tests
+          rm -rf ~/.m2/repository/org/apache/activemq/examples
+          if [ -d ~/.m2/repository/org/apache/activemq ]; then find ~/.m2/repository/org/apache/activemq -name "*-SNAPSHOT" -type d -prune -exec rm -r '{}' \; ; fi

@@ -43,7 +43,6 @@ import org.apache.activemq.artemis.core.server.federation.FederationUpstream;
 import org.apache.activemq.artemis.core.server.plugin.ActiveMQServerConsumerPlugin;
 import org.apache.activemq.artemis.core.server.transformer.Transformer;
 import org.apache.activemq.artemis.core.settings.impl.Match;
-import org.jboss.logging.Logger;
 
 /**
  * Federated Queue, connect to upstream queues routing them to the local queue when a local consumer exist.
@@ -53,8 +52,6 @@ import org.jboss.logging.Logger;
  *
  */
 public class FederatedQueue extends FederatedAbstract implements ActiveMQServerConsumerPlugin, Serializable {
-
-   private static final Logger logger = Logger.getLogger(FederatedQueue.class);
 
    private final Set<Matcher> includes;
    private final Set<Matcher> excludes;
@@ -121,7 +118,7 @@ public class FederatedQueue extends FederatedAbstract implements ActiveMQServerC
                conditionalCreate.set(conditionalCreate.get() && plugin.federatedQueueConditionalCreateConsumer(consumer));
             });
          } catch (ActiveMQException t) {
-            ActiveMQServerLogger.LOGGER.federationPluginExecutionError(t, "federatedQueueConditionalCreateConsumer");
+            ActiveMQServerLogger.LOGGER.federationPluginExecutionError("federatedQueueConditionalCreateConsumer", t);
             throw new IllegalStateException(t.getMessage(), t.getCause());
          }
          if (!conditionalCreate.get()) {

@@ -19,10 +19,17 @@ package org.apache.activemq.artemis.ra;
 import javax.jms.Message;
 import javax.jms.MessageListener;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
+
 /**
  * A wrapper for a message listener
  */
 public class ActiveMQRAMessageListener implements MessageListener {
+
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
+
 
    /**
     * The message listener
@@ -41,9 +48,7 @@ public class ActiveMQRAMessageListener implements MessageListener {
     * @param consumer the consumer
     */
    public ActiveMQRAMessageListener(final MessageListener listener, final ActiveMQRAMessageConsumer consumer) {
-      if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-         ActiveMQRALogger.LOGGER.trace("constructor(" + listener + ", " + consumer + ")");
-      }
+      logger.trace("constructor({}, {})", listener, consumer);
 
       this.listener = listener;
       this.consumer = consumer;
@@ -56,9 +61,7 @@ public class ActiveMQRAMessageListener implements MessageListener {
     */
    @Override
    public void onMessage(Message message) {
-      if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-         ActiveMQRALogger.LOGGER.trace("onMessage(" + message + ")");
-      }
+      logger.trace("onMessage({})", message);
 
       message = consumer.wrapMessage(message);
       listener.onMessage(message);

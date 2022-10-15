@@ -36,11 +36,13 @@ import org.apache.activemq.artemis.core.server.impl.RefsOperation;
 import org.apache.activemq.artemis.core.transaction.Transaction;
 import org.apache.activemq.artemis.core.transaction.TransactionOperation;
 import org.apache.activemq.artemis.utils.ArtemisCloseable;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 public class TransactionImpl implements Transaction {
 
-   private static final Logger logger = Logger.getLogger(TransactionImpl.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private List<TransactionOperation> operations;
 
@@ -188,19 +190,16 @@ public class TransactionImpl implements Transaction {
 
    @Override
    public void prepare() throws Exception {
-      if (logger.isTraceEnabled()) {
-         logger.trace("TransactionImpl::prepare::" + this);
-      }
+      logger.trace("TransactionImpl::prepare::{}", this);
+
       try (ArtemisCloseable lock = storageManager.closeableReadLock()) {
          synchronized (timeoutLock) {
             if (isEffective()) {
-               logger.debug("TransactionImpl::prepare::" + this + " is being ignored");
+               logger.debug("TransactionImpl::prepare::{} is being ignored", this);
                return;
             }
             if (state == State.ROLLBACK_ONLY) {
-               if (logger.isTraceEnabled()) {
-                  logger.trace("TransactionImpl::prepare::rollbackonly, rollingback " + this);
-               }
+               logger.trace("TransactionImpl::prepare::rollbackonly, rollingback {}", this);
 
                internalRollback();
 
@@ -249,13 +248,12 @@ public class TransactionImpl implements Transaction {
 
    @Override
    public void commit(final boolean onePhase) throws Exception {
-      if (logger.isTraceEnabled()) {
-         logger.trace("TransactionImpl::commit::" + this);
-      }
+      logger.trace("TransactionImpl::commit::{}", this);
+
       synchronized (timeoutLock) {
          if (state == State.COMMITTED) {
             // I don't think this could happen, but just in case
-            logger.debug("TransactionImpl::commit::" + this + " is being ignored");
+            logger.debug("TransactionImpl::commit::{} is being ignored", this);
             return;
          }
          if (state == State.ROLLBACK_ONLY) {
@@ -345,7 +343,7 @@ public class TransactionImpl implements Transaction {
       synchronized (timeoutLock) {
          if (state == State.ROLLEDBACK) {
             // I don't think this could happen, but just in case
-            logger.debug("TransactionImpl::rollbackIfPossible::" + this + " is being ignored");
+            logger.debug("TransactionImpl::rollbackIfPossible::{} is being ignored", this);
             return true;
          }
          if (state != State.PREPARED) {
@@ -365,14 +363,12 @@ public class TransactionImpl implements Transaction {
 
    @Override
    public void rollback() throws Exception {
-      if (logger.isTraceEnabled()) {
-         logger.trace("TransactionImpl::rollback::" + this);
-      }
+      logger.trace("TransactionImpl::rollback::{}", this);
 
       synchronized (timeoutLock) {
          if (state == State.ROLLEDBACK) {
             // I don't think this could happen, but just in case
-            logger.debug("TransactionImpl::rollback::" + this + " is being ignored");
+            logger.debug("TransactionImpl::rollback::{} is being ignored", this);
             return;
          }
          if (xid != null) {
@@ -390,9 +386,7 @@ public class TransactionImpl implements Transaction {
    }
 
    private void internalRollback() throws Exception {
-      if (logger.isTraceEnabled()) {
-         logger.trace("TransactionImpl::internalRollback " + this);
-      }
+      logger.trace("TransactionImpl::internalRollback {}", this);
 
       beforeRollback();
 
@@ -483,16 +477,18 @@ public class TransactionImpl implements Transaction {
    public void markAsRollbackOnly(final ActiveMQException exception) {
       synchronized (timeoutLock) {
          if (logger.isTraceEnabled()) {
-            logger.trace("TransactionImpl::" + this + " marking rollbackOnly for " + exception.toString() + ", msg=" + exception.getMessage());
+            logger.trace("TransactionImpl::{} marking rollbackOnly for {}, msg={}", this, exception.toString(), exception.getMessage());
          }
 
          if (isEffective()) {
-            logger.debug("Trying to mark transaction " + this.id + " xid=" + this.xid + " as rollbackOnly but it was already effective (prepared, committed or rolledback!)");
+            if (logger.isDebugEnabled()) {
+               logger.debug("Trying to mark transaction {} xid={} as rollbackOnly but it was already effective (prepared, committed or rolledback!)", id, xid);
+            }
             return;
          }
 
          if (logger.isDebugEnabled()) {
-            logger.debug("Marking Transaction " + this.id + " as rollback only");
+            logger.debug("Marking Transaction {} as rollback only", id);
          }
          state = State.ROLLBACK_ONLY;
 

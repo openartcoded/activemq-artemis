@@ -23,7 +23,9 @@ import org.apache.activemq.artemis.api.core.client.ClientSession;
 import org.apache.activemq.artemis.api.core.client.ClientSessionFactory;
 import org.apache.activemq.artemis.core.transaction.impl.XidImpl;
 import org.apache.activemq.artemis.utils.UUIDGenerator;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 /**
  * WARNING: This is not a sample on how you should handle XA. You are supposed to use a
@@ -36,9 +38,7 @@ import org.jboss.logging.Logger;
  */
 public abstract class ClientAbstract extends Thread {
 
-
-   private static final Logger log = Logger.getLogger(ClientAbstract.class);
-
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    protected ClientSession session;
 
@@ -56,11 +56,9 @@ public abstract class ClientAbstract extends Thread {
     */
    protected volatile boolean pendingCommit = false;
 
-
    public ClientAbstract(ClientSessionFactory sf) {
       this.sf = sf;
    }
-
 
    public ClientSession getConnection() {
       return session;
@@ -106,7 +104,7 @@ public abstract class ClientAbstract extends Thread {
 
             break;
          } catch (Exception e) {
-            ClientAbstract.log.warn("Can't connect to server, retrying");
+            ClientAbstract.logger.warn("Can't connect to server, retrying");
             disconnect();
             try {
                Thread.sleep(1000);

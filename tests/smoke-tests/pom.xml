@@ -19,7 +19,7 @@
    <parent>
       <groupId>org.apache.activemq.tests</groupId>
       <artifactId>artemis-tests-pom</artifactId>
-      <version>2.23.0-SNAPSHOT</version>
+      <version>2.27.0-SNAPSHOT</version>
    </parent>
 
    <artifactId>smoke-tests</artifactId>
@@ -34,13 +34,6 @@
 
    <dependencies>
       <dependency>
-         <groupId>org.apache.activemq</groupId>
-         <artifactId>artemis-server</artifactId>
-         <version>${project.version}</version>
-         <scope>test</scope>
-         <type>test-jar</type>
-      </dependency>
-      <dependency>
          <!-- this dependency is here to make sure this module is only executed
               after the distribution is created.
               Otherwise it will get here before the build eventually.
@@ -50,16 +43,6 @@
          <version>${project.version}</version>
          <scope>compile</scope>
          <type>pom</type>
-         <exclusions>
-            <exclusion>
-               <groupId>org.apache.activemq</groupId>
-               <artifactId>artemis-jms-client-all</artifactId>
-            </exclusion>
-            <exclusion>
-               <groupId>org.apache.activemq</groupId>
-               <artifactId>artemis-jakarta-client-all</artifactId>
-            </exclusion>
-         </exclusions>
       </dependency>
       <dependency>
          <groupId>org.apache.activemq</groupId>
@@ -73,12 +56,6 @@
       </dependency>
       <dependency>
          <groupId>org.apache.activemq</groupId>
-         <artifactId>artemis-commons</artifactId>
-         <version>${project.version}</version>
-         <type>test-jar</type>
-      </dependency>
-      <dependency>
-         <groupId>org.apache.activemq</groupId>
          <artifactId>artemis-cli</artifactId>
          <version>${project.version}</version>
       </dependency>
@@ -87,26 +64,18 @@
          <artifactId>junit</artifactId>
       </dependency>
       <dependency>
-         <groupId>org.jboss.logging</groupId>
-         <artifactId>jboss-logging-processor</artifactId>
-         <scope>provided</scope>
-         <optional>true</optional>
-      </dependency>
-      <dependency>
          <groupId>org.apache.qpid</groupId>
          <artifactId>qpid-jms-client</artifactId>
       </dependency>
+      <!-- logging -->
       <dependency>
-         <groupId>org.jboss.logging</groupId>
-         <artifactId>jboss-logging</artifactId>
+         <groupId>org.slf4j</groupId>
+         <artifactId>slf4j-api</artifactId>
       </dependency>
       <dependency>
-         <groupId>org.jboss.logmanager</groupId>
-         <artifactId>jboss-logmanager</artifactId>
-      </dependency>
-      <dependency>
-         <groupId>org.wildfly.common</groupId>
-         <artifactId>wildfly-common</artifactId>
+         <groupId>org.apache.logging.log4j</groupId>
+         <artifactId>log4j-slf4j-impl</artifactId>
+         <scope>test</scope>
       </dependency>
       <dependency>
          <groupId>org.fusesource.mqtt-client</groupId>
@@ -152,14 +121,7 @@
          <groupId>org.testcontainers</groupId>
          <artifactId>selenium</artifactId>
       </dependency>
-      <!-- this dependency is needed for CFUtil and other tools from integration-tests -->
-      <dependency>
-         <groupId>org.apache.activemq.tests</groupId>
-         <artifactId>integration-tests</artifactId>
-         <version>${project.version}</version>
-         <scope>test</scope>
-         <type>test-jar</type>
-      </dependency>
+
       <!-- quorum tests -->
       <dependency>
          <groupId>org.apache.curator</groupId>
@@ -207,6 +169,25 @@
          <artifactId>jakarta.json-api</artifactId>
          <scope>test</scope>
       </dependency>
+
+      <dependency>
+         <groupId>org.apache.httpcomponents</groupId>
+         <artifactId>httpclient</artifactId>
+      </dependency>
+
+      <dependency>
+         <groupId>org.apache.activemq</groupId>
+         <artifactId>artemis-unit-test-support</artifactId>
+         <version>${project.version}</version>
+         <scope>test</scope>
+      </dependency>
+      <dependency>
+         <groupId>org.apache.activemq.tests</groupId>
+         <artifactId>artemis-test-support</artifactId>
+         <version>${project.version}</version>
+         <scope>test</scope>
+      </dependency>
+
    </dependencies>
 
    <build>
@@ -1053,29 +1034,6 @@
                </execution>
                <execution>
                   <phase>test-compile</phase>
-                  <id>create-mmfactory</id>
-                  <goals>
-                     <goal>create</goal>
-                  </goals>
-                  <configuration>
-                     <!-- this makes it easier in certain envs -->
-                     <configuration>${basedir}/target/classes/servers/mmfactory</configuration>
-                     <allowAnonymous>true</allowAnonymous>
-                     <user>admin</user>
-                     <password>admin</password>
-                     <instance>${basedir}/target/mmfactory</instance>
-                     <noWeb>false</noWeb>
-                     <args>
-                        <arg>--java-options</arg>
-                        <arg>-Djava.rmi.server.hostname=localhost -Dcom.sun.management.jmxremote=true
-                           -Dcom.sun.management.jmxremote.port=11099 -Dcom.sun.management.jmxremote.rmi.port=11098
-                           -Dcom.sun.management.jmxremote.ssl=false -Dcom.sun.management.jmxremote.authenticate=false
-                        </arg>
-                     </args>
-                  </configuration>
-               </execution>
-               <execution>
-                  <phase>test-compile</phase>
                   <id>create-brokerConnection-paged-serverA</id>
                   <goals>
                      <goal>create</goal>
@@ -1168,6 +1126,63 @@
                </execution>
                <execution>
                   <phase>test-compile</phase>
+                  <id>create-clustered-large-message1</id>
+                  <goals>
+                     <goal>create</goal>
+                  </goals>
+                  <configuration>
+                     <role>amq</role>
+                     <user>artemis</user>
+                     <password>artemis</password>
+                     <allowAnonymous>true</allowAnonymous>
+                     <noWeb>true</noWeb>
+                     <instance>${basedir}/target/clusteredLargeMessage/cluster1</instance>
+                     <configuration>${basedir}/target/classes/servers/clusteredLargeMessage/cluster1</configuration>
+                     <args>
+                        <arg>--name</arg>
+                        <arg>cluster1</arg>
+                        <arg>--clustered</arg>
+                        <arg>--staticCluster</arg>
+                        <arg>tcp://localhost:61716</arg>
+                        <arg>--max-hops</arg>
+                        <arg>1</arg>
+                        <arg>--queues</arg>
+                        <arg>testQueue</arg>
+                     </args>
+                  </configuration>
+               </execution>
+               <execution>
+                  <phase>test-compile</phase>
+                  <id>create-cluster-large-message2</id>
+                  <goals>
+                     <goal>create</goal>
+                  </goals>
+                  <configuration>
+                     <role>amq</role>
+                     <user>artemis</user>
+                     <password>artemis</password>
+                     <allowAnonymous>true</allowAnonymous>
+                     <noWeb>true</noWeb>
+                     <instance>${basedir}/target/clusteredLargeMessage/cluster2</instance>
+                     <configuration>${basedir}/target/classes/servers/clusteredLargeMessage/cluster2</configuration>
+                     <args>
+                        <arg>--name</arg>
+                        <arg>cluster2</arg>
+                        <arg>--clustered</arg>
+                        <arg>--staticCluster</arg>
+                        <arg>tcp://localhost:61616</arg>
+                        <arg>--max-hops</arg>
+                        <arg>1</arg>
+                        <arg>--port-offset</arg>
+                        <arg>100</arg>
+                        <arg>--queues</arg>
+                        <arg>testQueue</arg>
+                     </args>
+                  </configuration>
+               </execution>
+
+               <execution>
+                  <phase>test-compile</phase>
                   <id>create-create-nettynative</id>
                   <goals>
                      <goal>create</goal>
@@ -1190,18 +1205,6 @@
                   <version>${project.version}</version>
                </dependency>
             </dependencies>
-         </plugin>
-         <plugin>
-            <groupId>org.apache.maven.plugins</groupId>
-            <artifactId>maven-jar-plugin</artifactId>
-            <executions>
-               <execution>
-                  <phase>test</phase>
-                  <goals>
-                     <goal>test-jar</goal>
-                  </goals>
-               </execution>
-            </executions>
          </plugin>
          <plugin>
             <groupId>org.apache.maven.plugins</groupId>

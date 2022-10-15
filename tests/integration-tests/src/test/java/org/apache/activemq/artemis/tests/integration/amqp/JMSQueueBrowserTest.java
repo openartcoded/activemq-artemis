@@ -34,13 +34,14 @@ import org.apache.qpid.jms.policy.JmsDefaultPrefetchPolicy;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 /**
  * Tests for various QueueBrowser scenarios with an AMQP JMS client.
  */
 public class JMSQueueBrowserTest extends JMSClientTestSupport {
 
-   protected static final Logger LOG = LoggerFactory.getLogger(JMSQueueBrowserTest.class);
+   protected static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    @Test(timeout = 60000)
    public void testBrowseAllInQueueZeroPrefetch() throws Exception {
@@ -67,11 +68,11 @@ public class JMSQueueBrowserTest extends JMSClientTestSupport {
       while (count < MSG_COUNT && enumeration.hasMoreElements()) {
          Message msg = (Message) enumeration.nextElement();
          assertNotNull(msg);
-         LOG.debug("Recv: {}", msg);
+         logger.debug("Recv: {}", msg);
          count++;
       }
 
-      LOG.debug("Received all expected message, checking that hasMoreElements returns false");
+      logger.debug("Received all expected message, checking that hasMoreElements returns false");
       assertFalse(enumeration.hasMoreElements());
       assertEquals(5, count);
    }
@@ -129,7 +130,7 @@ public class JMSQueueBrowserTest extends JMSClientTestSupport {
       while (enumeration.hasMoreElements()) {
          Message m = (Message) enumeration.nextElement();
          assertTrue(m instanceof TextMessage);
-         LOG.debug("Browsed message {} from Queue {}", m, queue);
+         logger.debug("Browsed message {} from Queue {}", m, queue);
       }
 
       browser.close();
@@ -160,7 +161,7 @@ public class JMSQueueBrowserTest extends JMSClientTestSupport {
       while (enumeration.hasMoreElements()) {
          Message msg = (Message) enumeration.nextElement();
          assertNotNull(msg);
-         LOG.debug("Recv: {}", msg);
+         logger.debug("Recv: {}", msg);
          count++;
          TimeUnit.MILLISECONDS.sleep(50);
       }
@@ -188,7 +189,7 @@ public class JMSQueueBrowserTest extends JMSClientTestSupport {
       while (enumeration.hasMoreElements()) {
          Message msg = (Message) enumeration.nextElement();
          assertNotNull(msg);
-         LOG.debug("Recv: {}", msg);
+         logger.debug("Recv: {}", msg);
          count++;
       }
       assertFalse(enumeration.hasMoreElements());
@@ -215,7 +216,7 @@ public class JMSQueueBrowserTest extends JMSClientTestSupport {
       while (enumeration.hasMoreElements()) {
          Message msg = (Message) enumeration.nextElement();
          assertNotNull(msg);
-         LOG.debug("Recv: {}", msg);
+         logger.debug("Recv: {}", msg);
          count++;
       }
       assertFalse(enumeration.hasMoreElements());
@@ -250,7 +251,7 @@ public class JMSQueueBrowserTest extends JMSClientTestSupport {
       while (enumeration.hasMoreElements()) {
          Message msg = (Message) enumeration.nextElement();
          assertNotNull(msg);
-         LOG.debug("Recv: {}", msg);
+         logger.debug("Recv: {}", msg);
          count++;
       }
 
@@ -287,7 +288,7 @@ public class JMSQueueBrowserTest extends JMSClientTestSupport {
       while (enumeration.hasMoreElements()) {
          Message msg = (Message) enumeration.nextElement();
          assertNotNull(msg);
-         LOG.debug("Recv: {}", msg);
+         logger.debug("Recv: {}", msg);
          count++;
       }
       assertFalse(enumeration.hasMoreElements());

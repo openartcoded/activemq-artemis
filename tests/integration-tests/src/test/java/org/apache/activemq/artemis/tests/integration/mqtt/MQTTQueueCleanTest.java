@@ -25,6 +25,7 @@ import org.apache.activemq.artemis.tests.util.Wait;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 import java.util.HashSet;
 import java.util.Random;
@@ -32,7 +33,7 @@ import java.util.Set;
 
 public class MQTTQueueCleanTest extends MQTTTestSupport {
 
-   private static final Logger LOG = LoggerFactory.getLogger(MQTTQueueCleanTest.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    @Test
    public void testQueueClean() throws Exception {
@@ -74,6 +75,21 @@ public class MQTTQueueCleanTest extends MQTTTestSupport {
    }
 
    @Test
+   public void testQueueCleanOnRestart() throws Exception {
+      String topic = "clean/test";
+      String clientId = "mqtt-client";
+      String queueName = "mqtt-client.clean.test";
+
+      MQTTClientProvider clientProvider = getMQTTClientProvider();
+      clientProvider.setClientId(clientId);
+      initializeConnection(clientProvider);
+      clientProvider.subscribe(topic, AT_LEAST_ONCE);
+      server.stop();
+      server.start();
+      Wait.assertTrue(() -> server.locateQueue(SimpleString.toSimpleString(queueName)) == null, 5000, 10);
+   }
+
+   @Test
    public void testQueueCleanWhenConnectionSynExeConnectAndDisconnect() throws Exception {
       Random random = new Random();
       Set<MQTTClientProvider> clientProviders = new HashSet<>(11);
@@ -97,7 +113,7 @@ public class MQTTQueueCleanTest extends MQTTTestSupport {
                clientProvider.subscribe(address, AT_LEAST_ONCE);
             }
          } catch (Throwable e) {
-            LOG.error(e.getMessage(), e);
+            logger.error(e.getMessage(), e);
          } finally {
             for (MQTTClientProvider clientProvider : clientProviders) {
                clientProvider.disconnect();

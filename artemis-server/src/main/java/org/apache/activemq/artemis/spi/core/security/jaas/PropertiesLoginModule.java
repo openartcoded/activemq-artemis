@@ -35,11 +35,13 @@ import org.apache.activemq.artemis.utils.HashProcessor;
 import org.apache.activemq.artemis.utils.LazyHashProcessor;
 import org.apache.activemq.artemis.utils.PasswordMaskingUtil;
 import org.apache.activemq.artemis.utils.SecureHashProcessor;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 public class PropertiesLoginModule extends PropertiesLoader implements AuditLoginModule {
 
-   private static final Logger logger = Logger.getLogger(PropertiesLoginModule.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    public static final String USER_FILE_PROP_NAME = "org.apache.activemq.jaas.properties.user";
    public static final String ROLE_FILE_PROP_NAME = "org.apache.activemq.jaas.properties.role";
@@ -119,7 +121,7 @@ public class PropertiesLoginModule extends PropertiesLoader implements AuditLogi
       loginSucceeded = true;
 
       if (debug) {
-         logger.debug("login " + user);
+         logger.debug("login {}", user);
       }
       return loginSucceeded;
    }
@@ -150,7 +152,7 @@ public class PropertiesLoginModule extends PropertiesLoader implements AuditLogi
       clear();
 
       if (debug) {
-         logger.debug("commit, result: " + result);
+         logger.debug("commit, result: {}", result);
       }
       return result;
    }

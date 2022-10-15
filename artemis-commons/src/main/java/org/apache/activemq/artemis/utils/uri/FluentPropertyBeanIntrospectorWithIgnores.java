@@ -26,16 +26,18 @@ import org.apache.activemq.artemis.api.core.Pair;
 import org.apache.activemq.artemis.utils.collections.ConcurrentHashSet;
 import org.apache.commons.beanutils.FluentPropertyBeanIntrospector;
 import org.apache.commons.beanutils.IntrospectionContext;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 public class FluentPropertyBeanIntrospectorWithIgnores extends FluentPropertyBeanIntrospector {
 
-   static Logger logger = Logger.getLogger(FluentPropertyBeanIntrospectorWithIgnores.class);
+   static Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private static ConcurrentHashSet<Pair<String, String>> ignores = new ConcurrentHashSet<>();
 
    public static void addIgnore(String className, String propertyName) {
-      logger.trace("Adding ignore on " + className + "/" + propertyName);
+      logger.trace("Adding ignore on {}/{}", className, propertyName);
       ignores.add(new Pair<>(className, propertyName));
    }
 
@@ -51,7 +53,7 @@ public class FluentPropertyBeanIntrospectorWithIgnores extends FluentPropertyBea
             PropertyDescriptor pd = icontext.getPropertyDescriptor(propertyName);
 
             if (isIgnored(icontext.getTargetClass().getName(), m.getName())) {
-               logger.trace(m.getName() + " Ignored for " + icontext.getTargetClass().getName());
+               logger.trace("{} Ignored for {}", m.getName(), icontext.getTargetClass().getName());
                continue;
             }
             try {
@@ -61,7 +63,7 @@ public class FluentPropertyBeanIntrospectorWithIgnores extends FluentPropertyBea
                   pd.setWriteMethod(m);
                }
             } catch (IntrospectionException e) {
-               logger.debug(e.getMessage(), e);
+               logger.trace("error for property named {}", propertyName, e);
             }
          }
       }

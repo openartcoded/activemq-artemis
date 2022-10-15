@@ -20,7 +20,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
-import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
@@ -36,14 +35,16 @@ import org.apache.activemq.artemis.core.transaction.TransactionOperationAbstract
 import org.apache.activemq.artemis.core.transaction.TransactionPropertyIndexes;
 import org.apache.activemq.artemis.core.transaction.impl.TransactionImpl;
 import org.apache.activemq.artemis.utils.ArtemisCloseable;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 /**
  * This class will encapsulate the persistent counters for the PagingSubscription
  */
 public class PageSubscriptionCounterImpl implements PageSubscriptionCounter {
 
-   private static final Logger logger = Logger.getLogger(PageSubscriptionCounterImpl.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private static final int FLUSH_COUNTER = 1000;
 
@@ -57,8 +58,6 @@ public class PageSubscriptionCounterImpl implements PageSubscriptionCounter {
    private final PageSubscription subscription;
 
    private final StorageManager storage;
-
-   private final Executor executor;
 
    private final AtomicLong value = new AtomicLong(0);
    private final AtomicLong persistentSize = new AtomicLong(0);
@@ -79,20 +78,11 @@ public class PageSubscriptionCounterImpl implements PageSubscriptionCounter {
 
    private LinkedList<PendingCounter> loadList;
 
-   private final Runnable cleanupCheck = new Runnable() {
-      @Override
-      public void run() {
-         cleanup();
-      }
-   };
-
    public PageSubscriptionCounterImpl(final StorageManager storage,
                                       final PageSubscription subscription,
-                                      final Executor executor,
                                       final boolean persistent,
                                       final long subscriptionID) {
       this.subscriptionID = subscriptionID;
-      this.executor = executor;
       this.storage = storage;
       this.persistent = persistent;
       this.subscription = subscription;
@@ -130,6 +120,8 @@ public class PageSubscriptionCounterImpl implements PageSubscriptionCounter {
       if (!persistent) {
          return; // nothing to be done
       }
+
+      assert page != null;
 
       PendingCounter pendingInfo = pendingCounters.get((long) page.getPageId());
       if (pendingInfo == null) {
@@ -238,7 +230,7 @@ public class PageSubscriptionCounterImpl implements PageSubscriptionCounter {
    public synchronized void incrementProcessed(long id, int add, long size) {
       addInc(id, add, size);
       if (incrementRecords.size() > FLUSH_COUNTER) {
-         executor.execute(cleanupCheck);
+         this.subscription.getPagingStore().execute(this::cleanup);
       }
 
    }
@@ -359,7 +351,8 @@ public class PageSubscriptionCounterImpl implements PageSubscriptionCounter {
          newRecordID = storage.storePageCounter(txCleanup, subscriptionID, valueReplace, sizeReplace);
 
          if (logger.isTraceEnabled()) {
-            logger.trace("Replacing page-counter record = " + recordID + " by record = " + newRecordID + " on subscriptionID = " + this.subscriptionID + " for queue = " + this.subscription.getQueue().getName());
+            logger.trace("Replacing page-counter record = {} by record = {} on subscriptionID = {} for queue = {}",
+               recordID, newRecordID, subscriptionID, subscription.getQueue().getName());
          }
 
          storage.commit(txCleanup);

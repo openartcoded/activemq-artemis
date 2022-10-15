@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
-import java.util.concurrent.TimeUnit;
 
 import org.apache.activemq.artemis.api.core.ActiveMQBuffer;
 import org.apache.activemq.artemis.api.core.ActiveMQException;
@@ -114,11 +113,11 @@ public interface StorageManager extends IDGenerator, ActiveMQComponent {
 
    // Message related operations
 
-   void pageClosed(SimpleString storeName, int pageNumber);
+   void pageClosed(SimpleString storeName, long pageNumber);
 
-   void pageDeleted(SimpleString storeName, int pageNumber);
+   void pageDeleted(SimpleString storeName, long pageNumber);
 
-   void pageWrite(PagedMessage message, int pageNumber);
+   void pageWrite(PagedMessage message, long pageNumber);
 
    void afterCompleteOperations(IOCallback run);
 
@@ -144,30 +143,6 @@ public interface StorageManager extends IDGenerator, ActiveMQComponent {
     * @throws Exception
     */
    void waitOnOperations() throws Exception;
-
-   /**
-    * We need a safeguard in place to avoid too much concurrent IO happening on Paging, otherwise
-    * the system may become unresponsive if too many destinations are reading all the same time.
-    * This is called before we read, so we can limit concurrent reads
-    *
-    * @throws Exception
-    */
-   void beforePageRead() throws Exception;
-
-   /**
-    * Like {@link #beforePageRead()} but return {@code true} if acquired within {@code timeout},
-    * {@code false} otherwise.
-    */
-   boolean beforePageRead(long timeout, TimeUnit unit) throws InterruptedException;
-
-   /**
-    * We need a safeguard in place to avoid too much concurrent IO happening on Paging, otherwise
-    * the system may become unresponsive if too many destinations are reading all the same time.
-    * This is called after we read, so we can limit concurrent reads
-    *
-    * @throws Exception
-    */
-   void afterPageRead() throws Exception;
 
    /**
     * AIO has an optimized buffer which has a method to release it
@@ -436,11 +411,6 @@ public interface StorageManager extends IDGenerator, ActiveMQComponent {
 
    /**
     * Write message to page if we are paging.
-    * <p>
-    * This is primarily a {@link PagingStore} call, but as with any other call writing persistent
-    * data, it must go through here. Both for the sake of replication, and also to ensure that it
-    * takes the locks (storage manager and pagingStore) in the right order. Avoiding thus the
-    * creation of dead-locks.
     *
     * @return {@code true} if we are paging and have handled the data, {@code false} if the data
     * needs to be sent to the journal

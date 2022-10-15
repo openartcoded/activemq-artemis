@@ -24,6 +24,7 @@ import org.apache.qpid.proton.engine.Endpoint;
 import org.apache.qpid.proton.engine.EndpointState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 /**
  * Abstract base for all AmqpResource implementations to extend.
@@ -33,7 +34,7 @@ import org.slf4j.LoggerFactory;
  */
 public abstract class AmqpAbstractResource<E extends Endpoint> implements AmqpResource {
 
-   private static final Logger LOG = LoggerFactory.getLogger(AmqpAbstractResource.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    protected AsyncResult openRequest;
    protected AsyncResult closeRequest;
@@ -145,7 +146,7 @@ public abstract class AmqpAbstractResource<E extends Endpoint> implements AmqpRe
          endpoint.close();
       }
 
-      LOG.info("Resource {} was remotely closed", this);
+      logger.info("Resource {} was remotely closed", this);
 
       connection.fireClientException(error);
    }
@@ -158,7 +159,7 @@ public abstract class AmqpAbstractResource<E extends Endpoint> implements AmqpRe
          endpoint.close();
       }
 
-      LOG.info("Resource {} was locally closed", this);
+      logger.info("Resource {} was locally closed", this);
 
       connection.fireClientException(error);
    }
@@ -211,7 +212,7 @@ public abstract class AmqpAbstractResource<E extends Endpoint> implements AmqpRe
    public void processRemoteDetach(AmqpConnection connection) throws IOException {
       doDetachedInspection();
       if (isAwaitingClose()) {
-         LOG.debug("{} is now closed: ", this);
+         logger.debug("{} is now closed: ", this);
          closed();
       } else {
          remotelyClosed(connection);
@@ -222,11 +223,11 @@ public abstract class AmqpAbstractResource<E extends Endpoint> implements AmqpRe
    public void processRemoteClose(AmqpConnection connection) throws IOException {
       doClosedInspection();
       if (isAwaitingClose()) {
-         LOG.debug("{} is now closed: ", this);
+         logger.debug("{} is now closed: ", this);
          closed();
       } else if (isAwaitingOpen()) {
          // Error on Open, create exception and signal failure.
-         LOG.warn("Open of {} failed: ", this);
+         logger.warn("Open of {} failed: ", this);
          Exception openError;
          if (hasRemoteError()) {
             openError = AmqpSupport.convertToException(getEndpoint().getRemoteCondition());
@@ -280,7 +281,7 @@ public abstract class AmqpAbstractResource<E extends Endpoint> implements AmqpRe
     * to provide additional verification actions or configuration updates.
     */
    protected void doOpenCompletion() {
-      LOG.debug("{} is now open: ", this);
+      logger.debug("{} is now open: ", this);
       opened();
    }
 

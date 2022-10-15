@@ -21,7 +21,9 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 import org.jgroups.Receiver;
 
 /**
@@ -30,14 +32,13 @@ import org.jgroups.Receiver;
  */
 public class JGroupsReceiver implements Receiver {
 
-   private static final Logger logger = Logger.getLogger(JGroupsReceiver.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private final BlockingQueue<byte[]> dequeue = new LinkedBlockingDeque<>();
 
    @Override
    public void receive(org.jgroups.Message msg) {
-      if (logger.isTraceEnabled())
-         logger.trace("sending message " + msg);
+      logger.trace("sending message {}", msg);
       dequeue.add(msg.getArray());
    }
 
@@ -52,9 +53,9 @@ public class JGroupsReceiver implements Receiver {
 
    private void logBytes(String methodName, byte[] bytes) {
       if (bytes != null) {
-         logger.trace(methodName + "::" + bytes.length + " bytes");
+         logger.trace("{}::{} bytes", methodName, bytes.length);
       } else {
-         logger.trace(methodName + ":: no bytes");
+         logger.trace("{}:: no bytes", methodName);
       }
    }
 

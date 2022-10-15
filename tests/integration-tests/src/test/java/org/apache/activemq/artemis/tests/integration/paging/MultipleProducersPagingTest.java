@@ -68,11 +68,11 @@ public class MultipleProducersPagingTest extends ActiveMQTestBase {
    @Before
    public void setUp() throws Exception {
       super.setUp();
-      executor = Executors.newCachedThreadPool(ActiveMQThreadFactory.defaultThreadFactory());
+      executor = Executors.newCachedThreadPool(ActiveMQThreadFactory.defaultThreadFactory(getClass().getName()));
 
       server = createServer(createBasicConfig()
                                .setPersistenceEnabled(false)
-                               .setAddressesSettings(Collections.singletonMap("#", new AddressSettings()
+                               .setAddressSettings(Collections.singletonMap("#", new AddressSettings()
                                   .setAddressFullMessagePolicy(AddressFullMessagePolicy.PAGE)
                                   .setPageSizeBytes(50000)
                                   .setMaxSizeBytes(404850)))

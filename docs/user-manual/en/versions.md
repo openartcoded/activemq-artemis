@@ -8,6 +8,102 @@ This chapter provides the following information for each release:
   - **Note:** Follow the general upgrade procedure outlined in the [Upgrading the Broker](upgrading.md) 
     chapter in addition to any version-specific upgrade instructions outlined here.
 
+## 2.27.0
+
+Highlights:
+- The client and broker now use [SLF4J](https://www.slf4j.org/) for their logging API.
+- The broker distribution now uses [Log4J 2](https://logging.apache.org/log4j/2.x/manual/) as its logging implementation.
+
+#### Upgrading from older versions
+
+Client applications wanting logging will now need to supply an appropriate SLF4J-supporting logging implementation
+configured appropriately for their needs. See [client application logging](logging.md#logging-in-a-client-application)
+for more information plus an example around using Log4J 2.
+
+The broker distribution now includes and configures Log4J 2 as its logging implementation, see [logging](logging.md)
+for more details. If upgrading an existing broker instance rather than creating a new instance, some configuration
+etc updates will be necessary for the brokers existing instance /etc and /bin files:
+
+ 1. The new `<instance>/etc/log4j2.properties` file should be created with Log4J 2 configuration. The file
+    used by the "artemis create" CLI command can be downloaded from:
+    [log4j2.properties](https://github.com/apache/activemq-artemis/blob/2.27.0/artemis-cli/src/main/resources/org/apache/activemq/artemis/cli/commands/etc/log4j2.properties)
+ 2. The old `<instance>/etc/logging.properties` JBoss Logging configuration file should be deleted.
+ 3. Related startup script or profile cleanups are needed: a diff file demonstrating the removals needed
+    is available [here](02-27-00-scripts-profiles.diff) for \*nix or [here](02-27-00-scripts-profiles-windows.diff) for Windows.
+
+Note also that brokers `configuration-file-refresh-period` setting no longer covers logging configuration refresh.
+Log4J 2 has its own configuration reload handling, configured via the `monitorInterval` property within the Log4J
+configuration file itself. The default `<instance>/etc/log4j2.properties` file created has a 5 second monitorInterval
+value set to align with the prior default broker behaviour.
+
+## 2.26.0
+[Full release notes](https://issues.apache.org/jira/secure/ReleaseNote.jspa?version=12352297&projectId=12315920)
+
+Highlights:
+- Bug fixes and improvements
+
+#### Upgrading from older versions
+1. We removed the *-all clients from ./lib/client in the assembly as part of [ARTEMIS-4006](https://issues.apache.org/jira/browse/ARTEMIS-4006). If you use these libraries they can be found at Maven Central, please refer to the [client class path documentation](client-classpath.md) for more information.
+2. We removed ActiveMQ-Artemis rest as part of 2.26.0. If you still require activemq rest you can still have access to its latest version at [Maven central](https://mvnrepository.com/artifact/org.apache.activemq.rest/artemis-rest/2.25.0). You can still follow the steps on Rest from any [previous documentation](https://activemq.apache.org/components/artemis/documentation/2.25.0/rest.html), however you should stop using the module as it will not be maintained any more.
+3. We removed web content from distribution and redirected to the console web requests with the root target as part of  [ARTEMIS-3980](https://issues.apache.org/jira/browse/ARTEMIS-3980). If you used to customize the index page or to add custom content in the web folder please refer to the [web-server documentation](web-server.md) for more information on disabling the redirect and enabling the web content.
+
+## 2.25.0
+[Full release notes](https://issues.apache.org/jira/secure/ReleaseNote.jspa?version=12352143&projectId=12315920)
+
+Highlights:
+- Improvement on Paging Flow Control
+- Many other bug fixes and improvements
+
+## 2.24.0
+[Full release notes](https://issues.apache.org/jira/secure/ReleaseNote.jspa?version=12351822&projectId=12315920)
+
+Highlights:
+- Streamlined page caches and files are just read into queues without the need of soft caches.
+
+#### Upgrading from older versions
+ 1. Due to [ARTEMIS-3851](https://issues.apache.org/jira/browse/ARTEMIS-3851) 
+    the queue created for an MQTT 3.x subscriber using `CleanSession=1` is now
+    **non-durable** rather than durable. This may impact `security-settings`
+    for MQTT clients which previously only had `createDurableQueue` for their
+    role. They will now need `createNonDurableQueue` as well. Again, this only
+    has potential impact for MQTT 3.x clients using `CleanSession=1`.
+ 2. Due to [ARTEMIS-3892](https://issues.apache.org/jira/browse/ARTEMIS-3892)
+    the username assigned to queues will be based on the **validated** user
+    rather than just the username submitted by the client application. This
+    will impact use-cases like the following:
+    1. When `login.config` is configured with the [`GuestLoginModule`](security.md#guestloginmodule)
+       which causes some users to be assigned a specific username and role
+       during the authentication process. 
+    2. When `login.config` is configured with the [`CertificateLoginModule`](security.md#certificateloginmodule)
+       which causes users to be assigned a username and role corresponding to
+       the subject DN from their SSL certificate.
+    
+    In these kinds of situations the broker will use this assigned (i.e. 
+    validated) username for any queues created with the connection. In the past
+    the queue's username would have been left blank.
+
+## 2.23.1
+[Full release notes](https://issues.apache.org/jira/secure/ReleaseNote.jspa?version=12351846&projectId=12315920)
+
+Highlights:
+- [ARTEMIS-3856](https://issues.apache.org/jira/browse/ARTEMIS-3856) - Failed to change channel state to ReadyForWriting : java.util.ConcurrentModificationException
+
+## 2.23.0
+[Full release notes](https://issues.apache.org/jira/secure/ReleaseNote.jspa?projectId=12315920&version=12351677).
+
+Highlights:
+- [management operations](web-server.md#management) for the embedded web server.
+- [JakartaEE 10 Support](https://issues.apache.org/jira/browse/ARTEMIS-3700)
+- [BugFix: High cpu usage on ReadWrite locks](https://issues.apache.org/jira/browse/ARTEMIS-3848)
+
+## 2.22.0
+[Full release notes](https://issues.apache.org/jira/secure/ReleaseNote.jspa?projectId=12315920&version=12351488).
+
+Highlights:
+- The default `producer-window-size` on `cluster-connection` was changed to 1MB to
+  mitigate potential OutOfMemoryErrors in environments with with high latency
+  networking.
+
 ## 2.21.0
 [Full release notes](https://issues.apache.org/jira/secure/ReleaseNote.jspa?version=12351083&projectId=12315920).
 
@@ -21,21 +117,40 @@ Highlights:
 
 #### Upgrading from older versions
 
-Due to XML schema changes to correct an inaccurate domain name 2 files will need to
-be updated:
+1. Due to XML schema changes to correct an inaccurate domain name 2 files will need to
+   be updated:
 
- 1. `etc/bootstrap.xml`
- 2. `etc/management.xml`
+    1. `etc/bootstrap.xml`
+    2. `etc/management.xml`
 
-In both files change the XML namespace from `activemq.org` to `activemq.apache.org`,
-e.g. in `bootsrap.xml` use:
-```xml
-<broker xmlns="http://activemq.apache.org/schema">
-```
-And in `management.xml` use:
-```xml
-<management-context xmlns="http://activemq.apache.org/schema">
-```
+    In both files change the XML namespace from `activemq.org` to `activemq.apache.org`,
+    e.g. in `bootsrap.xml` use:
+    ```xml
+    <broker xmlns="http://activemq.apache.org/schema">
+    ```
+    And in `management.xml` use:
+    ```xml
+    <management-context xmlns="http://activemq.apache.org/schema">
+    ```
+   
+2. **If you're using [JDBC persistence](persistence.md#jdbc-persistence)** then due
+   to the changes in [ARTEMIS-3679](https://issues.apache.org/jira/browse/ARTEMIS-3679)
+   you'll need to update your database. The column `HOLDER_EXPIRATION_TIME` on the
+   `NODE_MANAGER_STORE`changed from a `TIMESTAMP` to a `BIGINT` (or `NUMBER(19)` on
+   Oracle). You will have to stop any broker that is accessing that table and either
+   drop it or execute the proper `ALTER TABLE` statement for your database. If you
+   drop the table then it will be automatically recreated when broker restarts and
+   repopulated with a new, auto-generated node ID.
+3. **If you're using JGroups** then due to the changes in 
+   [ARTEMIS-2413](https://issues.apache.org/jira/browse/ARTEMIS-2413) where JGroups
+   was updated from 3.x to 5.x you will need to update your JGroups configuration.
+   Many of the protocols have changed, and there's no automated tool to bring legacy
+   configurations up to date so please refer to the 
+   [JGroups documentation](http://jgroups.org/manual5/index.html#protlist) for more
+   details on the new configuration. You can find example configurations in the
+   [JGroups repository](https://github.com/belaban/JGroups/tree/master/conf) (e.g.
+   `tcp.xml` and `udp.xml`).
+   
 
 ## 2.20.0
 [Full release notes](https://issues.apache.org/jira/secure/ReleaseNote.jspa?version=12350581&projectId=12315920).

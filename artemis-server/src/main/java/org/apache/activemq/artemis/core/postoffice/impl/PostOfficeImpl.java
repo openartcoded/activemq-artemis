@@ -100,7 +100,9 @@ import org.apache.activemq.artemis.core.transaction.impl.TransactionImpl;
 import org.apache.activemq.artemis.utils.CompositeAddress;
 import org.apache.activemq.artemis.utils.UUIDGenerator;
 import org.apache.activemq.artemis.utils.collections.TypedProperties;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 import static org.apache.activemq.artemis.utils.collections.IterableStream.iterableOf;
 
@@ -110,7 +112,7 @@ import static org.apache.activemq.artemis.utils.collections.IterableStream.itera
  */
 public class PostOfficeImpl implements PostOffice, NotificationListener, BindingsFactory {
 
-   private static final Logger logger = Logger.getLogger(PostOfficeImpl.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    public static final SimpleString HDR_RESET_QUEUE_DATA = new SimpleString("_AMQ_RESET_QUEUE_DATA");
 
@@ -245,7 +247,7 @@ public class PostOfficeImpl implements PostOffice, NotificationListener, Binding
 
    @Override
    public void postAcknowledge(MessageReference ref, AckReason reason) {
-      if (mirrorControllerSource != null) {
+      if (mirrorControllerSource != null && reason != AckReason.REPLACED) { // we don't send replacements on LVQ as they are replaced themselves on the target
          try {
             mirrorControllerSource.postAcknowledge(ref, reason);
          } catch (Exception e) {
@@ -267,9 +269,8 @@ public class PostOfficeImpl implements PostOffice, NotificationListener, Binding
       if (!(notification.getType() instanceof CoreNotificationType))
          return;
 
-      if (logger.isTraceEnabled()) {
-         logger.trace("Receiving notification : " + notification + " on server " + this.server);
-      }
+      logger.trace("Receiving notification : {} on server {}", notification, server);
+
       synchronized (notificationLock) {
          CoreNotificationType type = (CoreNotificationType) notification.getType();
 
@@ -361,7 +362,7 @@ public class PostOfficeImpl implements PostOffice, NotificationListener, Binding
                QueueInfo info = queueInfos.remove(clusterName);
 
                if (info == null) {
-                  logger.debug("PostOffice notification / BINDING_REMOVED: Cannot find queue info for queue \" + clusterName");
+                  logger.debug("PostOffice notification / BINDING_REMOVED: Cannot find queue info for clusterName {}", clusterName);
                   return;
                }
 
@@ -382,7 +383,7 @@ public class PostOfficeImpl implements PostOffice, NotificationListener, Binding
                QueueInfo info = queueInfos.get(clusterName);
 
                if (info == null) {
-                  logger.debug("PostOffice notification / CONSUMER_CREATED: Could not find queue created on clusterName = " + clusterName);
+                  logger.debug("PostOffice notification / CONSUMER_CREATED: Could not find queue created on clusterName = {}", clusterName);
                   return;
                }
 
@@ -415,7 +416,8 @@ public class PostOfficeImpl implements PostOffice, NotificationListener, Binding
                      return;
                   }
 
-                  Binding binding = getBinding(queueName);
+                  SimpleString addressName = props.getSimpleStringProperty(ManagementHelper.HDR_ADDRESS);
+                  Binding binding = getBinding(CompositeAddress.isFullyQualified(addressName) ? addressName : queueName);
 
                   if (binding != null) {
                      // We have a local queue
@@ -479,7 +481,7 @@ public class PostOfficeImpl implements PostOffice, NotificationListener, Binding
                      Binding binding = getBinding(queueName);
 
                      if (binding == null) {
-                        logger.debug("PostOffice notification / CONSUMER_CLOSED: Could not find queue " + queueName);
+                        logger.debug("PostOffice notification / CONSUMER_CLOSED: Could not find queue {}", queueName);
                         return;
                      }
 
@@ -930,9 +932,7 @@ public class PostOfficeImpl implements PostOffice, NotificationListener, Binding
 
       String uid = UUIDGenerator.getInstance().generateStringUUID();
 
-      if (logger.isDebugEnabled()) {
-         logger.debug("ClusterCommunication::Sending notification for addBinding " + binding + " from server " + server);
-      }
+      logger.debug("ClusterCommunication::Sending notification for addBinding {} from server {}", binding, server);
 
       managementService.sendNotification(new Notification(uid, CoreNotificationType.BINDING_ADDED, props));
 
@@ -1173,18 +1173,14 @@ public class PostOfficeImpl implements PostOffice, NotificationListener, Binding
             addressInfo.incrementUnRoutedMessageCount();
          }
          // this is a debug and not warn because this could be a regular scenario on publish-subscribe queues (or topic subscriptions on JMS)
-         if (logger.isDebugEnabled()) {
-            logger.debugf("Couldn't find any bindings for address=%s on message=%s", message, address, message);
-         }
+         logger.debug("Couldn't find any bindings for address={} on message={}", address, message);
       }
 
       if (server.hasBrokerMessagePlugins()) {
          server.callBrokerMessagePlugins(plugin -> plugin.beforeMessageRoute(message, context, direct, rejectDuplicates));
       }
 
-      if (logger.isTraceEnabled()) {
-         logger.tracef("Message after routed=%s\n%s", message, context);
-      }
+      logger.trace("Message after routed={}\n{}", message, context);
 
       try {
          final RoutingStatus status;
@@ -1234,9 +1230,7 @@ public class PostOfficeImpl implements PostOffice, NotificationListener, Binding
       if (sendToDLA) {
          // Send to the DLA for the address
          final SimpleString dlaAddress = addressSettings != null ? addressSettings.getDeadLetterAddress() : null;
-         if (logger.isDebugEnabled()) {
-            logger.debugf("sending message to dla address = %s, message=%s", dlaAddress, message);
-         }
+         logger.debug("sending message to dla address = {}, message={}", dlaAddress, message);
          if (dlaAddress == null) {
             status = RoutingStatus.NO_BINDINGS;
             ActiveMQServerLogger.LOGGER.noDLA(address);
@@ -1254,9 +1248,7 @@ public class PostOfficeImpl implements PostOffice, NotificationListener, Binding
          }
       } else {
          status = RoutingStatus.NO_BINDINGS;
-         if (logger.isDebugEnabled()) {
-            logger.debugf("Message %s is not going anywhere as it didn't have a binding on address:%s", message, address);
-         }
+         logger.debug("Message {} is not going anywhere as it didn't have a binding on address:{}", message, address);
          if (message.isLargeMessage()) {
             ((LargeServerMessage) message).deleteFile();
          }
@@ -1408,7 +1400,7 @@ public class PostOfficeImpl implements PostOffice, NotificationListener, Binding
       }
 
       if (logger.isDebugEnabled()) {
-         logger.debug("PostOffice.sendQueueInfoToQueue on server=" + this.server + ", queueName=" + queueName + " and address=" + address);
+         logger.debug("PostOffice.sendQueueInfoToQueue on server={}, queueName={} and address={}", server, queueName, address);
       }
 
       Queue queue = (Queue) binding.getBindable();
@@ -1424,9 +1416,8 @@ public class PostOfficeImpl implements PostOffice, NotificationListener, Binding
          routeQueueInfo(message, queue, false);
 
          for (QueueInfo info : queueInfos.values()) {
-            if (logger.isTraceEnabled()) {
-               logger.trace("QueueInfo on sendQueueInfoToQueue = " + info);
-            }
+            logger.trace("QueueInfo on sendQueueInfoToQueue = {}", info);
+
             if (info.matchesAddress(address)) {
                message = createQueueInfoMessage(CoreNotificationType.BINDING_ADDED, queueName);
 
@@ -1573,8 +1564,8 @@ public class PostOfficeImpl implements PostOffice, NotificationListener, Binding
          }
       }
 
-      if (mirrorControllerSource != null && !context.isMirrorController()) {
-         // we check for isMirrorController as to avoid recursive loop from there
+      if (mirrorControllerSource != null && !context.isMirrorDisabled()) {
+         // we check for isMirrorDisabled as to avoid recursive loop from there
          mirrorControllerSource.sendMessage(message, context, refs);
       }
 
@@ -1592,9 +1583,15 @@ public class PostOfficeImpl implements PostOffice, NotificationListener, Binding
 
             @Override
             public void done() {
-               context.processReferences(refs, direct);
+               processReferences(refs, direct);
             }
          });
+      }
+   }
+
+   private static void processReferences(List<MessageReference> refs, boolean direct) {
+      for (MessageReference ref : refs) {
+         ref.getQueue().addTail(ref, direct);
       }
    }
 
@@ -1851,7 +1848,7 @@ public class PostOfficeImpl implements PostOffice, NotificationListener, Binding
       @Override
       public void run() {
          if (iterator != null) {
-            logger.debugf("A previous reaping call has not finished yet, and it is currently working on %s", currentQueue);
+            logger.debug("A previous reaping call has not finished yet, and it is currently working on {}", currentQueue);
             return;
          }
 
@@ -1913,9 +1910,9 @@ public class PostOfficeImpl implements PostOffice, NotificationListener, Binding
             if (initialCheck || queue.isSwept()) {
                if (logger.isDebugEnabled()) {
                   if (initialCheck) {
-                     logger.debug("Removing queue " + queue.getName() + " during the reload check");
+                     logger.debug("Removing queue {} during the reload check", queue.getName());
                   } else {
-                     logger.debug("Removing queue " + queue.getName() + " after it being swept twice on reaping process");
+                     logger.debug("Removing queue {} after it being swept twice on reaping process", queue.getName());
                   }
                }
                QueueManagerImpl.performAutoDeleteQueue(server, queue);
@@ -1939,9 +1936,7 @@ public class PostOfficeImpl implements PostOffice, NotificationListener, Binding
 
                   server.autoRemoveAddressInfo(address, null);
                } else {
-                  if (logger.isDebugEnabled()) {
-                     logger.debug("Sweeping address " + address);
-                  }
+                  logger.debug("Sweeping address {}", address);
                   addressInfo.setSwept(true);
                }
             } else {
@@ -1960,7 +1955,7 @@ public class PostOfficeImpl implements PostOffice, NotificationListener, Binding
                // that the address is removed before the reaper removes it
                logger.debug(e.getMessage(), e);
             } else {
-               ActiveMQServerLogger.LOGGER.errorRemovingAutoCreatedDestination(e, address, "address");
+               ActiveMQServerLogger.LOGGER.errorRemovingAutoCreatedDestination("address", address, e);
             }
          }
       }

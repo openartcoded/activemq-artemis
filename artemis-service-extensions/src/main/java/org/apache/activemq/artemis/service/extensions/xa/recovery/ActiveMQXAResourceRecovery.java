@@ -21,6 +21,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.apache.activemq.artemis.api.core.TransportConfiguration;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 /**
  * A XAResourceRecovery instance that can be used to recover any JMS provider.
@@ -47,21 +50,18 @@ import org.apache.activemq.artemis.api.core.TransportConfiguration;
  * </pre>
  */
 public class ActiveMQXAResourceRecovery {
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private boolean hasMore;
 
    private ActiveMQXAResourceWrapper res;
 
    public ActiveMQXAResourceRecovery() {
-      if (ActiveMQXARecoveryLogger.LOGGER.isTraceEnabled()) {
-         ActiveMQXARecoveryLogger.LOGGER.trace("Constructing ActiveMQXAResourceRecovery");
-      }
+      logger.trace("Constructing ActiveMQXAResourceRecovery");
    }
 
    public boolean initialise(final String config) {
-      if (ActiveMQXARecoveryLogger.LOGGER.isTraceEnabled()) {
-         ActiveMQXARecoveryLogger.LOGGER.trace(this + " initialise: " + config);
-      }
+      logger.trace("{} initialise: {}", this, config);
 
       String[] configs = config.split(";");
       XARecoveryConfig[] xaRecoveryConfigs = new XARecoveryConfig[configs.length];
@@ -78,17 +78,13 @@ public class ActiveMQXAResourceRecovery {
 
       res = new ActiveMQXAResourceWrapper(xaRecoveryConfigs);
 
-      if (ActiveMQXARecoveryLogger.LOGGER.isTraceEnabled()) {
-         ActiveMQXARecoveryLogger.LOGGER.trace(this + " initialised");
-      }
+      logger.trace("{} initialised", this);
 
       return true;
    }
 
    public boolean hasMoreResources() {
-      if (ActiveMQXARecoveryLogger.LOGGER.isTraceEnabled()) {
-         ActiveMQXARecoveryLogger.LOGGER.trace(this + " hasMoreResources");
-      }
+      logger.trace("{} hasMoreResources", this);
 
       /*
        * The way hasMoreResources is supposed to work is as follows:
@@ -110,9 +106,7 @@ public class ActiveMQXAResourceRecovery {
    }
 
    public XAResource getXAResource() {
-      if (ActiveMQXARecoveryLogger.LOGGER.isTraceEnabled()) {
-         ActiveMQXARecoveryLogger.LOGGER.trace(this + " getXAResource");
-      }
+      logger.trace("{} getXAResource", this);
 
       return res;
    }

@@ -43,19 +43,21 @@ import org.apache.activemq.artemis.core.server.ActiveMQServers;
 import org.apache.activemq.artemis.jms.client.ActiveMQTextMessage;
 import org.apache.activemq.artemis.tests.util.ActiveMQTestBase;
 import org.apache.activemq.artemis.utils.RetryRule;
-import org.jboss.logging.Logger;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 public class RandomReattachTest extends ActiveMQTestBase {
 
    @Rule
    public RetryRule retryRule = new RetryRule(2);
 
-   private static final Logger log = Logger.getLogger(RandomReattachTest.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
 
    private static final int RECEIVE_TIMEOUT = 10000;
@@ -203,7 +205,7 @@ public class RandomReattachTest extends ActiveMQTestBase {
       final int numIts = getNumIterations();
 
       for (int its = 0; its < numIts; its++) {
-         log.debug("####" + getName() + " iteration #" + its);
+         logger.debug("####{} iteration #{}", getName(), its);
          start();
          ServerLocator locator = createInVMNonHALocator().setReconnectAttempts(15).setConfirmationWindowSize(1024 * 1024);
 
@@ -279,7 +281,7 @@ public class RandomReattachTest extends ActiveMQTestBase {
             try {
                message.acknowledge();
             } catch (ActiveMQException me) {
-               RandomReattachTest.log.error("Failed to process", me);
+               RandomReattachTest.logger.error("Failed to process", me);
             }
 
             if (count == numMessages) {
@@ -321,7 +323,7 @@ public class RandomReattachTest extends ActiveMQTestBase {
 
       long end = System.currentTimeMillis();
 
-      log.debug("duration " + (end - start));
+      logger.debug("duration {}", (end - start));
    }
 
    protected void doTestB(final ClientSessionFactory sf) throws Exception {
@@ -420,7 +422,7 @@ public class RandomReattachTest extends ActiveMQTestBase {
 
       long end = System.currentTimeMillis();
 
-      log.debug("duration " + (end - start));
+      logger.debug("duration {}", (end - start));
 
    }
 
@@ -561,7 +563,7 @@ public class RandomReattachTest extends ActiveMQTestBase {
 
       long end = System.currentTimeMillis();
 
-      log.debug("duration " + (end - start));
+      logger.debug("duration {}", (end - start));
    }
 
    protected void doTestD(final ClientSessionFactory sf) throws Exception {
@@ -696,7 +698,7 @@ public class RandomReattachTest extends ActiveMQTestBase {
 
       long end = System.currentTimeMillis();
 
-      log.debug("duration " + (end - start));
+      logger.debug("duration {}", (end - start));
    }
 
    // Now with synchronous receive()
@@ -774,7 +776,7 @@ public class RandomReattachTest extends ActiveMQTestBase {
 
       long end = System.currentTimeMillis();
 
-      log.debug("duration " + (end - start));
+      logger.debug("duration {}", (end - start));
    }
 
    protected void doTestF(final ClientSessionFactory sf) throws Exception {
@@ -858,7 +860,7 @@ public class RandomReattachTest extends ActiveMQTestBase {
 
       long end = System.currentTimeMillis();
 
-      log.debug("duration " + (end - start));
+      logger.debug("duration {}", (end - start));
    }
 
    protected void doTestG(final ClientSessionFactory sf) throws Exception {
@@ -970,7 +972,7 @@ public class RandomReattachTest extends ActiveMQTestBase {
 
       long end = System.currentTimeMillis();
 
-      log.debug("duration " + (end - start));
+      logger.debug("duration {}", (end - start));
    }
 
    protected void doTestH(final ClientSessionFactory sf) throws Exception {
@@ -1086,7 +1088,7 @@ public class RandomReattachTest extends ActiveMQTestBase {
 
       long end = System.currentTimeMillis();
 
-      log.debug("duration " + (end - start));
+      logger.debug("duration {}", (end - start));
    }
 
    protected void doTestI(final ClientSessionFactory sf) throws Exception {
@@ -1269,11 +1271,11 @@ public class RandomReattachTest extends ActiveMQTestBase {
 
       @Override
       public synchronized void run() {
-         log.debug("** Failing connection");
+         logger.debug("** Failing connection");
 
          session.getConnection().fail(new ActiveMQNotConnectedException("oops"));
 
-         log.debug("** Fail complete");
+         logger.debug("** Fail complete");
 
          cancel();
 

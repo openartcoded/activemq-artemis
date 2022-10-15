@@ -77,11 +77,13 @@ import org.apache.activemq.artemis.spi.core.remoting.ssl.SSLContextFactoryProvid
 import org.apache.activemq.artemis.utils.ActiveMQThreadFactory;
 import org.apache.activemq.artemis.utils.ConfigurationHelper;
 import org.apache.activemq.artemis.utils.ReusableLatch;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 public class RemotingServiceImpl implements RemotingService, ServerConnectionLifeCycleListener {
 
-   private static final Logger logger = Logger.getLogger(RemotingServiceImpl.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private static final int ACCEPTOR_STOP_TIMEOUT = 3000;
 
@@ -155,7 +157,7 @@ public class RemotingServiceImpl implements RemotingService, ServerConnectionLif
 
       this.flushExecutor = flushExecutor;
 
-      ActiveMQServerLogger.LOGGER.addingProtocolSupport(coreProtocolManagerFactory.getProtocols()[0], coreProtocolManagerFactory.getModuleName());
+      ActiveMQServerLogger.LOGGER.addingProtocolSupport(coreProtocolManagerFactory.getModuleName(), coreProtocolManagerFactory.getProtocols()[0]);
       this.protocolMap.put(coreProtocolManagerFactory.getProtocols()[0], coreProtocolManagerFactory);
 
       if (config.isResolveProtocols()) {
@@ -189,7 +191,7 @@ public class RemotingServiceImpl implements RemotingService, ServerConnectionLif
          return;
       }
 
-      logger.tracef("Starting remoting service %s", this);
+      logger.trace("Starting remoting service {}", this);
 
       paused = false;
 
@@ -282,7 +284,7 @@ public class RemotingServiceImpl implements RemotingService, ServerConnectionLif
             managementService.registerAcceptor(acceptor, info);
          }
       } catch (Exception e) {
-         ActiveMQServerLogger.LOGGER.errorCreatingAcceptor(e, info.getFactoryClassName());
+         ActiveMQServerLogger.LOGGER.errorCreatingAcceptor(info.getFactoryClassName(), e);
       }
 
       return acceptor;
@@ -362,12 +364,11 @@ public class RemotingServiceImpl implements RemotingService, ServerConnectionLif
       for (Entry<Object, ConnectionEntry> entry : connectionEntries.entrySet()) {
          RemotingConnection conn = entry.getValue().connection;
 
-         if (conn.equals(connectionToKeepOpen))
+         if (conn.equals(connectionToKeepOpen)) {
             continue;
-
-         if (logger.isTraceEnabled()) {
-            logger.trace("Sending connection.disconnection packet to " + conn);
          }
+
+         logger.trace("Sending connection.disconnection packet to {}", conn);
 
          if (!conn.isClient()) {
             conn.disconnect(scaleDownNodeID, false);
@@ -391,9 +392,7 @@ public class RemotingServiceImpl implements RemotingService, ServerConnectionLif
 
       // We need to stop them accepting first so no new connections are accepted after we send the disconnect message
       for (Acceptor acceptor : acceptors.values()) {
-         if (logger.isDebugEnabled()) {
-            logger.debug("Pausing acceptor " + acceptor);
-         }
+         logger.debug("Pausing acceptor {}", acceptor);
 
          try {
             acceptor.pause();
@@ -403,9 +402,7 @@ public class RemotingServiceImpl implements RemotingService, ServerConnectionLif
 
       }
 
-      if (logger.isDebugEnabled()) {
-         logger.debug("Sending disconnect on live connections");
-      }
+      logger.debug("Sending disconnect on live connections");
 
       HashSet<ConnectionEntry> connectionEntries = new HashSet<>(connections.values());
 
@@ -414,9 +411,7 @@ public class RemotingServiceImpl implements RemotingService, ServerConnectionLif
       for (ConnectionEntry entry : connectionEntries) {
          RemotingConnection conn = entry.connection;
 
-         if (logger.isTraceEnabled()) {
-            logger.trace("Sending connection.disconnection packet to " + conn);
-         }
+         logger.trace("Sending connection.disconnection packet to {}", conn);
 
          conn.disconnect(criticalError);
       }
@@ -491,11 +486,13 @@ public class RemotingServiceImpl implements RemotingService, ServerConnectionLif
       ConnectionEntry entry = connections.remove(remotingConnectionID);
 
       if (entry != null) {
-         logger.debug("RemotingServiceImpl::removing connection ID " + remotingConnectionID);
+         if (logger.isDebugEnabled()) {
+            logger.debug("RemotingServiceImpl::removing succeeded connection ID {}, we now have {} connections", remotingConnectionID, connections.size());
+         }
          connectionCountLatch.countDown();
          return entry.connection;
       } else {
-         logger.debug("The connectionID::" + remotingConnectionID + " was already removed by some other module");
+         logger.debug("The connectionID::{} was already removed by some other module", remotingConnectionID);
 
          return null;
       }
@@ -569,9 +566,8 @@ public class RemotingServiceImpl implements RemotingService, ServerConnectionLif
          throw new IllegalStateException(t.getMessage(), t.getCause());
 
       }
-      if (logger.isTraceEnabled()) {
-         logger.trace("Connection created " + connection);
-      }
+
+      logger.trace("Connection created {}", connection);
 
       addConnectionEntry(connection, entry);
       connectionCountLatch.countUp();
@@ -581,13 +577,15 @@ public class RemotingServiceImpl implements RemotingService, ServerConnectionLif
    @Override
    public void addConnectionEntry(Connection connection, ConnectionEntry entry) {
       connections.put(connection.getID(), entry);
+      if (logger.isDebugEnabled()) {
+         logger.debug("Adding connection {}, we now have {}", connection.getID(), connections.size());
+      }
    }
 
    @Override
    public void connectionDestroyed(final Object connectionID) {
-
       if (logger.isTraceEnabled()) {
-         logger.trace("Connection removed " + connectionID + " from server " + this.server, new Exception("trace"));
+         logger.trace("Connection removed {} from server {}", connectionID, this.server, new Exception("trace"));
       }
 
       issueFailure(connectionID, new ActiveMQRemoteDisconnectException());
@@ -696,9 +694,7 @@ public class RemotingServiceImpl implements RemotingService, ServerConnectionLif
                conn.connection.fail(new ActiveMQException(e.getMessage()));
             }
          } else {
-            if (logger.isTraceEnabled()) {
-               logger.trace("ConnectionID = " + connectionID + " was already closed, so ignoring packet");
-            }
+            logger.trace("ConnectionID = {} was already closed, so ignoring packet", connectionID);
          }
       }
    }
@@ -847,7 +843,7 @@ public class RemotingServiceImpl implements RemotingService, ServerConnectionLif
          MessagePersister.registerProtocol(next);
          String[] protocols = next.getProtocols();
          for (String protocol : protocols) {
-            ActiveMQServerLogger.LOGGER.addingProtocolSupport(protocol, next.getModuleName());
+            ActiveMQServerLogger.LOGGER.addingProtocolSupport(next.getModuleName(), protocol);
             protocolMap.put(protocol, next);
          }
       }

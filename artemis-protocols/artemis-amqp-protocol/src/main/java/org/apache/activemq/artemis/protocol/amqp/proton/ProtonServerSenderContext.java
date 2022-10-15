@@ -35,6 +35,7 @@ import org.apache.activemq.artemis.api.core.SimpleString;
 import org.apache.activemq.artemis.core.io.IOCallback;
 import org.apache.activemq.artemis.core.message.LargeBodyReader;
 import org.apache.activemq.artemis.core.persistence.OperationContext;
+import org.apache.activemq.artemis.core.postoffice.impl.LocalQueueBinding;
 import org.apache.activemq.artemis.core.server.AddressQueryResult;
 import org.apache.activemq.artemis.core.server.Consumer;
 import org.apache.activemq.artemis.core.server.MessageReference;
@@ -47,11 +48,13 @@ import org.apache.activemq.artemis.protocol.amqp.broker.AMQPMessageBrokerAccesso
 import org.apache.activemq.artemis.protocol.amqp.broker.AMQPSessionCallback;
 import org.apache.activemq.artemis.protocol.amqp.broker.ActiveMQProtonRemotingConnection;
 import org.apache.activemq.artemis.protocol.amqp.converter.CoreAmqpConverter;
+import org.apache.activemq.artemis.protocol.amqp.converter.coreWrapper.ConversionException;
 import org.apache.activemq.artemis.protocol.amqp.exceptions.ActiveMQAMQPException;
 import org.apache.activemq.artemis.protocol.amqp.exceptions.ActiveMQAMQPIllegalStateException;
 import org.apache.activemq.artemis.protocol.amqp.exceptions.ActiveMQAMQPInternalErrorException;
 import org.apache.activemq.artemis.protocol.amqp.exceptions.ActiveMQAMQPNotFoundException;
 import org.apache.activemq.artemis.protocol.amqp.exceptions.ActiveMQAMQPResourceLimitExceededException;
+import org.apache.activemq.artemis.protocol.amqp.logger.ActiveMQAMQPProtocolLogger;
 import org.apache.activemq.artemis.protocol.amqp.logger.ActiveMQAMQPProtocolMessageBundle;
 import org.apache.activemq.artemis.protocol.amqp.proton.transaction.ProtonTransactionImpl;
 import org.apache.activemq.artemis.protocol.amqp.util.NettyReadable;
@@ -89,14 +92,16 @@ import org.apache.qpid.proton.engine.Delivery;
 import org.apache.qpid.proton.engine.EndpointState;
 import org.apache.qpid.proton.engine.Link;
 import org.apache.qpid.proton.engine.Sender;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 /**
  * This is the Equivalent for the ServerConsumer
  */
 public class ProtonServerSenderContext extends ProtonInitializable implements ProtonDeliveryHandler {
 
-   private static final Logger log = Logger.getLogger(ProtonServerSenderContext.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private static final Symbol COPY = Symbol.valueOf("copy");
    private static final Symbol TOPIC = Symbol.valueOf("topic");
@@ -293,7 +298,7 @@ public class ProtonServerSenderContext extends ProtonInitializable implements Pr
          try {
             sessionSPI.closeSender(brokerConsumer);
          } catch (Exception e) {
-            log.warn(e.getMessage(), e);
+            logger.warn(e.getMessage(), e);
          }
          sender.close();
          connection.flush();
@@ -315,7 +320,7 @@ public class ProtonServerSenderContext extends ProtonInitializable implements Pr
          try {
             internalClose(remoteLinkClose);
          } catch (Exception e) {
-            log.warn(e.getMessage(), e);
+            logger.warn(e.getMessage(), e);
          }
       });
    }
@@ -331,7 +336,7 @@ public class ProtonServerSenderContext extends ProtonInitializable implements Pr
 
          }
       } catch (Exception e) {
-         log.warn(e.getMessage(), e);
+         logger.warn(e.getMessage(), e);
          throw new ActiveMQAMQPInternalErrorException(e.getMessage());
       }
    }
@@ -375,7 +380,7 @@ public class ProtonServerSenderContext extends ProtonInitializable implements Pr
       try {
          sessionSPI.ack(null, brokerConsumer, message);
       } catch (Exception e) {
-         log.warn(e.toString(), e);
+         logger.warn(e.toString(), e);
          throw ActiveMQAMQPProtocolMessageBundle.BUNDLE.errorAcknowledgingMessage(message.toString(), e.getMessage());
       }
    }
@@ -385,7 +390,7 @@ public class ProtonServerSenderContext extends ProtonInitializable implements Pr
       boolean handled = true;
 
       if (remoteState == null) {
-         log.debug("Received null disposition for delivery update: " + remoteState);
+         logger.debug("Received null disposition for delivery update: {}", remoteState);
          return true;
       }
 
@@ -454,7 +459,7 @@ public class ProtonServerSenderContext extends ProtonInitializable implements Pr
             }
             break;
          default:
-            log.debug("Received null or unknown disposition for delivery update: " + remoteState);
+            logger.debug("Received null or unknown disposition for delivery update: {}", remoteState);
             handled = false;
       }
 
@@ -530,7 +535,7 @@ public class ProtonServerSenderContext extends ProtonInitializable implements Pr
 
       try {
          if (sender.getLocalState() == EndpointState.CLOSED) {
-            log.debug("Not delivering message " + messageReference + " as the sender is closed and credits were available, if you see too many of these it means clients are issuing credits and closing the connection with pending credits a lot of times");
+            logger.debug("Not delivering message {} as the sender is closed and credits were available, if you see too many of these it means clients are issuing credits and closing the connection with pending credits a lot of times", messageReference);
             return;
          }
          AMQPMessage message = CoreAmqpConverter.checkAMQP(messageReference.getMessage(), sessionSPI.getStorageManager());
@@ -545,7 +550,17 @@ public class ProtonServerSenderContext extends ProtonInitializable implements Pr
          }
 
       } catch (Exception e) {
-         log.warn(e.getMessage(), e);
+         if (e instanceof ConversionException && brokerConsumer.getBinding() instanceof LocalQueueBinding) {
+            ActiveMQAMQPProtocolLogger.LOGGER.messageConversionFailed(e);
+            LocalQueueBinding queueBinding = (LocalQueueBinding) brokerConsumer.getBinding();
+            try {
+               queueBinding.getQueue().sendToDeadLetterAddress(null, messageReference);
+            } catch (Exception e1) {
+               ActiveMQAMQPProtocolLogger.LOGGER.unableToSendMessageToDLA(messageReference, e1);
+            }
+            return;
+         }
+         logger.warn(e.getMessage(), e);
          brokerConsumer.errorProcessing(e, messageReference);
       }
    }
@@ -620,7 +635,7 @@ public class ProtonServerSenderContext extends ProtonInitializable implements Pr
                try {
                   sessionSPI.ack(null, brokerConsumer, reference.getMessage());
                } catch (Exception e) {
-                  log.debug(e.getMessage(), e);
+                  logger.debug(e.getMessage(), e);
                }
                delivery.settle();
             } else {
@@ -635,7 +650,7 @@ public class ProtonServerSenderContext extends ProtonInitializable implements Pr
 
             finishLargeMessage();
          } catch (Exception e) {
-            log.warn(e.getMessage(), e);
+            logger.warn(e.getMessage(), e);
             brokerConsumer.errorProcessing(e, reference);
          }
       }
@@ -663,9 +678,8 @@ public class ProtonServerSenderContext extends ProtonInitializable implements Pr
             replaceInitialHeader(deliveryAnnotationsToEncode, context, new NettyWritable(frameBuffer));
          } catch (IndexOutOfBoundsException indexOutOfBoundsException) {
             assert position == 0 : "this shouldn't happen unless replaceInitialHeader is updating position before modifying frameBuffer";
-            if (log.isDebugEnabled()) {
-               log.debug("Delivery of message failed with an overFlowException, retrying again with expandable buffer");
-            }
+            logger.debug("Delivery of message failed with an overFlowException, retrying again with expandable buffer");
+
             // on the very first packet, if the initial header was replaced with a much bigger header (re-encoding)
             // we could recover the situation with a retry using an expandable buffer.
             // this is tested on org.apache.activemq.artemis.tests.integration.amqp.AmqpMessageDivertsTest
@@ -833,7 +847,7 @@ public class ProtonServerSenderContext extends ProtonInitializable implements Pr
             try {
                sessionSPI.ack(null, brokerConsumer, messageReference.getMessage());
             } catch (Exception e) {
-               log.debug(e.getMessage(), e);
+               logger.debug(e.getMessage(), e);
             }
             delivery.settle();
          } else {

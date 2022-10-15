@@ -62,11 +62,14 @@ import org.apache.activemq.artemis.core.server.management.ManagementService;
 import org.apache.activemq.artemis.core.transaction.ResourceManager;
 import org.apache.activemq.artemis.core.transaction.Transaction;
 import org.apache.activemq.artemis.core.transaction.impl.TransactionImpl;
-import org.jboss.logging.Logger;
+import org.apache.activemq.artemis.utils.collections.LinkedListIterator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 public class PostOfficeJournalLoader implements JournalLoader {
 
-   private static final Logger logger = Logger.getLogger(PostOfficeJournalLoader.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    protected final PostOffice postOffice;
    protected final PagingManager pagingManager;
@@ -256,7 +259,7 @@ public class PostOfficeJournalLoader implements JournalLoader {
             try {
                storageManager.deleteMessage(msg.getMessageID());
             } catch (Exception ignored) {
-               ActiveMQServerLogger.LOGGER.journalErrorDeletingMessage(ignored, msg.getMessageID());
+               ActiveMQServerLogger.LOGGER.journalErrorDeletingMessage(msg.getMessageID(), ignored);
             }
          }
       }
@@ -380,30 +383,33 @@ public class PostOfficeJournalLoader implements JournalLoader {
 
             if (store != null && store.checkPageFileExists(pageId.intValue())) {
                // on this case we need to recalculate the records
-               Page pg = store.createPage(pageId.intValue());
+               Page pg = store.newPageObject(pageId.intValue());
                pg.open(true);
 
-               List<PagedMessage> pgMessages = pg.read(storageManager);
+               org.apache.activemq.artemis.utils.collections.LinkedList<PagedMessage> pgMessages = pg.read(storageManager);
                pg.close(false, false);
                Map<Long, AtomicInteger> countsPerQueueOnPage = new HashMap<>();
                Map<Long, AtomicLong> sizePerQueueOnPage = new HashMap<>();
 
-               for (PagedMessage pgd : pgMessages) {
-                  if (pgd.getTransactionID() <= 0) {
-                     for (long q : pgd.getQueueIDs()) {
-                        AtomicInteger countQ = countsPerQueueOnPage.get(q);
-                        AtomicLong sizeQ = sizePerQueueOnPage.get(q);
-                        if (countQ == null) {
-                           countQ = new AtomicInteger(0);
-                           countsPerQueueOnPage.put(q, countQ);
-                        }
-                        if (sizeQ == null) {
-                           sizeQ = new AtomicLong(0);
-                           sizePerQueueOnPage.put(q, sizeQ);
-                        }
-                        countQ.incrementAndGet();
-                        if (pgd.getPersistentSize() > 0) {
-                           sizeQ.addAndGet(pgd.getPersistentSize());
+               try (LinkedListIterator<PagedMessage> iter = pgMessages.iterator()) {
+                  while (iter.hasNext()) {
+                     PagedMessage pgd = iter.next();
+                     if (pgd.getTransactionID() <= 0) {
+                        for (long q : pgd.getQueueIDs()) {
+                           AtomicInteger countQ = countsPerQueueOnPage.get(q);
+                           AtomicLong sizeQ = sizePerQueueOnPage.get(q);
+                           if (countQ == null) {
+                              countQ = new AtomicInteger(0);
+                              countsPerQueueOnPage.put(q, countQ);
+                           }
+                           if (sizeQ == null) {
+                              sizeQ = new AtomicLong(0);
+                              sizePerQueueOnPage.put(q, sizeQ);
+                           }
+                           countQ.incrementAndGet();
+                           if (pgd.getPersistentSize() > 0) {
+                              sizeQ.addAndGet(pgd.getPersistentSize());
+                           }
                         }
                      }
                   }
@@ -411,7 +417,9 @@ public class PostOfficeJournalLoader implements JournalLoader {
 
                for (Map.Entry<Long, List<PageCountPending>> entry : perQueue.entrySet()) {
                   for (PageCountPending record : entry.getValue()) {
-                     logger.debug("Deleting pg tempCount " + record.getID());
+                     if (logger.isDebugEnabled()) {
+                        logger.debug("Deleting pg tempCount {}", record.getID());
+                     }
                      storageManager.deletePendingPageCounter(txRecoverCounter.getID(), record.getID());
                   }
 
@@ -421,18 +429,20 @@ public class PostOfficeJournalLoader implements JournalLoader {
                   AtomicLong sizeValue = sizePerQueueOnPage.get(entry.getKey());
 
                   if (value == null) {
-                     logger.debug("Page " + entry.getKey() + " wasn't open, so we will just ignore");
+                     logger.debug("Page {} wasn't open, so we will just ignore", entry.getKey());
                   } else {
-                     logger.debug("Replacing counter " + value.get());
+                     logger.debug("Replacing counter {}", value);
                      counter.increment(txRecoverCounter, value.get(), sizeValue.get());
                   }
                }
             } else {
                // on this case the page file didn't exist, we just remove all the records since the page is already gone
-               logger.debug("Page " + pageId + " didn't exist on address " + addressPageMapEntry.getKey() + ", so we are just removing records");
+               logger.debug("Page {} didn't exist on address {}, so we are just removing records",  pageId, addressPageMapEntry.getKey());
                for (List<PageCountPending> records : perQueue.values()) {
                   for (PageCountPending record : records) {
-                     logger.debug("Removing pending page counter " + record.getID());
+                     if (logger.isDebugEnabled()) {
+                        logger.debug("Removing pending page counter {}", record.getID());
+                     }
                      storageManager.deletePendingPageCounter(txRecoverCounter.getID(), record.getID());
                      txRecoverCounter.setContainsPersistent();
                   }
@@ -470,7 +480,10 @@ public class PostOfficeJournalLoader implements JournalLoader {
          Queue queue = queues.get(queueID);
 
          if (queue == null) {
-            logger.debug("removing pending page counter id = " + pgCount.getID() + " as queueID=" + pgCount.getID() + " no longer exists");
+            if (logger.isDebugEnabled()) {
+               logger.debug("removing pending page counter id = {} as queueID={} no longer exists", pgCount.getID(), queueID);
+            }
+
             // this means the queue doesn't exist any longer, we will remove it from the storage
             storageManager.deletePendingPageCounter(txRecoverCounter.getID(), pgCount.getID());
             txRecoverCounter.setContainsPersistent();

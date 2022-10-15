@@ -31,14 +31,16 @@ import org.apache.activemq.artemis.jms.client.ActiveMQConnectionFactory;
 import org.apache.activemq.artemis.jms.client.ActiveMQSession;
 import org.apache.activemq.artemis.spi.core.protocol.RemotingConnection;
 import org.apache.activemq.artemis.tests.util.ActiveMQTestBase;
-import org.jboss.logging.Logger;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 public class FailureDeadlockTest extends ActiveMQTestBase {
 
-   private static final Logger log = Logger.getLogger(FailureDeadlockTest.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private ActiveMQServer server;
 
@@ -79,7 +81,7 @@ public class FailureDeadlockTest extends ActiveMQTestBase {
                try {
                   conn2.close();
                } catch (Exception e) {
-                  log.error("Failed to close connection2", e);
+                  logger.error("Failed to close connection2", e);
                }
             }
          };

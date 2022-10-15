@@ -35,14 +35,11 @@ import org.apache.activemq.artemis.journal.ActiveMQJournalLogger;
 import org.apache.activemq.artemis.utils.ActiveMQThreadFactory;
 import org.apache.activemq.artemis.utils.critical.CriticalAnalyzer;
 import org.apache.activemq.artemis.utils.critical.EmptyCriticalAnalyzer;
-import org.jboss.logging.Logger;
 
 /**
  * An abstract SequentialFileFactory containing basic functionality for both AIO and NIO SequentialFactories
  */
 public abstract class AbstractSequentialFileFactory implements SequentialFileFactory {
-
-   private static final Logger logger = Logger.getLogger(AbstractSequentialFileFactory.class);
 
    // Timeout used to wait executors to shutdown
    protected static final int EXECUTOR_TIMEOUT = 60;
@@ -61,7 +58,7 @@ public abstract class AbstractSequentialFileFactory implements SequentialFileFac
 
    protected volatile int alignment = -1;
 
-   protected final IOCriticalErrorListener critialErrorListener;
+   protected IOCriticalErrorListener critialErrorListener;
 
    protected final CriticalAnalyzer criticalAnalyzer;
 
@@ -98,6 +95,16 @@ public abstract class AbstractSequentialFileFactory implements SequentialFileFac
       this.bufferTimeout = bufferTimeout;
       this.critialErrorListener = criticalErrorListener;
       this.maxIO = maxIO;
+   }
+
+   @Override
+   public IOCriticalErrorListener getCriticalErrorListener() {
+      return critialErrorListener;
+   }
+
+   @Override
+   public void setCriticalErrorListener(IOCriticalErrorListener listener) {
+      this.critialErrorListener = listener;
    }
 
    @Override
@@ -183,8 +190,13 @@ public abstract class AbstractSequentialFileFactory implements SequentialFileFac
    }
 
    @Override
-   public void onIOError(Exception exception, String message, SequentialFile file) {
-      ActiveMQJournalLogger.LOGGER.criticalIO(message, exception);
+   public void onIOError(Throwable exception, String message,  String file) {
+      if (file != null) {
+         ActiveMQJournalLogger.LOGGER.criticalIOFile(message, file, exception);
+      } else {
+         ActiveMQJournalLogger.LOGGER.criticalIO(message, exception);
+      }
+
       if (critialErrorListener != null) {
          critialErrorListener.onIOException(exception, message, file);
       }
@@ -225,7 +237,7 @@ public abstract class AbstractSequentialFileFactory implements SequentialFileFac
       boolean ok = journalDir.mkdirs();
       if (!ok && !journalDir.exists()) {
          IOException e = new IOException("Unable to create directory: " + journalDir);
-         onIOError(e, e.getMessage(), null);
+         onIOError(e, e.getMessage());
          throw e;
       }
    }

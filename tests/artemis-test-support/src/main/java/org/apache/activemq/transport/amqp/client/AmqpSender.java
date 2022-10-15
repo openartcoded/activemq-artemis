@@ -49,13 +49,14 @@ import org.apache.qpid.proton.engine.Sender;
 import org.apache.qpid.proton.message.Message;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 /**
  * Sender class that manages a Proton sender endpoint.
  */
 public class AmqpSender extends AmqpAbstractResource<Sender> {
 
-   private static final Logger LOG = LoggerFactory.getLogger(AmqpSender.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
    private static final byte[] EMPTY_BYTE_ARRAY = new byte[] {};
 
    public static final long DEFAULT_SEND_TIMEOUT = 15000;
@@ -433,7 +434,7 @@ public class AmqpSender extends AmqpAbstractResource<Sender> {
    }
 
    private void doSend(AmqpMessage message, AsyncResult request, AmqpTransactionId txId) throws Exception {
-      LOG.trace("Producer sending message: {}", message);
+      logger.trace("Producer sending message: {}", message);
 
       Delivery delivery = null;
       if (presettle) {
@@ -491,14 +492,14 @@ public class AmqpSender extends AmqpAbstractResource<Sender> {
                break;
             }
          } else {
-            LOG.warn("{} failed to send any data from current Message.", this);
+            logger.warn("{} failed to send any data from current Message.", this);
          }
       }
    }
 
    @Override
    public void processFlowUpdates(AmqpConnection connection) throws IOException {
-      LOG.trace("Sender {} flow update, credit = {}", getEndpoint().getCredit());
+      logger.trace("Sender {} flow update, credit = {}", getEndpoint().getCredit());
 
       doCreditInspection();
    }
@@ -517,12 +518,12 @@ public class AmqpSender extends AmqpAbstractResource<Sender> {
 
          Outcome outcome = null;
          if (state instanceof TransactionalState) {
-            LOG.trace("State of delivery is Transactional, retrieving outcome: {}", state);
+            logger.trace("State of delivery is Transactional, retrieving outcome: {}", state);
             outcome = ((TransactionalState) state).getOutcome();
          } else if (state instanceof Outcome) {
             outcome = (Outcome) state;
          } else {
-            LOG.warn("Message send updated with unsupported state: {}", state);
+            logger.warn("Message send updated with unsupported state: {}", state);
             outcome = null;
          }
 
@@ -530,12 +531,12 @@ public class AmqpSender extends AmqpAbstractResource<Sender> {
          Exception deliveryError = null;
 
          if (outcome instanceof Accepted) {
-            LOG.trace("Outcome of delivery was accepted: {}", delivery);
+            logger.trace("Outcome of delivery was accepted: {}", delivery);
             if (request != null && !request.isComplete()) {
                request.onSuccess();
             }
          } else if (outcome instanceof Rejected) {
-            LOG.trace("Outcome of delivery was rejected: {}", delivery);
+            logger.trace("Outcome of delivery was rejected: {}", delivery);
             ErrorCondition remoteError = ((Rejected) outcome).getError();
             if (remoteError == null) {
                remoteError = getEndpoint().getRemoteCondition();
@@ -543,10 +544,10 @@ public class AmqpSender extends AmqpAbstractResource<Sender> {
 
             deliveryError = AmqpSupport.convertToException(remoteError);
          } else if (outcome instanceof Released) {
-            LOG.trace("Outcome of delivery was released: {}", delivery);
+            logger.trace("Outcome of delivery was released: {}", delivery);
             deliveryError = new IOException("Delivery failed: released by receiver");
          } else if (outcome instanceof Modified) {
-            LOG.trace("Outcome of delivery was modified: {}", delivery);
+            logger.trace("Outcome of delivery was modified: {}", delivery);
             deliveryError = new IOException("Delivery failed: failure at remote");
          }
 

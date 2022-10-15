@@ -31,11 +31,13 @@ import org.apache.activemq.artemis.core.server.ActiveMQLockAcquisitionTimeoutExc
 import org.apache.activemq.artemis.core.server.ActiveMQScheduledComponent;
 import org.apache.activemq.artemis.core.server.ActiveMQServerLogger;
 import org.apache.activemq.artemis.utils.UUID;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 public class FileLockNodeManager extends FileBasedNodeManager {
 
-   private static final Logger logger = Logger.getLogger(FileLockNodeManager.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private static final int STATE_LOCK_POS = 0;
 
@@ -188,7 +190,10 @@ public class FileLockNodeManager extends FileBasedNodeManager {
          do {
             byte state = getState();
             while (state == FileLockNodeManager.NOT_STARTED || state == FIRST_TIME_START) {
-               logger.debug("awaiting live node startup state='" + state + "'");
+               if (logger.isDebugEnabled()) {
+                  logger.debug("awaiting live node startup state='{}'", state);
+               }
+
                Thread.sleep(2000);
                state = getState();
             }
@@ -208,7 +213,9 @@ public class FileLockNodeManager extends FileBasedNodeManager {
                logger.debug("awaiting live node failing back");
                Thread.sleep(2000);
             } else if (state == FileLockNodeManager.LIVE) {
-               logger.debug("acquired live node lock state = " + (char) state);
+               if (logger.isDebugEnabled()) {
+                  logger.debug("acquired live node lock state = {}", (char) state);
+               }
                break;
             }
          }
@@ -252,7 +259,7 @@ public class FileLockNodeManager extends FileBasedNodeManager {
                   setLive();
                   startLockMonitoring();
                } catch (Exception e) {
-                  ActiveMQServerLogger.LOGGER.warn(e.getMessage(), e);
+                  logger.warn(e.getMessage(), e);
                   // that allows to restart/stop the broker if needed
                   throw e;
                }
@@ -314,9 +321,13 @@ public class FileLockNodeManager extends FileBasedNodeManager {
     * @throws ActiveMQLockAcquisitionTimeoutException,IOException
     */
    private void writeFileLockStatus(byte status) throws NodeManagerException {
-      if (replicatedBackup && channel == null)
+      if (replicatedBackup && channel == null) {
          return;
-      logger.debug("writing status: " + status);
+      }
+
+      if (logger.isDebugEnabled()) {
+         logger.debug("writing status: {}", status);
+      }
       ByteBuffer bb = ByteBuffer.allocateDirect(1);
       bb.put(status);
       bb.position(0);
@@ -359,7 +370,10 @@ public class FileLockNodeManager extends FileBasedNodeManager {
                lock.release();
             }
          }
-         logger.debug("state: " + result);
+
+         if (logger.isDebugEnabled()) {
+            logger.debug("state: {}", result);
+         }
          return result;
       } catch (IOException | ActiveMQLockAcquisitionTimeoutException e) {
          throw new NodeManagerException(e);
@@ -386,13 +400,19 @@ public class FileLockNodeManager extends FileBasedNodeManager {
 
    protected FileLock tryLock(final int lockPos) throws IOException {
       try {
-         logger.debug("trying to lock position: " + lockPos);
-         FileLock lock = lockChannels[lockPos].tryLock();
-         if (lock != null) {
-            logger.debug("locked position: " + lockPos);
-         } else {
-            logger.debug("failed to lock position: " + lockPos);
+         if (logger.isDebugEnabled()) {
+            logger.debug("trying to lock position: {}", lockPos);
          }
+
+         FileLock lock = lockChannels[lockPos].tryLock();
+         if (logger.isDebugEnabled()) {
+            if (lock != null) {
+               logger.debug("locked position: {}", lockPos);
+            } else {
+               logger.debug("failed to lock position: {}", lockPos);
+            }
+         }
+
          return lock;
       } catch (java.nio.channels.OverlappingFileLockException ex) {
          // This just means that another object on the same JVM is holding the lock
@@ -425,8 +445,11 @@ public class FileLockNodeManager extends FileBasedNodeManager {
          } catch (IOException e) {
             // IOException during trylock() may be a temporary issue, e.g. NFS volume not being accessible
 
-            logger.log(isRecurringFailure ? Logger.Level.DEBUG : Logger.Level.WARN,
-                    "Failure when accessing a lock file", e);
+            if (isRecurringFailure) {
+               logger.debug("Failure when accessing a lock file", e);
+            } else {
+               logger.warn("Failure when accessing a lock file", e);
+            }
             isRecurringFailure = true;
 
             long waitTime = LOCK_ACCESS_FAILURE_WAIT_TIME_NANOS;

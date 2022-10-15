@@ -22,7 +22,9 @@ import org.apache.activemq.artemis.core.security.CheckType;
 import org.apache.activemq.artemis.core.security.Role;
 import org.apache.activemq.artemis.core.security.impl.SecurityStoreImpl;
 import org.apache.activemq.artemis.spi.core.security.ActiveMQJAASSecurityManager;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -45,7 +47,7 @@ import static org.junit.Assert.assertTrue;
 
 @RunWith(Parameterized.class)
 public class JAASSecurityManagerTest {
-   private static final Logger log = Logger.getLogger(JAASSecurityManagerTest.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    @Parameterized.Parameters(name = "newLoader=({0})")
    public static Collection<Object[]> data() {
@@ -76,7 +78,7 @@ public class JAASSecurityManagerTest {
    @Test
    public void testLoginClassloading() throws Exception {
       ClassLoader existingLoader = Thread.currentThread().getContextClassLoader();
-      log.debug("loader: " + existingLoader);
+      logger.debug("loader: {}", existingLoader);
       try {
          if (usingNewLoader) {
             URLClassLoader simulatedLoader = new URLClassLoader(new URL[]{tmpDir.getRoot().toURI().toURL()}, null);

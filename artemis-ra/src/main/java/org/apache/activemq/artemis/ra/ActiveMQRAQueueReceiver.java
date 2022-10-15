@@ -20,10 +20,16 @@ import javax.jms.JMSException;
 import javax.jms.Queue;
 import javax.jms.QueueReceiver;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
+
 /**
  * A wrapper for a queue receiver
  */
 public class ActiveMQRAQueueReceiver extends ActiveMQRAMessageConsumer implements QueueReceiver {
+
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    /**
     * Create a new wrapper
@@ -34,9 +40,7 @@ public class ActiveMQRAQueueReceiver extends ActiveMQRAMessageConsumer implement
    public ActiveMQRAQueueReceiver(final QueueReceiver consumer, final ActiveMQRASession session) {
       super(consumer, session);
 
-      if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-         ActiveMQRALogger.LOGGER.trace("constructor(" + consumer + ", " + session + ")");
-      }
+      logger.trace("constructor({}, {})", consumer, session);
    }
 
    /**
@@ -47,9 +51,7 @@ public class ActiveMQRAQueueReceiver extends ActiveMQRAMessageConsumer implement
     */
    @Override
    public Queue getQueue() throws JMSException {
-      if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-         ActiveMQRALogger.LOGGER.trace("getQueue()");
-      }
+      logger.trace("getQueue()");
 
       checkState();
       return ((QueueReceiver) consumer).getQueue();

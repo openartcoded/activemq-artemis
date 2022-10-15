@@ -48,14 +48,16 @@ import org.apache.activemq.artemis.spi.core.security.jaas.UserPrincipal;
 import org.apache.activemq.artemis.utils.CompositeAddress;
 import org.apache.activemq.artemis.utils.collections.ConcurrentHashSet;
 import org.apache.activemq.artemis.utils.collections.TypedProperties;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 /**
  * The ActiveMQ Artemis SecurityStore implementation
  */
 public class SecurityStoreImpl implements SecurityStore, HierarchicalRepositoryChangeListener {
 
-   private static final Logger logger = Logger.getLogger(SecurityStoreImpl.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private final HierarchicalRepository<Set<Role>> securityRepository;
 
@@ -135,9 +137,7 @@ public class SecurityStoreImpl implements SecurityStore, HierarchicalRepositoryC
       if (securityEnabled) {
 
          if (managementClusterUser.equals(user)) {
-            if (logger.isTraceEnabled()) {
-               logger.trace("Authenticating cluster admin user");
-            }
+            logger.trace("Authenticating cluster admin user");
 
             /*
              * The special user cluster user is used for creating sessions that replicate management
@@ -190,7 +190,7 @@ public class SecurityStoreImpl implements SecurityStore, HierarchicalRepositoryC
          }
 
          if (connection != null) {
-            connection.setAuditSubject(subject);
+            connection.setSubject(subject);
          }
          if (AuditLogger.isResourceLoggingEnabled()) {
             AuditLogger.userSuccesfullyAuthenticatedInAudit(subject, connection.getRemoteAddress());
@@ -218,9 +218,7 @@ public class SecurityStoreImpl implements SecurityStore, HierarchicalRepositoryC
          SimpleString bareAddress = CompositeAddress.extractAddressName(address);
          SimpleString bareQueue = CompositeAddress.extractQueueName(queue);
 
-         if (logger.isTraceEnabled()) {
-            logger.trace("checking access permissions to " + bareAddress);
-         }
+         logger.trace("checking access permissions to {}", bareAddress);
 
          // bypass permission checks for management cluster user
          String user = session.getUsername();
@@ -290,7 +288,7 @@ public class SecurityStoreImpl implements SecurityStore, HierarchicalRepositoryC
             } else {
                ex = ActiveMQMessageBundle.BUNDLE.userNoPermissionsQueue(session.getUsername(), checkType, bareQueue, bareAddress);
             }
-            AuditLogger.securityFailure(ex);
+            AuditLogger.securityFailure(ex.getMessage(), ex);
             throw ex;
          }
 

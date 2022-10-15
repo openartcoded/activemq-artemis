@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.activemq.artemis.api.config.ActiveMQDefaultConfiguration;
 import org.apache.activemq.artemis.api.core.QueueConfiguration;
 import org.apache.activemq.artemis.core.config.amqpBrokerConnectivity.AMQPBrokerConnectConfiguration;
 import org.apache.activemq.artemis.core.config.routing.ConnectionRouterConfiguration;
@@ -675,6 +676,12 @@ public interface Configuration {
    Configuration setNodeManagerLockDirectory(String dir);
 
    /**
+    * the directory that contains the lock file
+    * @return the directory
+    */
+   String getNodeManagerLockDirectory();
+
+   /**
     * Sets the file system directory used to store journal log.
     */
    Configuration setJournalDirectory(String dir);
@@ -1088,16 +1095,28 @@ public interface Configuration {
    /**
     * @return A list of AddressSettings per matching to be deployed to the address settings repository
     */
-   Map<String, AddressSettings> getAddressesSettings();
+   Map<String, AddressSettings> getAddressSettings();
 
    /**
-    * @param addressesSettings list of AddressSettings per matching to be deployed to the address
+    * @param addressSettings list of AddressSettings per matching to be deployed to the address
     *                          settings repository
     */
+   Configuration setAddressSettings(Map<String, AddressSettings> addressSettings);
+
+   Configuration addAddressSetting(String key, AddressSettings addressesSetting);
+
+   Configuration clearAddressSettings();
+
+   @Deprecated
+   Map<String, AddressSettings> getAddressesSettings();
+
+   @Deprecated
    Configuration setAddressesSettings(Map<String, AddressSettings> addressesSettings);
 
+   @Deprecated
    Configuration addAddressesSetting(String key, AddressSettings addressesSetting);
 
+   @Deprecated
    Configuration clearAddressesSettings();
 
    /**
@@ -1157,7 +1176,7 @@ public interface Configuration {
    Configuration setMaskPassword(Boolean maskPassword);
 
    /**
-    * If passwords are masked. True means the passwords are masked.
+    * If passwords are masked. True means the passwords are masked.enableda
     */
    Boolean isMaskPassword();
 
@@ -1274,8 +1293,11 @@ public interface Configuration {
    int getNetworkCheckTimeout();
 
    /** The NIC name to be used on network checks */
+   @Deprecated
    Configuration setNetworCheckNIC(String nic);
 
+   /** The NIC name to be used on network checks */
+   Configuration setNetworkCheckNIC(String nic);
    String getNetworkCheckNIC();
 
    String getNetworkCheckPingCommand();
@@ -1405,4 +1427,14 @@ public interface Configuration {
 
    Configuration setSuppressSessionNotifications(boolean suppressSessionNotifications);
 
+   default String resolvePropertiesSources(String propertiesFileUrl) {
+      return System.getProperty(ActiveMQDefaultConfiguration.BROKER_PROPERTIES_SYSTEM_PROPERTY_NAME, propertiesFileUrl);
+   }
+
+   String getStatus();
+
+   /** This value can reflect a desired state (revision) of config. Useful when configurationFileRefreshPeriod > 0
+       Eventually with some coordination we can update it from various server components. */
+   // Inspired by https://kubernetes.io/docs/concepts/overview/working-with-objects/kubernetes-objects/#:~:text=The%20status%20describes%20the%20current,the%20desired%20state%20you%20supplied
+   void setStatus(String status);
 }

@@ -40,7 +40,9 @@ import org.apache.activemq.artemis.core.server.management.Notification;
 import org.apache.activemq.artemis.core.server.management.NotificationService;
 import org.apache.activemq.artemis.utils.ActiveMQThreadFactory;
 import org.apache.activemq.artemis.utils.collections.TypedProperties;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 /**
  * This class is used to search for members on the cluster through the opaque interface {@link BroadcastEndpoint}.
@@ -52,7 +54,7 @@ import org.jboss.logging.Logger;
  */
 public final class DiscoveryGroup implements ActiveMQComponent {
 
-   private static final Logger logger = Logger.getLogger(DiscoveryGroup.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private final List<DiscoveryListener> listeners = new ArrayList<>();
 
@@ -106,7 +108,7 @@ public final class DiscoveryGroup implements ActiveMQComponent {
          return;
       }
 
-      if (logger.isDebugEnabled()) logger.debug("Starting Discovery Group for " + name);
+      logger.debug("Starting Discovery Group for {}", name);
 
       endpoint.openClient();
 
@@ -121,7 +123,7 @@ public final class DiscoveryGroup implements ActiveMQComponent {
 
       thread = tfactory.newThread(new DiscoveryRunnable());
 
-      if (logger.isDebugEnabled()) logger.debug("Starting daemon thread");
+      logger.debug("Starting daemon thread");
 
       thread.start();
 
@@ -167,9 +169,7 @@ public final class DiscoveryGroup implements ActiveMQComponent {
 
       try {
          endpoint.close(false);
-         if (logger.isDebugEnabled()) {
-            logger.debug("endpoing closed");
-         }
+         logger.debug("endpoing closed");
       } catch (Exception e1) {
          ActiveMQClientLogger.LOGGER.errorStoppingDiscoveryBroadcastEndpoint(endpoint, e1);
       }
@@ -277,14 +277,12 @@ public final class DiscoveryGroup implements ActiveMQComponent {
                         ActiveMQClientLogger.LOGGER.unexpectedNullDataReceived();
                      }
 
-                     if (logger.isDebugEnabled()) {
-                        logger.debug("Received broadcast data as null");
-                     }
+                     logger.debug("Received broadcast data as null");
                      break;
                   }
 
                   if (logger.isDebugEnabled()) {
-                     logger.debug("receiving " + data.length);
+                     logger.debug("receiving {}", data.length);
                   }
                } catch (Exception e) {
                   if (!started) {
@@ -304,9 +302,7 @@ public final class DiscoveryGroup implements ActiveMQComponent {
 
                if (nodeID.equals(originatingNodeID)) {
 
-                  if (logger.isDebugEnabled()) {
-                     logger.debug("ignoring original NodeID" + originatingNodeID + " receivedID = " + nodeID);
-                  }
+                  logger.debug("ignoring original NodeID{} receivedID = {}", originatingNodeID, nodeID);
                   if (checkExpiration()) {
                      callListeners();
                   }
@@ -314,9 +310,7 @@ public final class DiscoveryGroup implements ActiveMQComponent {
                   continue;
                }
 
-               if (logger.isDebugEnabled()) {
-                  logger.debug("Received nodeID " + nodeID + " with originatingID = " + originatingNodeID);
-               }
+               logger.debug("Received nodeID{} with originatingID = {}", nodeID, originatingNodeID);
 
                int size = buffer.readInt();
 
@@ -334,9 +328,9 @@ public final class DiscoveryGroup implements ActiveMQComponent {
 
 
                if (logger.isDebugEnabled()) {
-                  logger.debug("Received " + entriesRead.length + " discovery entry elements");
+                  logger.debug("Received {} discovery entry elements", entriesRead.length);
                   for (DiscoveryEntry entryDisco : entriesRead) {
-                     logger.debug("" + entryDisco);
+                     logger.debug("{}", entryDisco);
                   }
                }
 
@@ -351,7 +345,7 @@ public final class DiscoveryGroup implements ActiveMQComponent {
                   changed = changed || checkExpiration();
 
                   if (logger.isDebugEnabled()) {
-                     logger.debug("changed = " + changed);
+                     logger.debug("changed = {}", changed);
                   }
                }
                //only call the listeners if we have changed
@@ -360,21 +354,16 @@ public final class DiscoveryGroup implements ActiveMQComponent {
                   if (logger.isTraceEnabled()) {
                      logger.trace("Connectors changed on Discovery:");
                      for (DiscoveryEntry connector : connectors.values()) {
-                        logger.trace(connector);
+                        logger.trace("{}", connector);
                      }
                   }
-                  if (logger.isDebugEnabled()) {
-                     logger.debug("Calling listeners");
-                  }
+                  logger.debug("Calling listeners");
                   callListeners();
                }
 
                synchronized (waitLock) {
                   received = true;
-
-                  if (logger.isDebugEnabled()) {
-                     logger.debug("Calling notifyAll");
-                  }
+                  logger.debug("Calling notifyAll");
                   waitLock.notifyAll();
                }
             } catch (Throwable e) {
@@ -420,9 +409,7 @@ public final class DiscoveryGroup implements ActiveMQComponent {
          Map.Entry<String, DiscoveryEntry> entry = iter.next();
 
          if (entry.getValue().getLastUpdate() + timeout <= now) {
-            if (logger.isTraceEnabled()) {
-               logger.trace("Timed out node on discovery:" + entry.getValue());
-            }
+            logger.trace("Timed out node on discovery:{}", entry.getValue());
             iter.remove();
 
             changed = true;

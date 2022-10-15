@@ -62,11 +62,16 @@ import org.apache.activemq.artemis.core.persistence.impl.journal.codec.CursorAck
 import org.apache.activemq.artemis.core.persistence.impl.journal.codec.PageUpdateTXEncoding;
 import org.apache.activemq.artemis.core.persistence.impl.journal.codec.PersistentAddressBindingEncoding;
 import org.apache.activemq.artemis.core.persistence.impl.journal.codec.PersistentQueueBindingEncoding;
-import org.apache.activemq.artemis.core.server.ActiveMQServerLogger;
 import org.apache.activemq.artemis.core.server.JournalType;
+import org.apache.activemq.artemis.utils.collections.LinkedListIterator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 @Command(name = "exp", description = "Export all message-data using an XML that could be interpreted by any system.")
 public final class XmlDataExporter extends DBOption {
+
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private XMLStreamWriter xmlWriter;
 
@@ -148,8 +153,8 @@ public final class XmlDataExporter extends DBOption {
       getBindings();
       processMessageJournal();
       printDataAsXML();
-      ActiveMQServerLogger.LOGGER.debug("\n\nProcessing took: " + (System.currentTimeMillis() - start) + "ms");
-      ActiveMQServerLogger.LOGGER.debug("Output " + messagesPrinted + " messages and " + bindingsPrinted + " bindings.");
+      logger.debug("\n\nProcessing took: {}ms", (System.currentTimeMillis() - start));
+      logger.debug("Output {} messages and {} bindings.", messagesPrinted, bindingsPrinted);
    }
 
    /**
@@ -168,7 +173,7 @@ public final class XmlDataExporter extends DBOption {
 
       Journal messageJournal = storageManager.getMessageJournal();
 
-      ActiveMQServerLogger.LOGGER.debug("Reading journal from " + config.getJournalDirectory());
+      logger.debug("Reading journal from {}", config.getJournalDirectory());
 
       messageJournal.start();
 
@@ -200,7 +205,7 @@ public final class XmlDataExporter extends DBOption {
                }
             }
 
-            ActiveMQServerLogger.LOGGER.debug(message.toString());
+            logger.debug(message.toString());
          }
       };
 
@@ -298,7 +303,7 @@ public final class XmlDataExporter extends DBOption {
 
       bindingsJournal.start();
 
-      ActiveMQServerLogger.LOGGER.debug("Reading bindings journal from " + config.getBindingsDirectory());
+      logger.debug("Reading bindings journal from {}", config.getBindingsDirectory());
 
       bindingsJournal.load(records, null, null);
 
@@ -395,52 +400,56 @@ public final class XmlDataExporter extends DBOption {
 
             if (pageStore != null) {
                File folder = pageStore.getFolder();
-               ActiveMQServerLogger.LOGGER.debug("Reading page store " + store + " folder = " + folder);
+               logger.debug("Reading page store {} folder = {}", store, folder);
 
-               int pageId = (int) pageStore.getFirstPage();
-               for (int i = 0; i < pageStore.getNumberOfPages(); i++) {
-                  ActiveMQServerLogger.LOGGER.debug("Reading page " + pageId);
-                  Page page = pageStore.createPage(pageId);
+               long pageId = pageStore.getFirstPage();
+               for (long i = 0; i < pageStore.getNumberOfPages(); i++) {
+                  logger.debug("Reading page {}", pageId);
+                  Page page = pageStore.newPageObject(pageId);
                   page.open(false);
-                  List<PagedMessage> messages = page.read(storageManager);
+                  org.apache.activemq.artemis.utils.collections.LinkedList<PagedMessage> messages = page.read(storageManager);
                   page.close(false, false);
 
                   int messageId = 0;
 
-                  for (PagedMessage message : messages) {
-                     message.initMessage(storageManager);
-                     long[] queueIDs = message.getQueueIDs();
-                     List<String> queueNames = new ArrayList<>();
-                     for (long queueID : queueIDs) {
-                        PagePosition posCheck = new PagePositionImpl(pageId, messageId);
+                  try (LinkedListIterator<PagedMessage> iter = messages.iterator()) {
 
-                        boolean acked = false;
+                     while (iter.hasNext()) {
+                        PagedMessage message = iter.next();
+                        message.initMessage(storageManager);
+                        long[] queueIDs = message.getQueueIDs();
+                        List<String> queueNames = new ArrayList<>();
+                        for (long queueID : queueIDs) {
+                           PagePosition posCheck = new PagePositionImpl(pageId, messageId);
 
-                        Set<PagePosition> positions = cursorRecords.get(queueID);
-                        if (positions != null) {
-                           acked = positions.contains(posCheck);
-                        }
+                           boolean acked = false;
 
-                        if (!acked) {
-                           PersistentQueueBindingEncoding queueBinding = queueBindings.get(queueID);
-                           if (queueBinding != null) {
-                              SimpleString queueName = queueBinding.getQueueName();
-                              queueNames.add(queueName.toString());
+                           Set<PagePosition> positions = cursorRecords.get(queueID);
+                           if (positions != null) {
+                              acked = positions.contains(posCheck);
+                           }
+
+                           if (!acked) {
+                              PersistentQueueBindingEncoding queueBinding = queueBindings.get(queueID);
+                              if (queueBinding != null) {
+                                 SimpleString queueName = queueBinding.getQueueName();
+                                 queueNames.add(queueName.toString());
+                              }
                            }
                         }
+
+                        if (queueNames.size() > 0 && (message.getTransactionID() == -1 || pgTXs.contains(message.getTransactionID()))) {
+                           printSingleMessageAsXML(message.getMessage().toCore(), queueNames);
+                        }
+
+                        messageId++;
                      }
 
-                     if (queueNames.size() > 0 && (message.getTransactionID() == -1 || pgTXs.contains(message.getTransactionID()))) {
-                        printSingleMessageAsXML(message.getMessage().toCore(), queueNames);
-                     }
-
-                     messageId++;
+                     pageId++;
                   }
-
-                  pageId++;
                }
             } else {
-               ActiveMQServerLogger.LOGGER.debug("Page store was null");
+               logger.debug("Page store was null");
             }
          }
       } catch (Exception e) {

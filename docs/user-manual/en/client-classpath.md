@@ -1,16 +1,53 @@
 # The Client Classpath
 
-Apache ActiveMQ Artemis requires just a single jar on the *client classpath*.
+## Maven dependencies
 
-> **Warning**
->
-> The client jar mentioned here can be found in the `lib/client` directory of
-> the Apache ActiveMQ Artemis distribution.  Be sure you only use the jar from
-> the correct version of the release, you *must not* mix and match versions of
-> jars from different Apache ActiveMQ Artemis versions. Mixing and matching
-> different jar versions may cause subtle errors and failures to occur.
+The recommended way to define a client dependency for your java application is through a Maven dependency declaration.
 
-Whether you are using JMS or just the Core API simply add the
-`artemis-jms-client-all.jar` from the `lib/client` directory to your client
-classpath. This is a "shaded" jar that contains all the Artemis code plus
-dependencies (e.g.  JMS spec, Netty, etc.).
+There are two dependencies you can choose from, `org.apache.activemq:artemis-jms-client` for JMS 2.0 or `org.apache.activemq:artemis-jakarta-client` for Jakarta Messaging 3.x.
+
+For JMS:
+```xml
+...
+<dependency>
+   <groupId>org.apache.activemq</groupId>
+   <artifactId>artemis-jms-client</artifactId>
+   <version>@PROJECT_VERSION_FILTER_TOKEN@</version>
+</dependency>
+...
+```
+
+For Jakarta:
+```xml
+...
+<dependency>
+   <groupId>org.apache.activemq</groupId>
+   <artifactId>artemis-jakarta-client</artifactId>
+   <version>@PROJECT_VERSION_FILTER_TOKEN@</version>
+</dependency>
+...
+```
+
+## Individual client dependencies
+
+If you dont wish to use a build tool such as Maven which manages the dependencies for you, you may also choose to add the specific dependency jars to your classpath, which are all included under ./lib on the main distribution.
+
+For more information of the clients individual dependencies, see:
+- [JMS client dependencies](client-classpath-jms.md )
+- [Jakarta client dependencies](client-classpath-jakarta.md)
+
+## Repackaged '-all' clients
+
+Even though it is highly recommend to use the maven dependencies, in cases this isnt a possibility and neither is using the individual dependencies as detailed above then the all-inclusive repackaged jar could be used as an alternative.
+
+These jars are available at Maven Central:
+- [artemis-jms-client-all-{{ config.version }}.jar](https://repo.maven.apache.org/maven2/org/apache/activemq/artemis-jms-client-all/{{ config.version }}/)
+- [artemis-jakarta-client-all-{{ config.version }}.jar](https://repo.maven.apache.org/maven2/org/apache/activemq/artemis-jakarta-client-all/{{ config.version }}/)
+
+Whether you are using JMS or just the Core API simply add the `artemis-jms-client-all` jar to your client classpath.
+For Jakarta Messaging add the `artemis-jakarta-client-all` jar instead.
+
+**Warning:**These repackaged jars include all the [client's dependencies](client-classpath-jms.md). Be careful with mixing other components jars in your application as they may clash with each other.
+
+
+

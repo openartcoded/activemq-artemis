@@ -50,14 +50,16 @@ import org.apache.activemq.artemis.core.server.ServerSession;
 import org.apache.activemq.artemis.core.server.impl.ServerProducerImpl;
 import org.apache.activemq.artemis.core.version.Version;
 import org.apache.activemq.artemis.logs.AuditLogger;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 /**
  * A packet handler for all packets that need to be handled at the server level
  */
 public class ActiveMQPacketHandler implements ChannelHandler {
 
-   private static final Logger logger = Logger.getLogger(ActiveMQPacketHandler.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private final ActiveMQServer server;
 
@@ -86,7 +88,7 @@ public class ActiveMQPacketHandler implements ChannelHandler {
 
       if (AuditLogger.isAnyLoggingEnabled()) {
          AuditLogger.setRemoteAddress(connection.getRemoteAddress());
-         AuditLogger.setCurrentCaller(connection.getAuditSubject());
+         AuditLogger.setCurrentCaller(connection.getSubject());
       }
 
       switch (type) {
@@ -230,7 +232,7 @@ public class ActiveMQPacketHandler implements ChannelHandler {
             response = new ReattachSessionResponseMessage(-1, false);
          }
 
-         logger.debug("Reattaching request from " + connection.getRemoteAddress());
+         logger.debug("Reattaching request from {}", connection.getRemoteAddress());
 
          ServerSessionPacketHandler sessionHandler = protocolManager.getSessionHandler(request.getName());
 

@@ -162,11 +162,11 @@ public class ServerPacketDecoder extends ClientPacketDecoder {
             break;
          }
          case REPLICATION_APPEND: {
-            packet = new ReplicationAddMessage();
+            packet = new ReplicationAddMessage(connection.isBeforeTwoEighteen());
             break;
          }
          case REPLICATION_APPEND_TX: {
-            packet = new ReplicationAddTXMessage();
+            packet = new ReplicationAddTXMessage(connection.isBeforeTwoEighteen());
             break;
          }
          case REPLICATION_DELETE: {
@@ -194,11 +194,11 @@ public class ServerPacketDecoder extends ClientPacketDecoder {
             break;
          }
          case REPLICATION_PAGE_WRITE: {
-            packet = new ReplicationPageWriteMessage();
+            packet = new ReplicationPageWriteMessage(connection.isVersionUsingLongOnPageReplication());
             break;
          }
          case REPLICATION_PAGE_EVENT: {
-            packet = new ReplicationPageEventMessage();
+            packet = new ReplicationPageEventMessage(connection.isVersionUsingLongOnPageReplication());
             break;
          }
          case REPLICATION_LARGE_MESSAGE_BEGIN: {
@@ -222,7 +222,7 @@ public class ServerPacketDecoder extends ClientPacketDecoder {
             break;
          }
          case PacketImpl.REPLICATION_START_FINISH_SYNC: {
-            packet = new ReplicationStartSyncMessage();
+            packet = new ReplicationStartSyncMessage(connection.isBeforeTwoEighteen());
             break;
          }
          case PacketImpl.REPLICATION_SYNC_FILE: {

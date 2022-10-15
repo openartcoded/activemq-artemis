@@ -20,7 +20,7 @@
    <parent>
       <groupId>org.apache.activemq.tests</groupId>
       <artifactId>artemis-tests-pom</artifactId>
-      <version>2.23.0-SNAPSHOT</version>
+      <version>2.27.0-SNAPSHOT</version>
    </parent>
 
    <artifactId>integration-tests</artifactId>
@@ -35,20 +35,6 @@
    <dependencies>
       <dependency>
          <groupId>org.apache.activemq</groupId>
-         <artifactId>artemis-server</artifactId>
-         <version>${project.version}</version>
-         <scope>test</scope>
-         <type>test-jar</type>
-      </dependency>
-      <dependency>
-         <groupId>org.apache.activemq</groupId>
-         <artifactId>artemis-commons</artifactId>
-         <version>${project.version}</version>
-         <scope>test</scope>
-         <type>test-jar</type>
-      </dependency>
-      <dependency>
-         <groupId>org.apache.activemq</groupId>
          <artifactId>artemis-quorum-ri</artifactId>
          <version>${project.version}</version>
          <scope>test</scope>
@@ -56,13 +42,6 @@
       <dependency>
          <groupId>org.apache.activemq.tests</groupId>
          <artifactId>unit-tests</artifactId>
-         <version>${project.version}</version>
-         <scope>test</scope>
-         <type>test-jar</type>
-      </dependency>
-      <dependency>
-         <groupId>org.apache.activemq</groupId>
-         <artifactId>artemis-core-client</artifactId>
          <version>${project.version}</version>
          <scope>test</scope>
          <type>test-jar</type>
@@ -160,18 +139,13 @@
       </dependency>
       <dependency>
          <groupId>org.apache.activemq</groupId>
-         <artifactId>artemis-features</artifactId>
+         <artifactId>artemis-junit</artifactId>
          <version>${project.version}</version>
-         <type>pom</type>
-      </dependency>
-      <dependency>
-         <groupId>org.apache.activemq.rest</groupId>
-         <artifactId>artemis-rest</artifactId>
-         <version>${project.version}</version>
+         <scope>test</scope>
       </dependency>
       <dependency>
          <groupId>org.apache.activemq</groupId>
-         <artifactId>artemis-junit</artifactId>
+         <artifactId>artemis-unit-test-support</artifactId>
          <version>${project.version}</version>
          <scope>test</scope>
       </dependency>
@@ -230,6 +204,10 @@
          <artifactId>jakarta.management.j2ee-api</artifactId>
       </dependency>
       <dependency>
+         <groupId>jakarta.annotation</groupId>
+         <artifactId>jakarta.annotation-api</artifactId>
+      </dependency>
+      <dependency>
          <groupId>io.netty</groupId>
          <artifactId>netty-buffer</artifactId>
       </dependency>
@@ -255,30 +233,6 @@
          <artifactId>junit</artifactId>
       </dependency>
       <dependency>
-         <groupId>org.jboss.logging</groupId>
-         <artifactId>jboss-logging-processor</artifactId>
-         <scope>provided</scope>
-         <optional>true</optional>
-      </dependency>
-      <dependency>
-         <groupId>org.jboss.logging</groupId>
-         <artifactId>jboss-logging-annotations</artifactId>
-         <scope>provided</scope>
-         <optional>true</optional>
-      </dependency>
-      <dependency>
-         <groupId>org.jboss.logging</groupId>
-         <artifactId>jboss-logging</artifactId>
-      </dependency>
-      <dependency>
-         <groupId>org.jboss.logmanager</groupId>
-         <artifactId>jboss-logmanager</artifactId>
-      </dependency>
-      <dependency>
-          <groupId>org.wildfly.common</groupId>
-          <artifactId>wildfly-common</artifactId>
-      </dependency>
-      <dependency>
          <groupId>org.apache.qpid</groupId>
          <artifactId>qpid-jms-client</artifactId>
       </dependency>
@@ -286,9 +240,15 @@
          <groupId>org.apache.qpid</groupId>
          <artifactId>proton-j</artifactId>
       </dependency>
+      <!-- logging -->
       <dependency>
          <groupId>org.slf4j</groupId>
          <artifactId>slf4j-api</artifactId>
+      </dependency>
+      <dependency>
+         <groupId>org.apache.logging.log4j</groupId>
+         <artifactId>log4j-slf4j-impl</artifactId>
+         <scope>test</scope>
       </dependency>
       <dependency>
          <groupId>org.apache.activemq</groupId>
@@ -332,53 +292,6 @@
           <scope>test</scope>
       </dependency>
 
-      <!-- karaf test -->
-
-      <dependency>
-         <groupId>org.ops4j.pax.exam</groupId>
-         <artifactId>pax-exam-container-karaf</artifactId>
-         <version>${pax.exam.version}</version>
-         <scope>test</scope>
-      </dependency>
-      <dependency>
-         <groupId>org.ops4j.pax.exam</groupId>
-         <artifactId>pax-exam-junit4</artifactId>
-         <version>${pax.exam.version}</version>
-         <scope>test</scope>
-      </dependency>
-      <dependency>
-         <groupId>org.apache.karaf</groupId>
-         <artifactId>apache-karaf</artifactId>
-         <version>${karaf.version}</version>
-         <type>tar.gz</type>
-         <scope>test</scope>
-         <exclusions>
-            <exclusion>
-               <groupId>org.apache.karaf.features</groupId>
-               <artifactId>spring</artifactId>
-            </exclusion>
-         </exclusions>
-      </dependency>
-      <dependency>
-         <groupId>org.apache.karaf.shell</groupId>
-         <artifactId>org.apache.karaf.shell.console</artifactId>
-         <version>${karaf.version}</version>
-         <scope>test</scope>
-      </dependency>
-
-      <!-- rest test -->
-      <dependency>
-         <groupId>org.apache.tomcat</groupId>
-         <artifactId>tomcat-servlet-api</artifactId>
-      </dependency>
-      <dependency>
-         <groupId>org.eclipse.jetty</groupId>
-         <artifactId>jetty-server</artifactId>
-      </dependency>
-      <dependency>
-         <groupId>org.jboss.resteasy</groupId>
-         <artifactId>resteasy-jaxrs</artifactId>
-      </dependency>
       <dependency>
          <groupId>org.codehaus.woodstox</groupId>
          <artifactId>woodstox-core-asl</artifactId>
@@ -441,7 +354,7 @@
          <scope>test</scope>
       </dependency>
 
-      <!-- need this for org.apache.activemq.filter.XalanXPathEvaluator for Xpath selectors with OpenWire JMS clients-->
+      <!-- need this for org.apache.activemq.filter.JAXPXPathEvaluator for Xpath selectors with OpenWire JMS clients-->
       <dependency>
          <groupId>org.apache.activemq</groupId>
          <artifactId>activemq-broker</artifactId>
@@ -470,6 +383,12 @@
          <scope>test</scope>
       </dependency>
 
+      <dependency>
+         <groupId>org.mockito</groupId>
+         <artifactId>mockito-core</artifactId>
+         <scope>test</scope>
+      </dependency>
+
    </dependencies>
 
    <build>
@@ -477,9 +396,6 @@
          <testResource>
             <directory>src/test/resources</directory>
             <filtering>true</filtering>
-            <excludes>
-               <exclude>**/rest/*.xml</exclude>
-            </excludes>
          </testResource>
       </testResources>
       <plugins>
@@ -510,42 +426,6 @@
          </plugin>
          <plugin>
             <groupId>org.apache.maven.plugins</groupId>
-            <artifactId>maven-assembly-plugin</artifactId>
-            <executions>
-               <execution>
-                  <phase>process-test-classes</phase>
-                  <id>bwlist-rest-test-war</id>
-                  <goals>
-                     <goal>single</goal>
-                  </goals>
-                  <configuration>
-                     <descriptors>
-                        <descriptor>src/test/resources/rest/bwlist-rest-test-asm.xml</descriptor>
-                     </descriptors>
-                     <finalName>rest-test-bwlist</finalName>
-                     <appendAssemblyId>false</appendAssemblyId>
-                     <outputDirectory>target/test-classes/rest/</outputDirectory>
-                  </configuration>
-               </execution>
-               <execution>
-                  <phase>process-test-classes</phase>
-                  <id>rest-test-war</id>
-                  <goals>
-                     <goal>single</goal>
-                  </goals>
-                  <configuration>
-                     <descriptors>
-                        <descriptor>src/test/resources/rest/rest-test-asm.xml</descriptor>
-                     </descriptors>
-                     <finalName>rest-test</finalName>
-                     <appendAssemblyId>false</appendAssemblyId>
-                     <outputDirectory>target/test-classes/rest/</outputDirectory>
-                  </configuration>
-               </execution>
-            </executions>
-         </plugin>
-         <plugin>
-            <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-jar-plugin</artifactId>
             <executions>
                <execution>
@@ -561,25 +441,8 @@
             <artifactId>maven-surefire-plugin</artifactId>
             <configuration>
                <skipTests>${skipIntegrationTests}</skipTests>
-               <excludes>
-                  <exclude>**/ReplicatedJMSFailoverTest.java</exclude>
-                  <exclude>org.apache.activemq/tests/util/*.java</exclude>
-               </excludes>
                <argLine>-Djgroups.bind_addr=::1 ${activemq-surefire-argline} ${its-surefire-extra-args} -Dorg.apache.activemq.SERIALIZABLE_PACKAGES="java.lang,javax.security,java.util,org.apache.activemq,org.fusesource.hawtbuf"</argLine>
             </configuration>
-         </plugin>
-         <plugin>
-            <groupId>org.apache.servicemix.tooling</groupId>
-            <artifactId>depends-maven-plugin</artifactId>
-            <version>1.2</version>
-            <executions>
-               <execution>
-                  <id>generate-depends-file</id>
-                  <goals>
-                     <goal>generate-depends-file</goal>
-                  </goals>
-               </execution>
-            </executions>
          </plugin>
       </plugins>
    </build>

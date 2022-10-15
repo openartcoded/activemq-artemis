@@ -36,14 +36,16 @@ import org.apache.activemq.artemis.core.server.ActiveMQServerLogger;
 import org.apache.activemq.artemis.core.settings.HierarchicalRepository;
 import org.apache.activemq.artemis.core.settings.HierarchicalRepositoryChangeListener;
 import org.apache.activemq.artemis.core.settings.Mergeable;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 /**
  * allows objects to be mapped against a regex pattern and held in order in a list
  */
 public class HierarchicalObjectRepository<T> implements HierarchicalRepository<T> {
 
-   private static final Logger logger = Logger.getLogger(HierarchicalObjectRepository.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private static final WildcardConfiguration DEFAULT_WILDCARD_CONFIGURATION = new WildcardConfiguration();
    private boolean listenersEnabled = true;
@@ -249,6 +251,11 @@ public class HierarchicalObjectRepository<T> implements HierarchicalRepository<T
       return exactMatches.containsKey(match);
    }
 
+   @Override
+   public boolean containsExactWildcardMatch(String match) {
+      return wildcardMatches.containsKey(match);
+   }
+
    /**
     * merge all the possible matches, if the values implement Mergeable then a full merge is done
     *
@@ -299,7 +306,7 @@ public class HierarchicalObjectRepository<T> implements HierarchicalRepository<T
          String modMatch = matchModifier.modify(match);
          boolean isImmutable = immutables.contains(modMatch);
          if (isImmutable) {
-            logger.debug("Cannot remove match " + modMatch + " since it came from a main config");
+            logger.debug("Cannot remove match {} since it came from a main config", modMatch);
          } else {
             /**
              * Clear the cache before removing the match, but only if the match used wildcards. This

@@ -120,7 +120,7 @@ public class ConnectionAbstract extends InputAbstract {
          }
       }
 
-      System.out.println("Connection brokerURL = " + brokerURL);
+      context.out.println("Connection brokerURL = " + brokerURL);
 
       return null;
    }
@@ -162,19 +162,16 @@ public class ConnectionAbstract extends InputAbstract {
          return cf;
       } catch (JMSSecurityException e) {
          // if a security exception will get the user and password through an input
-         context.err.println("Connection failed::" + e.getMessage());
-         userPassword();
-         cf = new JmsConnectionFactory(user, password, brokerURL);
+         getActionContext().err.println("Connection failed::" + e.getMessage());
+         cf = new JmsConnectionFactory(inputUser(user), inputPassword(password), brokerURL);
          if (clientID != null) {
             cf.setClientID(clientID);
          }
          return cf;
       } catch (JMSException e) {
          // if a connection exception will ask for the URL, user and password
-         context.err.println("Connection failed::" + e.getMessage());
-         brokerURL = input("--url", "Type in the broker URL for a retry (e.g. tcp://localhost:61616)", brokerURL);
-         userPassword();
-         cf = new JmsConnectionFactory(user, password, brokerURL);
+         getActionContext().err.println("Connection failed::" + e.getMessage());
+         cf = new JmsConnectionFactory(inputUser(user), inputPassword(password), inputBrokerURL(brokerURL));
          if (clientID != null) {
             cf.setClientID(clientID);
          }
@@ -192,7 +189,7 @@ public class ConnectionAbstract extends InputAbstract {
                                                                    String clientID) {
       ActiveMQConnectionFactory cf = new ActiveMQConnectionFactory(brokerURL, user, password);
       if (clientID != null) {
-         System.out.println("Consumer:: clientID = " + clientID);
+         getActionContext().out.println("Consumer:: clientID = " + clientID);
          cf.setClientID(clientID);
       }
       try {
@@ -201,23 +198,20 @@ public class ConnectionAbstract extends InputAbstract {
          return cf;
       } catch (JMSSecurityException e) {
          // if a security exception will get the user and password through an input
-         if (context != null) {
-            context.err.println("Connection failed::" + e.getMessage());
+         if (getActionContext() != null) {
+            getActionContext().err.println("Connection failed::" + e.getMessage());
          }
-         userPassword();
-         cf = new ActiveMQConnectionFactory(brokerURL, user, password);
+         cf = new ActiveMQConnectionFactory(brokerURL, inputUser(user), inputPassword(password));
          if (clientID != null) {
             cf.setClientID(clientID);
          }
          return cf;
       } catch (JMSException e) {
          // if a connection exception will ask for the URL, user and password
-         if (context != null) {
-            context.err.println("Connection failed::" + e.getMessage());
+         if (getActionContext() != null) {
+            getActionContext().err.println("Connection failed::" + e.getMessage());
          }
-         brokerURL = input("--url", "Type in the broker URL for a retry (e.g. tcp://localhost:61616)", brokerURL);
-         userPassword();
-         cf = new ActiveMQConnectionFactory(brokerURL, user, password);
+         cf = new ActiveMQConnectionFactory(inputBrokerURL(brokerURL), inputUser(user), inputPassword(password));
          if (clientID != null) {
             cf.setClientID(clientID);
          }
@@ -225,13 +219,21 @@ public class ConnectionAbstract extends InputAbstract {
       }
    }
 
-   private void userPassword() {
+   private String inputBrokerURL(String defaultValue) {
+      return input("--url", "Type in the broker URL for a retry (e.g. tcp://localhost:61616)", defaultValue);
+   }
+
+   private String inputUser(String user) {
       if (user == null) {
          user = input("--user", "Type the username for a retry", null);
       }
+      return user;
+   }
+
+   private String inputPassword(String password) {
       if (password == null) {
          password = inputPassword("--password", "Type the password for a retry", null);
       }
+      return password;
    }
-
 }

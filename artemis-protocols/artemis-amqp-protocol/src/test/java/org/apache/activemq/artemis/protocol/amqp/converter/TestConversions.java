@@ -52,9 +52,11 @@ import org.apache.qpid.proton.codec.EncoderImpl;
 import org.apache.qpid.proton.codec.WritableBuffer;
 import org.apache.qpid.proton.message.Message;
 import org.apache.qpid.proton.message.impl.MessageImpl;
-import org.jboss.logging.Logger;
 import org.junit.Assert;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 import static org.apache.activemq.artemis.protocol.amqp.converter.AMQPMessageSupport.AMQP_NULL;
 import static org.apache.activemq.artemis.protocol.amqp.converter.AMQPMessageSupport.JMS_AMQP_ENCODED_DELIVERY_ANNOTATION_PREFIX;
@@ -64,7 +66,7 @@ import static org.apache.activemq.artemis.protocol.amqp.converter.AMQPMessageSup
 
 public class TestConversions extends Assert {
 
-   private static final Logger logger = Logger.getLogger(TestConversions.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    @Test
    public void testAmqpValueOfBooleanIsPassedThrough() throws Exception {
@@ -416,7 +418,7 @@ public class TestConversions extends Assert {
 
       for (int i = 0; i < 10; i++) {
          if (logger.isDebugEnabled()) {
-            logger.debug("Message encoded :: " + encodedMessage.toDebugString());
+            logger.debug("Message encoded :: {}", encodedMessage.toDebugString());
          }
 
          encodedMessage.messageChanged();
@@ -426,9 +428,7 @@ public class TestConversions extends Assert {
          // this line is needed to force a failure
          ICoreMessage coreMessage = encodedMessage.toCore();
 
-         if (logger.isDebugEnabled()) {
-            logger.debug("Converted message: " + coreMessage);
-         }
+         logger.debug("Converted message: {}", coreMessage);
       }
    }
 
@@ -457,9 +457,7 @@ public class TestConversions extends Assert {
          AmqpValue value = (AmqpValue) encodedMessage.getProtonMessage().getBody();
          Assert.assertEquals(text, (String) value.getValue());
          ICoreMessage coreMessage = encodedMessage.toCore();
-         if (logger.isDebugEnabled()) {
-            logger.debug("Converted message: " + coreMessage);
-         }
+         logger.debug("Converted message: {}", coreMessage);
 
          // I'm going to replace the message every 10 messages by a re-encoded version to check if the wiring still acturate.
          // I want to mix replacing and not replacing to make sure the re-encoding is not giving me any surprises

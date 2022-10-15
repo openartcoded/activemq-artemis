@@ -38,15 +38,17 @@ import org.apache.activemq.artemis.core.server.ActiveMQServer;
 import org.apache.activemq.artemis.core.server.ActiveMQServers;
 import org.apache.activemq.artemis.core.transaction.impl.XidImpl;
 import org.apache.activemq.artemis.tests.util.ActiveMQTestBase;
-import org.jboss.logging.Logger;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 public class MessageGroupingTest extends ActiveMQTestBase {
 
-   private static final Logger log = Logger.getLogger(MessageGroupingTest.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private ActiveMQServer server;
 
@@ -199,7 +201,7 @@ public class MessageGroupingTest extends ActiveMQTestBase {
          Assert.assertEquals(cm.getBodyBuffer().readString(), "m" + i);
       }
 
-      log.debug("closing consumer2");
+      logger.debug("closing consumer2");
 
       consumer2.close();
 

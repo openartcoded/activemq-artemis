@@ -34,10 +34,13 @@ import org.apache.activemq.artemis.core.settings.impl.AddressSettings;
 import org.apache.activemq.artemis.tests.util.ActiveMQTestBase;
 import org.junit.Before;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 public class ClientSoakTest extends ActiveMQTestBase {
 
-
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private static final SimpleString ADDRESS = new SimpleString("ADD");
 
@@ -115,7 +118,7 @@ public class ClientSoakTest extends ActiveMQTestBase {
          producer.send(msg);
 
          if (i % 1000 == 0) {
-            System.out.println("Sent " + i + " messages");
+            logger.info("Sent {} messages", i);
             session.commit();
          }
       }
@@ -134,10 +137,10 @@ public class ClientSoakTest extends ActiveMQTestBase {
       rec1.start();
       rec2.start();
 
-      long timeEnd = System.currentTimeMillis() + TimeUnit.HOURS.toMillis(1);
+      long timeEnd = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(ClientParameters.TIME_LIMIT_SECONDS);
       while (timeEnd > System.currentTimeMillis()) {
          if (send.getErrorsCount() != 0 || rec1.getErrorsCount() != 0 || rec2.getErrorsCount() != 0) {
-            System.out.println("There are sequence errors in some of the clients, please look at the logs");
+            logger.info("There are sequence errors in some of the clients, please look at the logs");
             break;
          }
          Thread.sleep(10000);

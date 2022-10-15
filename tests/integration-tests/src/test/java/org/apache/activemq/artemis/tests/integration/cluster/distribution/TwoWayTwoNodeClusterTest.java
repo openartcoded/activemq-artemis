@@ -26,15 +26,17 @@ import org.apache.activemq.artemis.core.server.Queue;
 import org.apache.activemq.artemis.core.server.cluster.impl.MessageLoadBalancingType;
 import org.apache.activemq.artemis.core.settings.impl.AddressFullMessagePolicy;
 import org.apache.activemq.artemis.core.settings.impl.AddressSettings;
-import org.jboss.logging.Logger;
 import org.junit.Before;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 import java.util.Map;
 
 public class TwoWayTwoNodeClusterTest extends ClusterTestBase {
 
-   private static final Logger log = Logger.getLogger(TwoWayTwoNodeClusterTest.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    @Override
    @Before
@@ -118,8 +120,8 @@ public class TwoWayTwoNodeClusterTest extends ClusterTestBase {
       closeAllSessionFactories();
       stopServers(0, 1);
 
-      AddressSettings addressSettings0 = config0.getAddressesSettings().get("#");
-      AddressSettings addressSettings1 = config1.getAddressesSettings().get("#");
+      AddressSettings addressSettings0 = config0.getAddressSettings().get("#");
+      AddressSettings addressSettings1 = config1.getAddressSettings().get("#");
 
       addressSettings0.setMaxSizeBytes(-1);
       addressSettings1.setMaxSizeBytes(-1);
@@ -151,7 +153,7 @@ public class TwoWayTwoNodeClusterTest extends ClusterTestBase {
          config.setJournalMinFiles(20);
          config.setJournalCompactPercentage(50);
 
-         Map<String, AddressSettings> addressSettingsMap0 = config.getAddressesSettings();
+         Map<String, AddressSettings> addressSettingsMap0 = config.getAddressSettings();
          AddressSettings addrSettings = addressSettingsMap0.get("#");
          if (addrSettings == null) {
             addrSettings = new AddressSettings();
@@ -165,7 +167,7 @@ public class TwoWayTwoNodeClusterTest extends ClusterTestBase {
          addrSettings.setAddressFullMessagePolicy(AddressFullMessagePolicy.PAGE);
          addrSettings.setPageSizeBytes(524288);
          addrSettings.setMessageCounterHistoryDayLimit(10);
-         addrSettings.setRedistributionDelay(1000);
+         addrSettings.setRedistributionDelay(1000).setMaxReadPageBytes(-1).setMaxReadPageMessages(-1);
       }
    }
 
@@ -235,13 +237,13 @@ public class TwoWayTwoNodeClusterTest extends ClusterTestBase {
          waitForTopology(servers[1], 2);
 
          for (int i = 0; i < 10; i++) {
-            log.debug("Sleep #test " + i);
-            log.debug("#stop #test #" + i);
+            logger.debug("Sleep #test {}", i);
+            logger.debug("#stop #test #{}", i);
             Thread.sleep(500);
             stopServers(1);
 
             waitForTopology(servers[0], 1, -1, 2000);
-            log.debug("#start #test #" + i);
+            logger.debug("#start #test #{}", i);
             startServers(1);
             waitForTopology(servers[0], 2, -1, 2000);
             waitForTopology(servers[1], 2, -1, 2000);
@@ -284,12 +286,12 @@ public class TwoWayTwoNodeClusterTest extends ClusterTestBase {
       //allow the topology to be propagated before restarting
       waitForTopology(servers[0], 1, -1, 2000);
 
-      instanceLog.debug(clusterDescription(servers[0]));
+      logger.debug(clusterDescription(servers[0]));
 
       startServers(1);
 
-      instanceLog.debug(clusterDescription(servers[0]));
-      instanceLog.debug(clusterDescription(servers[1]));
+      logger.debug(clusterDescription(servers[0]));
+      logger.debug(clusterDescription(servers[1]));
 
       setupSessionFactory(1, isNetty());
 

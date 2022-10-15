@@ -18,8 +18,6 @@ package org.apache.activemq.artemis.core.io.aio;
 
 import java.io.File;
 import java.io.IOException;
-import java.lang.management.ManagementFactory;
-import java.lang.management.ThreadInfo;
 import java.nio.ByteBuffer;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -41,13 +39,15 @@ import org.apache.activemq.artemis.nativo.jlibaio.SubmitInfo;
 import org.apache.activemq.artemis.utils.ByteUtil;
 import org.apache.activemq.artemis.utils.PowerOf2Util;
 import org.apache.activemq.artemis.utils.critical.CriticalAnalyzer;
-import org.jboss.logging.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
+import org.slf4j.Logger;
 import org.jctools.queues.MpmcArrayQueue;
 import org.jctools.queues.atomic.MpmcAtomicArrayQueue;
 
 public final class AIOSequentialFileFactory extends AbstractSequentialFileFactory {
 
-   private static final Logger logger = Logger.getLogger(AIOSequentialFileFactory.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    // This is useful in cases where you want to disable loading the native library. (e.g. testsuite)
    private static final boolean DISABLED = System.getProperty(AIOSequentialFileFactory.class.getName() + ".DISABLED") != null;
@@ -58,7 +58,7 @@ public final class AIOSequentialFileFactory extends AbstractSequentialFileFactor
       if (DISABLED) {
 
          // This is only used in tests, hence I'm not creating a Logger for this
-         logger.info(AIOSequentialFileFactory.class.getName() + ".DISABLED = true");
+         logger.info("{}.DISABLED = true", AIOSequentialFileFactory.class.getName());
       }
    }
 
@@ -107,13 +107,11 @@ public final class AIOSequentialFileFactory extends AbstractSequentialFileFactor
                                    final CriticalAnalyzer analyzer) {
       super(journalDir, true, bufferSize, bufferTimeout, maxIO, logRates, listener, analyzer);
       if (maxIO == 1) {
-         ActiveMQJournalLogger.LOGGER.warn("Using journal-max-io 1 isn't a proper use of ASYNCIO journal: consider rise this value or use NIO.");
+         logger.warn("Using journal-max-io 1 isn't a proper use of ASYNCIO journal: consider rise this value or use NIO.");
       }
       final int adjustedMaxIO = Math.max(2, maxIO);
       callbackPool = PlatformDependent.hasUnsafe() ? new MpmcArrayQueue<>(adjustedMaxIO) : new MpmcAtomicArrayQueue<>(adjustedMaxIO);
-      if (logger.isTraceEnabled()) {
-         logger.trace("New AIO File Created");
-      }
+      logger.trace("New AIO File Created");
    }
 
    public AIOSequentialCallback getCallback() {
@@ -318,14 +316,6 @@ public final class AIOSequentialFileFactory extends AbstractSequentialFileFactor
       }
    }
 
-   static void threadDump(String message) {
-      ActiveMQJournalLogger.LOGGER.warn(message);
-      final ThreadInfo[] threads = ManagementFactory.getThreadMXBean().dumpAllThreads(true, true);
-      for (ThreadInfo threadInfo : threads) {
-         ActiveMQJournalLogger.LOGGER.warn(threadInfo.toString());
-      }
-   }
-
    /**
     * The same callback is used for Runnable executor.
     * This way we can save some memory over the pool.
@@ -402,9 +392,10 @@ public final class AIOSequentialFileFactory extends AbstractSequentialFileFactor
 
       @Override
       public void onError(int errno, String message) {
-         if (logger.isDebugEnabled()) {
-            logger.trace("AIO on error issued. Error(code: " + errno + " msg: " + message + ")");
+         if (logger.isTraceEnabled()) {
+            logger.trace("AIO on error issued. Error(code: {} msg: {})", errno, message);
          }
+
          this.error = true;
          this.errorCode = errno;
          this.errorMessage = message;
@@ -427,7 +418,7 @@ public final class AIOSequentialFileFactory extends AbstractSequentialFileFactor
             if (callback != null) {
                callback.onError(errorCode, errorMessage);
             }
-            onIOError(new ActiveMQException(errorCode, errorMessage), errorMessage, null);
+            onIOError(new ActiveMQException(errorCode, errorMessage), errorMessage);
             errorMessage = null;
          } else {
             if (callback != null) {
@@ -455,8 +446,8 @@ public final class AIOSequentialFileFactory extends AbstractSequentialFileFactor
             try {
                libaioContext.poll();
             } catch (Throwable e) {
-               ActiveMQJournalLogger.LOGGER.warn(e.getMessage(), e);
-               onIOError(new ActiveMQException("Error on libaio poll"), e.getMessage(), null);
+               logger.warn(e.getMessage(), e);
+               onIOError(new ActiveMQException("Error on libaio poll"), e.getMessage());
             }
          }
       }
@@ -489,8 +480,7 @@ public final class AIOSequentialFileFactory extends AbstractSequentialFileFactor
          // just to cleanup this
          if (bufferSize > 0 && System.currentTimeMillis() - bufferReuseLastTime > 10000) {
             if (logger.isTraceEnabled()) {
-               logger.trace("Clearing reuse buffers queue with " + reuseBuffersQueue.size() +
-                               " elements");
+               logger.trace("Clearing reuse buffers queue with {} elements", reuseBuffersQueue.size());
             }
 
             bufferReuseLastTime = System.currentTimeMillis();

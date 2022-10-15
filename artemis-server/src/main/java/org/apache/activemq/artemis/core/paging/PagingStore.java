@@ -18,7 +18,6 @@ package org.apache.activemq.artemis.core.paging;
 
 import java.io.File;
 import java.util.Collection;
-import java.util.concurrent.locks.ReentrantReadWriteLock.ReadLock;
 
 import org.apache.activemq.artemis.api.core.Message;
 import org.apache.activemq.artemis.api.core.RefCountMessageListener;
@@ -31,6 +30,7 @@ import org.apache.activemq.artemis.core.server.RouteContextList;
 import org.apache.activemq.artemis.core.settings.impl.AddressFullMessagePolicy;
 import org.apache.activemq.artemis.core.settings.impl.AddressSettings;
 import org.apache.activemq.artemis.core.transaction.Transaction;
+import org.apache.activemq.artemis.utils.actors.ArtemisExecutor;
 
 /**
  * <p>
@@ -46,12 +46,12 @@ public interface PagingStore extends ActiveMQComponent, RefCountMessageListener 
 
    SimpleString getAddress();
 
-   int getNumberOfPages();
+   long getNumberOfPages();
 
    /**
     * Returns the page id of the current page in which the system is writing files.
     */
-   int getCurrentWritingPage();
+   long getCurrentWritingPage();
 
    SimpleString getStoreName();
 
@@ -66,6 +66,10 @@ public interface PagingStore extends ActiveMQComponent, RefCountMessageListener 
    long getAddressSize();
 
    long getMaxSize();
+
+   int getMaxPageReadBytes();
+
+   int getMaxPageReadMessages();
 
    void applySetting(AddressSettings addressSettings);
 
@@ -89,18 +93,20 @@ public interface PagingStore extends ActiveMQComponent, RefCountMessageListener 
    /**
     * Write message to page if we are paging.
     *
-    * @param readLock a read lock from the storage manager. This is an encapsulation violation made
-    *                 to keep the code less complex. If give {@code null} the method will throw a
-    *                 {@link NullPointerException}
     * @return {@code true} if we are paging and have handled the data, {@code false} if the data
     * needs to be sent to the journal
     * @throws NullPointerException if {@code readLock} is null
     */
-   boolean page(Message message, Transaction tx, RouteContextList listCtx, ReadLock readLock) throws Exception;
+   boolean page(Message message, Transaction tx, RouteContextList listCtx) throws Exception;
 
-   Page createPage(int page) throws Exception;
+   Page usePage(long page);
 
-   boolean checkPageFileExists(int page) throws Exception;
+   /** Use this method when you want to use the cache of used pages. If you are just using offline (e.g. print-data), use the newPageObject method.*/
+   Page usePage(long page, boolean create);
+
+   Page newPageObject(long page) throws Exception;
+
+   boolean checkPageFileExists(long page) throws Exception;
 
    PagingManager getPagingManager();
 
@@ -173,6 +179,10 @@ public interface PagingStore extends ActiveMQComponent, RefCountMessageListener 
     * We will wait any pending runnable to finish its execution
     */
    void flushExecutors();
+
+   void execute(Runnable runnable);
+
+   ArtemisExecutor getExecutor();
 
    /**
     * Files to synchronize with a remote backup.

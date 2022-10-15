@@ -30,11 +30,13 @@ import org.apache.activemq.artemis.core.io.aio.AIOSequentialFileFactory;
 import org.apache.activemq.artemis.nativo.jlibaio.LibaioContext;
 import org.apache.activemq.artemis.tests.util.ActiveMQTestBase;
 import org.apache.activemq.artemis.utils.ActiveMQThreadFactory;
-import org.jboss.logging.Logger;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 /**
  * you need to define -Djava.library.path=${project-root}/native/src/.libs when calling the JVM
@@ -45,7 +47,7 @@ import org.junit.Test;
  */
 public class MultiThreadAsynchronousFileTest extends AIOTestBase {
 
-   private static final Logger log = Logger.getLogger(MultiThreadAsynchronousFileTest.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    @BeforeClass
    public static void hasAIO() {
@@ -64,16 +66,12 @@ public class MultiThreadAsynchronousFileTest extends AIOTestBase {
 
    ExecutorService pollerExecutor;
 
-   private static void debug(final String msg) {
-      log.info(msg);
-   }
-
    @Override
    @Before
    public void setUp() throws Exception {
       super.setUp();
       pollerExecutor = Executors.newCachedThreadPool(new ActiveMQThreadFactory("ActiveMQ-AIO-poller-pool" + System.identityHashCode(this), false, this.getClass().getClassLoader()));
-      executor = Executors.newSingleThreadExecutor(ActiveMQThreadFactory.defaultThreadFactory());
+      executor = Executors.newSingleThreadExecutor(ActiveMQThreadFactory.defaultThreadFactory(getClass().getName()));
    }
 
    @Override
@@ -95,7 +93,8 @@ public class MultiThreadAsynchronousFileTest extends AIOTestBase {
    }
 
    private void executeTest(final boolean sync) throws Throwable {
-      MultiThreadAsynchronousFileTest.debug(sync ? "Sync test:" : "Async test");
+      logger.debug(sync ? "Sync test:" : "Async test");
+
       AIOSequentialFileFactory factory = new AIOSequentialFileFactory(getTestDirfile(), 100);
       factory.start();
       factory.disableBufferReuse();
@@ -103,11 +102,11 @@ public class MultiThreadAsynchronousFileTest extends AIOTestBase {
       AIOSequentialFile file = (AIOSequentialFile) factory.createSequentialFile(fileName);
       file.open();
       try {
-         MultiThreadAsynchronousFileTest.debug("Preallocating file");
+         logger.debug("Preallocating file");
 
          file.fill(MultiThreadAsynchronousFileTest.NUMBER_OF_THREADS *
                       MultiThreadAsynchronousFileTest.SIZE * MultiThreadAsynchronousFileTest.NUMBER_OF_LINES);
-         MultiThreadAsynchronousFileTest.debug("Done Preallocating file");
+         logger.debug("Done Preallocating file");
 
          CountDownLatch latchStart = new CountDownLatch(MultiThreadAsynchronousFileTest.NUMBER_OF_THREADS + 1);
 
@@ -129,16 +128,13 @@ public class MultiThreadAsynchronousFileTest extends AIOTestBase {
                throw producer.failed;
             }
          }
-         long endTime = System.currentTimeMillis();
 
-         MultiThreadAsynchronousFileTest.debug((sync ? "Sync result:" : "Async result:") + " Records/Second = " +
-                                                  MultiThreadAsynchronousFileTest.NUMBER_OF_THREADS *
-                                                     MultiThreadAsynchronousFileTest.NUMBER_OF_LINES *
-                                                     1000 / (endTime - startTime) +
-                                                  " total time = " +
-                                                  (endTime - startTime) +
-                                                  " total number of records = " +
-                                                  MultiThreadAsynchronousFileTest.NUMBER_OF_THREADS * MultiThreadAsynchronousFileTest.NUMBER_OF_LINES);
+         long endTime = System.currentTimeMillis();
+         long duration = endTime - startTime;
+         long numRecords = NUMBER_OF_THREADS * NUMBER_OF_LINES;
+         long rate = numRecords * 1000 / duration;
+
+         logger.info("{} result: Records/Second = {} total time = {} total number of records = {}", (sync ? "Sync" : "Async"), rate, duration, numRecords);
       } finally {
          file.close();
          factory.stop();

@@ -45,7 +45,9 @@ import org.apache.activemq.artemis.core.server.Queue;
 import org.apache.activemq.artemis.core.server.ServerConsumer;
 import org.apache.activemq.artemis.core.server.impl.ServerSessionImpl;
 import org.apache.activemq.artemis.core.transaction.Transaction;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 import static io.netty.handler.codec.mqtt.MqttProperties.MqttPropertyType.CONTENT_TYPE;
 import static io.netty.handler.codec.mqtt.MqttProperties.MqttPropertyType.CORRELATION_DATA;
@@ -67,15 +69,13 @@ import static org.apache.activemq.artemis.core.protocol.mqtt.MQTTUtil.MQTT_USER_
  */
 public class MQTTPublishManager {
 
-   private static final Logger logger = Logger.getLogger(MQTTPublishManager.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private SimpleString managementAddress;
 
    private ServerConsumer managementConsumer;
 
    private MQTTSession session;
-
-   private MQTTLogger log = MQTTLogger.LOGGER;
 
    private final Object lock = new Object();
 
@@ -214,11 +214,7 @@ public class MQTTPublishManager {
 
             Transaction tx = session.getServerSession().newTransaction();
             try {
-               if (internal) {
-                  session.getServer().getPostOffice().route(serverMessage, tx, true);
-               } else {
-                  session.getServerSession().send(tx, serverMessage, true, false);
-               }
+               session.getServerSession().send(tx, serverMessage, true, false);
 
                if (message.fixedHeader().isRetain()) {
                   ByteBuf payload = message.payload();
@@ -228,6 +224,9 @@ public class MQTTPublishManager {
                tx.commit();
             } catch (ActiveMQSecurityException e) {
                tx.rollback();
+               if (internal) {
+                  throw e;
+               }
                if (session.getVersion() == MQTTVersion.MQTT_5) {
                   sendMessageAck(internal, qos, messageId, MQTTReasonCodes.NOT_AUTHORIZED);
                   return;
@@ -244,9 +243,7 @@ public class MQTTPublishManager {
                   if (closeMqttConnectionOnPublishAuthorizationFailure) {
                      throw e;
                   } else {
-                     if (logger.isDebugEnabled()) {
-                        logger.debug("MQTT 3.1.1 client not authorized to publish message.");
-                     }
+                     logger.debug("MQTT 3.1.1 client not authorized to publish message.");
                   }
                } else {
                   /*
@@ -259,9 +256,7 @@ public class MQTTPublishManager {
                    *
                    * Log the failure since we have to just swallow it.
                    */
-                  if (logger.isDebugEnabled()) {
-                     logger.debug("MQTT 3.1 client not authorized to publish message.");
-                  }
+                  logger.debug("MQTT 3.1 client not authorized to publish message.");
                }
             } catch (Throwable t) {
                MQTTLogger.LOGGER.failedToPublishMqttMessage(t.getMessage(), t);
@@ -345,7 +340,7 @@ public class MQTTPublishManager {
 
          @Override
          public void onError(int errorCode, String errorMessage) {
-            log.error("Pub Sync Failed");
+            logger.error("Pub Sync Failed");
          }
       });
    }
@@ -365,7 +360,7 @@ public class MQTTPublishManager {
             releaseFlowControl(ref.getB());
          }
       } catch (ActiveMQIllegalStateException e) {
-         log.warn("MQTT Client(" + session.getState().getClientId() + ") attempted to Ack already Ack'd message");
+         logger.warn("MQTT Client({}) attempted to Ack already Ack'd message", session.getState().getClientId());
       }
    }
 
@@ -426,7 +421,7 @@ public class MQTTPublishManager {
              * [MQTT-3.1.2-25] Where a Packet is too large to send, the Server MUST discard it without sending it and then
              * behave as if it had completed sending that Application Message
              */
-            logger.debugf("Not sending message %s to client as its size (%d) exceeds the max (%d)", message, size, maxSize);
+            logger.debug("Not sending message {} to client as its size ({}) exceeds the max ({})", message, size, maxSize);
             session.getServerSession().individualAcknowledge(consumerId, message.getMessageID());
             return false;
          }

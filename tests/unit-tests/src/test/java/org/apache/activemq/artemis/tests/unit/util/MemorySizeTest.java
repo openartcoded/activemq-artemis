@@ -19,23 +19,25 @@ package org.apache.activemq.artemis.tests.unit.util;
 import org.apache.activemq.artemis.core.message.impl.CoreMessage;
 import org.apache.activemq.artemis.core.server.impl.MessageReferenceImpl;
 import org.apache.activemq.artemis.utils.MemorySize;
-import org.jboss.logging.Logger;
 import org.junit.Assert;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 public class MemorySizeTest extends Assert {
-   private static final Logger log = Logger.getLogger(MemorySizeTest.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    @Test
    public void testObjectSizes() throws Exception {
-      log.info("Server message size is " + MemorySize.calculateSize(new MemorySize.ObjectFactory() {
+      logger.info("Server message size is {}", MemorySize.calculateSize(new MemorySize.ObjectFactory() {
          @Override
          public Object createObject() {
             return new CoreMessage(1, 1000);
          }
       }));
 
-      log.info("Message reference size is " + MemorySize.calculateSize(new MemorySize.ObjectFactory() {
+      logger.info("Message reference size is {}", MemorySize.calculateSize(new MemorySize.ObjectFactory() {
          @Override
          public Object createObject() {
             return new MessageReferenceImpl();

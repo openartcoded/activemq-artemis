@@ -20,7 +20,9 @@ package org.apache.activemq.artemis.utils.actors;
 import java.util.concurrent.Executor;
 
 import org.apache.activemq.artemis.api.core.ActiveMQInterruptedException;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 /**
  * An executor that always runs all tasks in order, using a delegate executor to run the tasks.
@@ -34,12 +36,29 @@ public class OrderedExecutor extends ProcessorBase<Runnable> implements ArtemisE
       super(delegate);
    }
 
-   private static final Logger logger = Logger.getLogger(OrderedExecutor.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
+
+   private boolean fair;
+
+   @Override
+   public boolean isFair() {
+      return fair;
+   }
+
+   @Override
+   /** If this OrderedExecutor is fair, it will yield for another executors after each task ran */
+   public OrderedExecutor setFair(boolean fair) {
+      this.fair = fair;
+      return this;
+   }
 
    @Override
    protected final void doTask(Runnable task) {
       try {
          task.run();
+         if (fair) {
+            this.yield();
+         }
       } catch (ActiveMQInterruptedException e) {
          // This could happen during shutdowns. Nothing to be concerned about here
          logger.debug("Interrupted Thread", e);

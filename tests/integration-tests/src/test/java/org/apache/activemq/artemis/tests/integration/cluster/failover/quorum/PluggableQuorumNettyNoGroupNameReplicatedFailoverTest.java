@@ -43,12 +43,14 @@ import org.apache.activemq.artemis.quorum.file.FileBasedPrimitiveManager;
 import org.apache.activemq.artemis.tests.integration.cluster.failover.FailoverTest;
 import org.apache.activemq.artemis.tests.integration.cluster.util.TestableServer;
 import org.apache.activemq.artemis.tests.util.Wait;
-import org.jboss.logging.Logger;
 import org.junit.Assert;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 public class PluggableQuorumNettyNoGroupNameReplicatedFailoverTest extends FailoverTest {
-   private static final Logger log = Logger.getLogger(PluggableQuorumReplicatedLargeMessageFailoverTest.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    protected void beforeWaitForRemoteBackupSynchronization() {
    }
@@ -220,7 +222,7 @@ public class PluggableQuorumNettyNoGroupNameReplicatedFailoverTest extends Failo
 
    @Override
    protected void decrementActivationSequenceForForceRestartOf(TestableServer testableServer) throws Exception {
-      doDecrementActivationSequenceForForceRestartOf(log, nodeManager, managerConfiguration);
+      doDecrementActivationSequenceForForceRestartOf(logger, nodeManager, managerConfiguration);
    }
 
    public static void doDecrementActivationSequenceForForceRestartOf(Logger log, NodeManager nodeManager, DistributedPrimitiveManagerConfiguration distributedPrimitiveManagerConfiguration) throws Exception {
@@ -235,7 +237,7 @@ public class PluggableQuorumNettyNoGroupNameReplicatedFailoverTest extends Failo
          if (!mutableLong.compareAndSet(localActivation + 1, localActivation)) {
             throw new Exception("Failed to decrement coordinated activation sequence to:" + localActivation + ", not +1 : " + mutableLong.get());
          }
-         log.warn("Intentionally decrementing coordinated activation sequence for test, may result is lost data");
+         logger.warn("Intentionally decrementing coordinated activation sequence for test, may result is lost data");
 
       } finally {
          fileBasedPrimitiveManager.stop();

@@ -34,14 +34,16 @@ import org.apache.activemq.artemis.api.core.RoutingType;
 import org.apache.activemq.artemis.core.server.impl.QueueImpl;
 import org.apache.activemq.artemis.core.settings.impl.AddressSettings;
 import org.apache.activemq.artemis.tests.util.ActiveMQTestBase;
-import org.jboss.logging.Logger;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 public class MultipleConsumersPageStressTest extends ActiveMQTestBase {
 
-   private static final Logger log = Logger.getLogger(MultipleConsumersPageStressTest.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
 
    private static final int TIME_TO_RUN = 60 * 1000;
@@ -315,11 +317,7 @@ public class MultipleConsumersPageStressTest extends ActiveMQTestBase {
                for (int i = 0; i < numberOfMessages; i++) {
                   ClientMessage msg = consumer.receive(10000);
                   if (msg == null) {
-                     log.warn("msg " + count +
-                                 " was null, currentBatchSize=" +
-                                 numberOfMessages +
-                                 ", current msg being read=" +
-                                 i);
+                     logger.warn("msg {} was null, currentBatchSize={}, current msg being read={}", count, numberOfMessages, i);
                   }
                   Assert.assertNotNull("msg " + count +
                                           " was null, currentBatchSize=" +

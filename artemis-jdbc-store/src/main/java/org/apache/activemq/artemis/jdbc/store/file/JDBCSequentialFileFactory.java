@@ -32,13 +32,14 @@ import org.apache.activemq.artemis.core.io.nio.NIOSequentialFileFactory;
 import org.apache.activemq.artemis.core.server.ActiveMQComponent;
 import org.apache.activemq.artemis.jdbc.store.drivers.JDBCConnectionProvider;
 import org.apache.activemq.artemis.jdbc.store.sql.SQLProvider;
-import org.apache.activemq.artemis.journal.ActiveMQJournalLogger;
 import org.apache.activemq.artemis.utils.collections.ConcurrentHashSet;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 public class JDBCSequentialFileFactory implements SequentialFileFactory, ActiveMQComponent {
 
-   private static final Logger logger = Logger.getLogger(JDBCSequentialFile.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private boolean started;
 
@@ -104,7 +105,7 @@ public class JDBCSequentialFileFactory implements SequentialFileFactory, ActiveM
       try {
          dbDriver.stop();
       } catch (SQLException e) {
-         ActiveMQJournalLogger.LOGGER.error("Error stopping file factory, unable to close db connection");
+         logger.error("Error stopping file factory, unable to close db connection");
       }
       started = false;
    }
@@ -151,7 +152,7 @@ public class JDBCSequentialFileFactory implements SequentialFileFactory, ActiveM
    }
 
    @Override
-   public void onIOError(Exception exception, String message, SequentialFile file) {
+   public void onIOError(Throwable exception, String message, String file) {
       criticalErrorListener.onIOException(exception, message, file);
    }
 
@@ -235,7 +236,7 @@ public class JDBCSequentialFileFactory implements SequentialFileFactory, ActiveM
          try {
             file.sync();
          } catch (Exception e) {
-            criticalErrorListener.onIOException(e, "Error during JDBC file sync.", file);
+            criticalErrorListener.onIOException(e, "Error during JDBC file sync.", file.getFileName());
          }
       }
    }

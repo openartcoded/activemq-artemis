@@ -441,7 +441,8 @@ public class RoutingContextTest {
       public void acknowledge(Transaction tx,
                               MessageReference ref,
                               AckReason reason,
-                              ServerConsumer consumer) throws Exception {
+                              ServerConsumer consumer,
+                              boolean delivering) throws Exception {
 
       }
 
@@ -661,7 +662,7 @@ public class RoutingContextTest {
       }
 
       @Override
-      public void expire(MessageReference ref, ServerConsumer consumer) throws Exception {
+      public void expire(MessageReference ref, ServerConsumer consumer, boolean delivering) throws Exception {
 
       }
 
@@ -895,7 +896,22 @@ public class RoutingContextTest {
       }
 
       @Override
+      public void deliverScheduledMessages(String filter) throws ActiveMQException {
+
+      }
+
+      @Override
+      public void deliverScheduledMessage(long messageId) throws ActiveMQException {
+
+      }
+
+      @Override
       public void postAcknowledge(MessageReference ref, AckReason reason) {
+
+      }
+
+      @Override
+      public void postAcknowledge(MessageReference ref, AckReason reason, boolean delivering) {
 
       }
 

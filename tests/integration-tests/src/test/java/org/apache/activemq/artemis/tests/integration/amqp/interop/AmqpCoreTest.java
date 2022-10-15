@@ -16,27 +16,37 @@
  */
 package org.apache.activemq.artemis.tests.integration.amqp.interop;
 
+import javax.jms.Connection;
+import javax.jms.ConnectionFactory;
+import javax.jms.Destination;
+import javax.jms.MessageConsumer;
+import javax.jms.MessageProducer;
+import javax.jms.Session;
+import java.lang.invoke.MethodHandles;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import javax.jms.Connection;
-import javax.jms.ConnectionFactory;
-import javax.jms.MessageProducer;
-import javax.jms.Session;
-
+import org.apache.activemq.artemis.api.core.Message;
 import org.apache.activemq.artemis.api.core.QueueConfiguration;
+import org.apache.activemq.artemis.api.core.SimpleString;
 import org.apache.activemq.artemis.api.core.client.ClientConsumer;
 import org.apache.activemq.artemis.api.core.client.ClientMessage;
+import org.apache.activemq.artemis.api.core.client.ClientProducer;
 import org.apache.activemq.artemis.api.core.client.ClientSession;
 import org.apache.activemq.artemis.api.core.client.MessageHandler;
 import org.apache.activemq.artemis.jms.client.ActiveMQSession;
 import org.apache.activemq.artemis.tests.integration.amqp.JMSClientTestSupport;
+import org.apache.activemq.artemis.tests.util.RandomUtil;
 import org.apache.activemq.artemis.tests.util.Wait;
 import org.apache.qpid.jms.JmsConnectionFactory;
 import org.apache.qpid.jms.JmsTopic;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class AmqpCoreTest extends JMSClientTestSupport {
+
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    @Override
    protected String getConfiguredProtocols() {
@@ -82,6 +92,46 @@ public class AmqpCoreTest extends JMSClientTestSupport {
       }
    }
 
+   @Test(timeout = 60000)
+   public void testAmqpFailedConversionFromCore() throws Exception {
+      final SimpleString message = RandomUtil.randomSimpleString();
+      Connection coreJmsConn = this.createCoreConnection();
+      ConnectionFactory cfAMQP = new JmsConnectionFactory("amqp://127.0.0.1:" + AMQP_PORT);
+      Connection connectionAMQP = cfAMQP.createConnection();
+      try {
+         connectionAMQP.start();
+         Session sessionAMQP = connectionAMQP.createSession(false, Session.AUTO_ACKNOWLEDGE);
+         Destination destination = sessionAMQP.createQueue(getQueueName());
+         MessageConsumer consumer = sessionAMQP.createConsumer(destination);
+
+         Session session = coreJmsConn.createSession(false, Session.AUTO_ACKNOWLEDGE);
+         ClientSession coreSession = ((ActiveMQSession) session).getCoreSession();
+         ClientProducer producer = coreSession.createProducer(getQueueName());
+
+         /*
+          * Create a message that will intentionally fail conversion.
+          * The body of a TEXT_TYPE message should be written with writeNullableSimpleString().
+          */
+         ClientMessage m = coreSession.createMessage(true);
+         m.setType(Message.TEXT_TYPE);
+         m.getBodyBuffer().writeBytes(message.getData());
+         producer.send(m);
+
+         Wait.assertEquals(1L, () -> server.locateQueue(getDeadLetterAddress()).getMessageCount(), 2000, 100);
+
+         m = coreSession.createMessage(true);
+         m.setType(Message.TEXT_TYPE);
+         m.getBodyBuffer().writeNullableSimpleString(message);
+         producer.send(m);
+
+         assertNotNull(consumer.receive(500));
+
+      } finally {
+         coreJmsConn.close();
+         connectionAMQP.close();
+      }
+   }
+
    private void sendAmqpMessages(String address, int total) throws Exception {
       ConnectionFactory cfAMQP = new JmsConnectionFactory("amqp://127.0.0.1:" + AMQP_PORT);
       Connection connectionAMQP = cfAMQP.createConnection();
@@ -109,13 +159,13 @@ public class AmqpCoreTest extends JMSClientTestSupport {
 
       @Override
       public void onMessage(ClientMessage message) {
-         instanceLog.debug("received: " + message.getBodySize());
+         logger.debug("received: {}", message.getBodySize());
          if (message.getBodySize() == 0) {
-            instanceLog.debug("xxx found zero len message!");
+            logger.debug("xxx found zero len message!");
             zeroLen.set(true);
          }
 
-         instanceLog.debug("[receiver " + id + "] recieved: " + numMsg.incrementAndGet());
+         logger.debug("[receiver {}] recieved: {}", id, numMsg.incrementAndGet());
       }
 
       public void assertMessagesReceived(int num) throws Exception {

@@ -29,14 +29,16 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 /**
  * A LoginModule that propagates TLS certificates subject DN as a UserPrincipal.
  */
 public class ExternalCertificateLoginModule implements AuditLoginModule {
 
-   private static final Logger logger = Logger.getLogger(ExternalCertificateLoginModule.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private CallbackHandler callbackHandler;
    private Subject subject;
@@ -71,7 +73,10 @@ public class ExternalCertificateLoginModule implements AuditLoginModule {
          userName = certificates[0].getSubjectDN().getName();
       }
 
-      logger.debug("Certificates: " + Arrays.toString(certificates) + ", userName: " + userName);
+      if (logger.isDebugEnabled()) {
+         logger.debug("Certificates: {}, userName: {}", Arrays.toString(certificates), userName);
+      }
+
       return userName != null;
    }
 

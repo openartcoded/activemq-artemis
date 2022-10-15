@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.activemq.artemis.api.core.ActiveMQBuffer;
@@ -94,7 +93,7 @@ public class NullStorageManager implements StorageManager {
    public NullStorageManager() {
       this(new IOCriticalErrorListener() {
          @Override
-         public void onIOException(Throwable code, String message, SequentialFile file) {
+         public void onIOException(Throwable code, String message, String file) {
             code.printStackTrace();
          }
       });
@@ -379,15 +378,15 @@ public class NullStorageManager implements StorageManager {
    }
 
    @Override
-   public void pageClosed(final SimpleString storeName, final int pageNumber) {
+   public void pageClosed(final SimpleString storeName, final long pageNumber) {
    }
 
    @Override
-   public void pageDeleted(final SimpleString storeName, final int pageNumber) {
+   public void pageDeleted(final SimpleString storeName, final long pageNumber) {
    }
 
    @Override
-   public void pageWrite(final PagedMessage message, final int pageNumber) {
+   public void pageWrite(final PagedMessage message, final long pageNumber) {
    }
 
    @Override
@@ -642,18 +641,8 @@ public class NullStorageManager implements StorageManager {
                             Message msg,
                             Transaction tx,
                             RouteContextList listCtx) throws Exception {
-      /**
-       * Exposing the read-lock here is an encapsulation violation done in order to keep the code
-       * simpler. The alternative would be to add a second method, say 'verifyPaging', to
-       * PagingStore.
-       * <p>
-       * Adding this second method would also be more surprise prone as it would require a certain
-       * calling order.
-       * <p>
-       * The reasoning is that exposing the lock is more explicit and therefore `less bad`.
-       */
       if (store != null) {
-         return store.page(msg, tx, listCtx, null);
+         return store.page(msg, tx, listCtx);
       } else {
          return false;
       }
@@ -677,19 +666,6 @@ public class NullStorageManager implements StorageManager {
    @Override
    public void addBytesToLargeMessage(SequentialFile file, long messageId, ActiveMQBuffer bytes) throws Exception {
 
-   }
-
-   @Override
-   public void beforePageRead() throws Exception {
-   }
-
-   @Override
-   public boolean beforePageRead(long timeout, TimeUnit unit) throws InterruptedException {
-      return true;
-   }
-
-   @Override
-   public void afterPageRead() throws Exception {
    }
 
    @Override

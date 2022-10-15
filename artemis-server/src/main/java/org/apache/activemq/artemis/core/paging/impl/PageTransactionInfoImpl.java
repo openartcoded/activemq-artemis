@@ -27,20 +27,22 @@ import org.apache.activemq.artemis.api.core.ActiveMQBuffer;
 import org.apache.activemq.artemis.core.paging.PageTransactionInfo;
 import org.apache.activemq.artemis.core.paging.PagingManager;
 import org.apache.activemq.artemis.core.paging.cursor.PageIterator;
-import org.apache.activemq.artemis.core.paging.cursor.PagePosition;
 import org.apache.activemq.artemis.core.paging.cursor.PageSubscription;
+import org.apache.activemq.artemis.core.paging.cursor.PagedReference;
 import org.apache.activemq.artemis.core.persistence.StorageManager;
 import org.apache.activemq.artemis.core.server.ActiveMQServerLogger;
 import org.apache.activemq.artemis.core.transaction.Transaction;
 import org.apache.activemq.artemis.core.transaction.TransactionOperationAbstract;
 import org.apache.activemq.artemis.core.transaction.TransactionPropertyIndexes;
 import org.apache.activemq.artemis.utils.DataConstants;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 public final class PageTransactionInfoImpl implements PageTransactionInfo {
 
 
-   private static final Logger logger = Logger.getLogger(PageTransactionInfoImpl.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private static final AtomicIntegerFieldUpdater<PageTransactionInfoImpl> numberOfMessagesUpdater =
       AtomicIntegerFieldUpdater.newUpdater(PageTransactionInfoImpl.class, "numberOfMessages");
@@ -104,7 +106,7 @@ public final class PageTransactionInfoImpl implements PageTransactionInfo {
             try {
                storageManager.deletePageTransactional(this.recordID);
             } catch (Exception e) {
-               ActiveMQServerLogger.LOGGER.pageTxDeleteError(e, recordID);
+               ActiveMQServerLogger.LOGGER.pageTxDeleteError(recordID, e);
             }
          }
          if (pagingManager != null) {
@@ -153,7 +155,7 @@ public final class PageTransactionInfoImpl implements PageTransactionInfo {
       if (lateDeliveries != null) {
          // This is to make sure deliveries that were touched before the commit arrived will be delivered
          for (LateDelivery pos : lateDeliveries) {
-            pos.getSubscription().redeliver(pos.getIterator(), pos.getPagePosition());
+            pos.getSubscription().redeliver(pos.getIterator(), pos.getPageReference());
          }
          lateDeliveries.clear();
       }
@@ -235,7 +237,7 @@ public final class PageTransactionInfoImpl implements PageTransactionInfo {
 
       if (lateDeliveries != null) {
          for (LateDelivery pos : lateDeliveries) {
-            pos.getSubscription().lateDeliveryRollback(pos.getPagePosition());
+            pos.getSubscription().lateDeliveryRollback(pos.getPageReference().getPagedMessage().newPositionObject());
             onUpdate(1, null, pos.getSubscription().getPagingStore().getPagingManager());
          }
          lateDeliveries = null;
@@ -255,41 +257,34 @@ public final class PageTransactionInfoImpl implements PageTransactionInfo {
    @Override
    public synchronized boolean deliverAfterCommit(PageIterator iterator,
                                                   PageSubscription cursor,
-                                                  PagePosition cursorPos) {
-
-      if (logger.isTraceEnabled()) {
-         logger.trace("deliver after commit on " + cursor + ", position=" + cursorPos);
-      }
+                                                  PagedReference pagedReference) {
+      logger.trace("deliver after commit on {}, pagedReference={}", cursor, pagedReference);
 
       if (committed && useRedelivery) {
-         if (logger.isTraceEnabled()) {
-            logger.trace("commit & useRedelivery on " + cursor + ", position=" + cursorPos);
-         }
-         cursor.addPendingDelivery(cursorPos);
-         cursor.redeliver(iterator, cursorPos);
+         logger.trace("commit & useRedelivery on {}, pagedReference={}", cursor, pagedReference);
+
+         cursor.addPendingDelivery(pagedReference.getPagedMessage());
+         cursor.redeliver(iterator, pagedReference);
          return true;
       } else if (committed) {
-         if (logger.isTraceEnabled()) {
-            logger.trace("committed on " + cursor + ", position=" + cursorPos + ", ignoring position");
-         }
+         logger.trace("committed on {}, position={}, ignoring position", cursor, pagedReference);
+
          return false;
       } else if (rolledback) {
-         if (logger.isTraceEnabled()) {
-            logger.trace("rolled back, position ignored on " + cursor + ", position=" + cursorPos);
-         }
-         cursor.positionIgnored(cursorPos);
+         logger.trace("rolled back, position ignored on {}, position={}", cursor, pagedReference);
+
+         cursor.positionIgnored(pagedReference.getPagedMessage().newPositionObject());
          onUpdate(1, null, cursor.getPagingStore().getPagingManager());
          return true;
       } else {
-         if (logger.isTraceEnabled()) {
-            logger.trace("deliverAftercommit/else, marking useRedelivery on " + cursor + ", position " + cursorPos);
-         }
+         logger.trace("deliverAftercommit/else, marking useRedelivery on {}, position {}", cursor, pagedReference);
+
          useRedelivery = true;
          if (lateDeliveries == null) {
             lateDeliveries = new LinkedList<>();
          }
-         cursor.addPendingDelivery(cursorPos);
-         lateDeliveries.add(new LateDelivery(cursor, cursorPos, iterator));
+         cursor.addPendingDelivery(pagedReference.getPagedMessage());
+         lateDeliveries.add(new LateDelivery(cursor, pagedReference, iterator));
          return true;
       }
    }
@@ -304,12 +299,12 @@ public final class PageTransactionInfoImpl implements PageTransactionInfo {
    private static class LateDelivery {
 
       final PageSubscription subscription;
-      final PagePosition pagePosition;
+      final PagedReference pagedReference;
       final PageIterator iterator;
 
-      private LateDelivery(PageSubscription subscription, PagePosition pagePosition, PageIterator iterator) {
+      private LateDelivery(PageSubscription subscription, PagedReference pagedReference, PageIterator iterator) {
          this.subscription = subscription;
-         this.pagePosition = pagePosition;
+         this.pagedReference = pagedReference;
          this.iterator = iterator;
       }
 
@@ -317,8 +312,8 @@ public final class PageTransactionInfoImpl implements PageTransactionInfo {
          return subscription;
       }
 
-      public PagePosition getPagePosition() {
-         return pagePosition;
+      public PagedReference getPageReference() {
+         return pagedReference;
       }
 
       public PageIterator getIterator() {

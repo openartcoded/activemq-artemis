@@ -25,7 +25,6 @@ that would be found in the `broker.xml` file.
       <max-size-messages>1000</max-size-messages>
       <max-size-bytes-reject-threshold>-1</max-size-bytes-reject-threshold>
       <page-size-bytes>20000</page-size-bytes>
-      <page-max-cache-size></page-max-cache-size>
       <address-full-policy>PAGE</address-full-policy>
       <message-counter-history-day-limit></message-counter-history-day-limit>
       <last-value-queue>true</last-value-queue> <!-- deprecated! see default-last-value-queue -->
@@ -35,7 +34,7 @@ that would be found in the `broker.xml` file.
       <default-consumers-before-dispatch>0</default-consumers-before-dispatch>
       <default-delay-before-dispatch>-1</default-delay-before-dispatch>
       <redistribution-delay>0</redistribution-delay>
-      <send-to-dla-on-no-route>true</send-to-dla-on-no-route>
+      <send-to-dla-on-no-route>false</send-to-dla-on-no-route>
       <slow-consumer-threshold>-1</slow-consumer-threshold>
       <slow-consumer-threshold-measurement-unit>MESSAGES_PER_SECOND</slow-consumer-threshold-measurement-unit>
       <slow-consumer-policy>NOTIFY</slow-consumer-policy>
@@ -73,6 +72,14 @@ address "order.foo" address but you can also use
 
 For example, if you used the `match` string `queue.#` the settings would be
 applied to all addresses which start with `queue.`
+
+Address settings are **hierarchical**. Therefore, if more than one
+`address-setting` would match then the settings are applied in order of their
+specificity with the more specific match taking priority. A match on the
+any-words delimiter (`#`) is considered less specific than a match without it.
+A match with a single word delimiter `*` is considered less specific than a
+match on an exact queue name. In this way settings can be "layered" so that
+configuration details don't need to be repeated.
 
 The meaning of the specific settings are explained fully throughout the user
 manual, however here is a brief description with a link to the appropriate
@@ -139,7 +146,7 @@ calculate an adjustment to the `redelivery-delay` (up or down). Default is
 `0.0`. Valid values are between 0.0 and 1.0. Read more about [undelivered
 messages](undelivered-messages.md#configuring-delayed-redelivery).
 
-`max-size-bytes`, `max-size-messages`, `page-size-bytes`, & `page-max-cache-size` are used to
+`max-size-bytes`, `max-size-messages`, `page-size-bytes`, `max-read-page-messages` & `max-read-page-bytes` are used to
 configure paging on an address. This is explained
 [here](paging.md#configuration).
 
@@ -192,7 +199,7 @@ does not route it to any queues (e.g. there might be no queues bound to that
 address, or none of the queues have filters that match) then normally that
 message would be discarded. However, if this parameter is `true` then such a
 message will instead be sent to the `dead-letter-address` (DLA) for that
-address, if it exists.
+address, if it exists. Default is `false`.
 
 `slow-consumer-threshold`. The minimum rate of message consumption allowed
 before a consumer is considered "slow." Measured in units specified by the

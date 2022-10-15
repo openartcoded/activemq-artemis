@@ -31,11 +31,13 @@ import org.apache.activemq.artemis.core.server.ServerConsumer;
 import org.apache.activemq.artemis.core.server.ServerSession;
 import org.apache.activemq.artemis.core.server.plugin.ActiveMQServerPlugin;
 import org.apache.activemq.artemis.spi.core.security.jaas.RolePrincipal;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 public class BrokerMessageAuthorizationPlugin implements ActiveMQServerPlugin {
 
-   private static final Logger logger = Logger.getLogger(BrokerMessageAuthorizationPlugin.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private static final String ROLE_PROPERTY = "ROLE_PROPERTY";
    private final AtomicReference<ActiveMQServer> server = new AtomicReference<>();
@@ -67,13 +69,13 @@ public class BrokerMessageAuthorizationPlugin implements ActiveMQServerPlugin {
       Subject subject = getSubject(consumer);
       if (subject == null) {
          if (logger.isDebugEnabled()) {
-            logger.debug("Subject not found for consumer: " + consumer.getID());
+            logger.debug("Subject not found for consumer: {}", consumer.getID());
          }
          return false;
       }
       boolean permitted = new RolePrincipal(requiredRole).implies(subject);
       if (!permitted && logger.isDebugEnabled()) {
-         logger.debug("Message consumer: " + consumer.getID() + " does not have required role `" + requiredRole + "` needed to receive message: " + reference.getMessageID());
+         logger.debug("Message consumer: {} does not have required role `{}` needed to receive message: {}", consumer.getID(), requiredRole, reference.getMessageID());
       }
       return permitted;
    }

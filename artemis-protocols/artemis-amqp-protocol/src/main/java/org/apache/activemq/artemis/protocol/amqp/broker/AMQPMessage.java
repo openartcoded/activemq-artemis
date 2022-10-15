@@ -78,7 +78,9 @@ import org.apache.qpid.proton.codec.TypeConstructor;
 import org.apache.qpid.proton.codec.WritableBuffer;
 import org.apache.qpid.proton.message.Message;
 import org.apache.qpid.proton.message.impl.MessageImpl;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 import static org.apache.activemq.artemis.protocol.amqp.converter.AMQPMessageSupport.getCharsetForTextualContent;
 
@@ -118,7 +120,7 @@ public abstract class AMQPMessage extends RefCountMessage implements org.apache.
 
    private static final SimpleString ANNOTATION_AREA_PREFIX = SimpleString.toSimpleString("m.");
 
-   protected static final Logger logger = Logger.getLogger(AMQPMessage.class);
+   protected static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    public static final SimpleString ADDRESS_PROPERTY = SimpleString.toSimpleString("_AMQ_AD");
    // used to perform quick search
@@ -245,13 +247,17 @@ public abstract class AMQPMessage extends RefCountMessage implements org.apache.
 
       this.headerPosition = copy.headerPosition;
       this.encodedHeaderSize = copy.encodedHeaderSize;
+      this.header = copy.header == null ? null : new Header(copy.header);
       this.deliveryAnnotationsPosition = copy.deliveryAnnotationsPosition;
       this.encodedDeliveryAnnotationsSize = copy.encodedDeliveryAnnotationsSize;
+      this.deliveryAnnotations = copy.deliveryAnnotations == null ? null : new DeliveryAnnotations(copy.deliveryAnnotations.getValue());
       this.messageAnnotationsPosition = copy.messageAnnotationsPosition;
+      this.messageAnnotations = copy.messageAnnotations == null ? null : new MessageAnnotations(copy.messageAnnotations.getValue());
       this.propertiesPosition = copy.propertiesPosition;
+      this.properties = copy.properties == null ? null : new Properties(copy.properties);
       this.applicationPropertiesPosition = copy.applicationPropertiesPosition;
+      this.applicationProperties = copy.applicationProperties == null ? null : new ApplicationProperties(copy.applicationProperties.getValue());
       this.remainingBodyPosition = copy.remainingBodyPosition;
-      this.applicationProperties = copy.applicationProperties;
       this.messageDataScanned = copy.messageDataScanned;
    }
 
@@ -910,6 +916,9 @@ public abstract class AMQPMessage extends RefCountMessage implements org.apache.
          if (properties.getSubject() != null) {
             map.put(propertiesPrefix + "subject", properties.getSubject());
          }
+         if (properties.getReplyTo() != null) {
+            map.put(propertiesPrefix + "replyTo", properties.getReplyTo());
+         }
       }
 
       return map;
@@ -1351,7 +1360,7 @@ public abstract class AMQPMessage extends RefCountMessage implements org.apache.
    @Override
    public boolean hasScheduledDeliveryTime() {
       if (scheduledTime >= 0) {
-         return true;
+         return scheduledTime > 0;
       }
       return anyMessageAnnotations(SCHEDULED_DELIVERY_SYMBOLS, SCHEDULED_DELIVERY_NEEDLES);
    }

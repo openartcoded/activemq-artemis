@@ -25,14 +25,16 @@ import org.apache.activemq.artemis.api.core.client.ClientSession;
 import org.apache.activemq.artemis.api.core.client.ClientSessionFactory;
 import org.apache.activemq.artemis.api.core.client.ServerLocator;
 import org.apache.activemq.artemis.core.remoting.impl.netty.NettyConnectorFactory;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 /**
  * Code to be run in an external VM, via main()
  */
 public class CrashClient2 {
 
-   private static final Logger log = Logger.getLogger(CrashClient2.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
    public static final int OK = 9;
 
    public static void main(final String[] args) throws Exception {
@@ -60,7 +62,7 @@ public class CrashClient2 {
          ClientMessage msg = cons.receive(10000);
 
          if (msg == null) {
-            log.error("Didn't receive msg");
+            logger.error("Didn't receive msg");
 
             System.exit(1);
          }
@@ -68,7 +70,7 @@ public class CrashClient2 {
          // exit without closing the session properly
          System.exit(OK);
       } catch (Throwable t) {
-         log.error(t.getMessage(), t);
+         logger.error(t.getMessage(), t);
          System.exit(1);
       }
    }

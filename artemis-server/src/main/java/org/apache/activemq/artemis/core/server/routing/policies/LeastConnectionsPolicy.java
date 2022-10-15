@@ -19,7 +19,9 @@ package org.apache.activemq.artemis.core.server.routing.policies;
 
 import org.apache.activemq.artemis.core.server.routing.targets.Target;
 import org.apache.activemq.artemis.core.server.routing.targets.TargetProbe;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,7 +31,7 @@ import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class LeastConnectionsPolicy extends RoundRobinPolicy {
-   private static final Logger logger = Logger.getLogger(LeastConnectionsPolicy.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    public static final String NAME = "LEAST_CONNECTIONS";
 
@@ -51,20 +53,18 @@ public class LeastConnectionsPolicy extends RoundRobinPolicy {
             Integer connectionCount = target.getAttribute("broker", "ConnectionCount", Integer.class, 3000);
 
             if (connectionCount < connectionCountThreshold) {
-               if (logger.isDebugEnabled()) {
-                  logger.debug("Updating the connection count to 0/" + connectionCount + " for the target " + target);
-               }
+               logger.debug("Updating the connection count to 0/{} for the target {}", connectionCount, target);
 
                connectionCount = 0;
-            } else if (logger.isDebugEnabled()) {
-               logger.debug("Updating the connection count to 0/" + connectionCount + " for the target " + target);
+            } else {
+               logger.debug("Updating the connection count to {} for the target {}", connectionCount, target);
             }
 
             connectionCountCache.put(target, connectionCount);
 
             return true;
          } catch (Exception e) {
-            logger.warn("Error on updating the connectionCount for the target " + target, e);
+            logger.warn("Error on updating the connectionCount for the target {}", target, e);
 
             return false;
          }
@@ -113,9 +113,7 @@ public class LeastConnectionsPolicy extends RoundRobinPolicy {
             leastTargets.add(target);
          }
 
-         if (logger.isDebugEnabled()) {
-            logger.debug("LeastConnectionsPolicy.sortedTargets: " + sortedTargets);
-         }
+         logger.debug("LeastConnectionsPolicy.sortedTargets: {}", sortedTargets);
 
          List<Target> selectedTargets = sortedTargets.firstEntry().getValue();
 

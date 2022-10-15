@@ -45,14 +45,16 @@ import org.apache.activemq.artemis.tests.util.ActiveMQTestBase;
 import org.apache.activemq.artemis.tests.util.CFUtil;
 import org.apache.activemq.artemis.tests.util.RandomUtil;
 import org.apache.activemq.artemis.tests.util.Wait;
-import org.jboss.logging.Logger;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 public class AutoCreateTest extends ActiveMQTestBase {
-   private static final Logger logger = Logger.getLogger(AutoCreateTest.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    public final SimpleString addressA = new SimpleString("addressA");
    public final SimpleString queueA = new SimpleString("queueA");
@@ -71,8 +73,8 @@ public class AutoCreateTest extends ActiveMQTestBase {
       server = createServer(true, true);
       AddressSettings settings = new AddressSettings().setAutoCreateAddresses(true).setAutoDeleteAddresses(true).setAutoCreateQueues(true).setAutoDeleteQueues(true);
 
-      server.getConfiguration().getAddressesSettings().clear();
-      server.getConfiguration().getAddressesSettings().put("#", settings);
+      server.getConfiguration().getAddressSettings().clear();
+      server.getConfiguration().getAddressSettings().put("#", settings);
    }
 
    @Test
@@ -91,7 +93,7 @@ public class AutoCreateTest extends ActiveMQTestBase {
          for (int i = 0; i < 50; i++) {
             ConnectionFactory cf = CFUtil.createConnectionFactory("core", "tcp://localhost:61616");
             logger.debug("*******************************************************************************************************************************");
-            logger.debug("run " + i);
+            logger.debug("run {}", i);
             CyclicBarrier barrier = new CyclicBarrier(THREADS + 1);
             CountDownLatch done = new CountDownLatch(THREADS);
             Runnable consumerThread = () -> {
@@ -180,8 +182,8 @@ public class AutoCreateTest extends ActiveMQTestBase {
       AssertionLoggerHandler.startCapture();
       server.getConfiguration().setAddressQueueScanPeriod(-1); // disabling scanner, we will perform it manually
       AddressSettings settings = new AddressSettings().setAutoDeleteQueues(true).setAutoDeleteAddresses(true).setAutoDeleteAddressesDelay(10).setAutoDeleteQueuesDelay(10);
-      server.getConfiguration().getAddressesSettings().clear();
-      server.getConfiguration().getAddressesSettings().put("#", settings);
+      server.getConfiguration().getAddressSettings().clear();
+      server.getConfiguration().getAddressSettings().put("#", settings);
       server.start();
       String ADDRESS_NAME = getName();
 
@@ -217,8 +219,8 @@ public class AutoCreateTest extends ActiveMQTestBase {
       AssertionLoggerHandler.startCapture();
       server.getConfiguration().setAddressQueueScanPeriod(-1); // disabling scanner, we will perform it manually
       AddressSettings settings = new AddressSettings().setAutoDeleteQueues(true).setAutoDeleteAddresses(true).setAutoDeleteAddressesDelay(10).setAutoDeleteQueuesDelay(10);
-      server.getConfiguration().getAddressesSettings().clear();
-      server.getConfiguration().getAddressesSettings().put("#", settings);
+      server.getConfiguration().getAddressSettings().clear();
+      server.getConfiguration().getAddressSettings().put("#", settings);
       server.start();
       String ADDRESS_NAME = getName();
 

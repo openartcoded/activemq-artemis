@@ -28,30 +28,34 @@ public class Role implements Serializable {
 
    private static final long serialVersionUID = 3560097227776448872L;
 
-   private final String name;
+   private String name;
 
-   private final boolean send;
+   private boolean send;
 
-   private final boolean consume;
+   private boolean consume;
 
-   private final boolean createAddress;
+   private boolean createAddress;
 
-   private final boolean deleteAddress;
+   private boolean deleteAddress;
 
-   private final boolean createDurableQueue;
+   private boolean createDurableQueue;
 
-   private final boolean deleteDurableQueue;
+   private boolean deleteDurableQueue;
 
-   private final boolean createNonDurableQueue;
+   private boolean createNonDurableQueue;
 
-   private final boolean deleteNonDurableQueue;
+   private boolean deleteNonDurableQueue;
 
-   private final boolean manage;
+   private boolean manage;
 
-   private final boolean browse;
+   private boolean browse;
 
    public JsonObject toJson() {
       return JsonLoader.createObjectBuilder().add("name", name).add("send", send).add("consume", consume).add("createDurableQueue", createDurableQueue).add("deleteDurableQueue", deleteDurableQueue).add("createNonDurableQueue", createNonDurableQueue).add("deleteNonDurableQueue", deleteNonDurableQueue).add("manage", manage).add("browse", browse).add("createAddress", createAddress).add("deleteAddress", deleteAddress).build();
+   }
+
+   public Role() {
+      // for properties config
    }
 
    /**
@@ -165,6 +169,50 @@ public class Role implements Serializable {
       return browse;
    }
 
+   public void setName(String name) {
+      this.name = name;
+   }
+
+   public void setSend(boolean send) {
+      this.send = send;
+   }
+
+   public void setConsume(boolean consume) {
+      this.consume = consume;
+   }
+
+   public void setCreateAddress(boolean createAddress) {
+      this.createAddress = createAddress;
+   }
+
+   public void setDeleteAddress(boolean deleteAddress) {
+      this.deleteAddress = deleteAddress;
+   }
+
+   public void setCreateDurableQueue(boolean createDurableQueue) {
+      this.createDurableQueue = createDurableQueue;
+   }
+
+   public void setDeleteDurableQueue(boolean deleteDurableQueue) {
+      this.deleteDurableQueue = deleteDurableQueue;
+   }
+
+   public void setCreateNonDurableQueue(boolean createNonDurableQueue) {
+      this.createNonDurableQueue = createNonDurableQueue;
+   }
+
+   public void setDeleteNonDurableQueue(boolean deleteNonDurableQueue) {
+      this.deleteNonDurableQueue = deleteNonDurableQueue;
+   }
+
+   public void setManage(boolean manage) {
+      this.manage = manage;
+   }
+
+   public void setBrowse(boolean browse) {
+      this.browse = browse;
+   }
+
    @Override
    public String toString() {
       StringBuffer stringReturn = new StringBuffer("Role {name=" + name + "; allows=[");
@@ -268,5 +316,18 @@ public class Role implements Serializable {
       result = 31 * result + (manage ? 1 : 0);
       result = 31 * result + (browse ? 1 : 0);
       return result;
+   }
+
+   public void merge(Role other) {
+      send = send || other.send;
+      consume = consume || other.consume;
+      createAddress = createAddress || other.createAddress;
+      deleteAddress = deleteAddress || other.deleteAddress;
+      createDurableQueue = createDurableQueue || other.createDurableQueue;
+      deleteDurableQueue = deleteDurableQueue || other.deleteDurableQueue;
+      createNonDurableQueue = createNonDurableQueue || other.createNonDurableQueue;
+      deleteNonDurableQueue = deleteNonDurableQueue || other.deleteNonDurableQueue;
+      manage = manage || other.manage;
+      browse = browse || other.browse;
    }
 }

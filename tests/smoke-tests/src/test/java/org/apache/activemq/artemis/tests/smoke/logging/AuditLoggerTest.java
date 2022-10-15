@@ -38,6 +38,7 @@ import org.apache.activemq.artemis.api.core.client.ClientSessionFactory;
 import org.apache.activemq.artemis.api.core.client.ServerLocator;
 import org.apache.activemq.artemis.api.core.management.AddressControl;
 import org.apache.activemq.artemis.api.core.management.ObjectNameBuilder;
+import org.apache.activemq.artemis.tests.util.CFUtil;
 import org.apache.activemq.artemis.utils.Base64;
 import org.apache.activemq.artemis.utils.RandomUtil;
 import org.apache.activemq.artemis.utils.Wait;
@@ -111,7 +112,7 @@ public class AuditLoggerTest extends AuditLoggerTestBase {
          //ignore
       }
 
-      checkAuditLogRecord(true, "gets security check failure:", "guest does not have permission='DELETE_NON_DURABLE_QUEUE'");
+      checkAuditLogRecord(true, "AMQ601264: User guest", "gets security check failure, reason = AMQ229213: User: guest does not have permission='DELETE_NON_DURABLE_QUEUE'");
       //hot patch not in log
       checkAuditLogRecord(true, "is sending a message");
    }
@@ -143,7 +144,7 @@ public class AuditLoggerTest extends AuditLoggerTestBase {
 
       session.close();
 
-      ConnectionFactory factory = createConnectionFactory(protocol, "tcp://localhost:61616");
+      ConnectionFactory factory = CFUtil.createConnectionFactory(protocol, "tcp://localhost:61616");
       Connection connection = factory.createConnection();
       try {
          Session session = connection.createSession();
@@ -161,7 +162,7 @@ public class AuditLoggerTest extends AuditLoggerTestBase {
          Assert.assertEquals(2, addressControl.getMessageCount());
 
          checkAuditLogRecord(false, "messageID=0");
-         checkAuditLogRecord(true, "sending a message");
+         checkAuditLogRecord(true, "sent a message");
          checkAuditLogRecord(true, uniqueStr);
          checkAuditLogRecord(true, "Hello2");
 
@@ -175,6 +176,6 @@ public class AuditLoggerTest extends AuditLoggerTestBase {
          connection.close();
       }
       checkAuditLogRecord(true, "is consuming a message from");
-      checkAuditLogRecord(true, "is acknowledging a message from");
+      checkAuditLogRecord(true, "acknowledged message from");
    }
 }

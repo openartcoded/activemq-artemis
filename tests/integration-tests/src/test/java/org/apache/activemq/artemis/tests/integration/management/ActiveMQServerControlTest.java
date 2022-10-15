@@ -36,9 +36,15 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.activemq.artemis.api.config.ActiveMQDefaultConfiguration;
 import org.apache.activemq.artemis.api.core.ActiveMQBuffer;
+import org.apache.activemq.artemis.api.core.ActiveMQException;
+import org.apache.activemq.artemis.api.core.ActiveMQIllegalStateException;
+import org.apache.activemq.artemis.api.core.ActiveMQTimeoutException;
 import org.apache.activemq.artemis.api.core.JsonUtil;
 import org.apache.activemq.artemis.api.core.QueueConfiguration;
 import org.apache.activemq.artemis.api.core.RoutingType;
@@ -71,6 +77,7 @@ import org.apache.activemq.artemis.core.messagecounter.impl.MessageCounterManage
 import org.apache.activemq.artemis.core.persistence.config.PersistedDivertConfiguration;
 import org.apache.activemq.artemis.core.remoting.impl.invm.InVMAcceptorFactory;
 import org.apache.activemq.artemis.core.remoting.impl.invm.TransportConstants;
+import org.apache.activemq.artemis.core.security.CheckType;
 import org.apache.activemq.artemis.core.security.Role;
 import org.apache.activemq.artemis.core.server.ActiveMQServer;
 import org.apache.activemq.artemis.core.server.ActiveMQServers;
@@ -78,6 +85,7 @@ import org.apache.activemq.artemis.core.server.BrokerConnection;
 import org.apache.activemq.artemis.core.server.Queue;
 import org.apache.activemq.artemis.core.server.ServerConsumer;
 import org.apache.activemq.artemis.core.server.ServerSession;
+import org.apache.activemq.artemis.core.server.ServiceComponent;
 import org.apache.activemq.artemis.core.server.impl.AddressInfo;
 import org.apache.activemq.artemis.core.settings.impl.AddressSettings;
 import org.apache.activemq.artemis.core.settings.impl.DeletionPolicy;
@@ -88,6 +96,7 @@ import org.apache.activemq.artemis.jms.client.ActiveMQConnectionFactory;
 import org.apache.activemq.artemis.jms.client.ActiveMQSession;
 import org.apache.activemq.artemis.json.JsonArray;
 import org.apache.activemq.artemis.json.JsonObject;
+import org.apache.activemq.artemis.marker.WebServerComponentMarker;
 import org.apache.activemq.artemis.nativo.jlibaio.LibaioContext;
 import org.apache.activemq.artemis.spi.core.security.ActiveMQJAASSecurityManager;
 import org.apache.activemq.artemis.spi.core.security.jaas.InVMLoginModule;
@@ -98,18 +107,20 @@ import org.apache.activemq.artemis.utils.RandomUtil;
 import org.apache.activemq.artemis.utils.RetryMethod;
 import org.apache.activemq.artemis.utils.RetryRule;
 import org.apache.activemq.artemis.utils.UUIDGenerator;
-import org.jboss.logging.Logger;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 @RunWith(Parameterized.class)
 public class ActiveMQServerControlTest extends ManagementTestBase {
 
-   private static final Logger log = Logger.getLogger(ActiveMQServerControlTest.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    @Rule
    public RetryRule retryRule = new RetryRule(0);
@@ -153,6 +164,8 @@ public class ActiveMQServerControlTest extends ManagementTestBase {
    @Test
    public void testGetAttributes() throws Exception {
       ActiveMQServerControl serverControl = createManagementControl();
+
+      Assert.assertEquals(server.getConfiguration().getName(), serverControl.getName());
 
       Assert.assertEquals(server.getVersion().getFullVersion(), serverControl.getVersion());
 
@@ -1006,34 +1019,72 @@ public class ActiveMQServerControlTest extends ManagementTestBase {
       String rolesAsJSON = serverControl.getRolesAsJSON(exactAddress);
       RoleInfo[] roleInfos = RoleInfo.from(rolesAsJSON);
       assertEquals(2, roleInfos.length);
-      RoleInfo fooRole = null;
-      RoleInfo barRole = null;
-      if (roleInfos[0].getName().equals("foo")) {
-         fooRole = roleInfos[0];
-         barRole = roleInfos[1];
+      RoleInfo fooRoleInfo = null;
+      RoleInfo barRoleInfo = null;
+      if ("foo".equals(roleInfos[0].getName())) {
+         fooRoleInfo = roleInfos[0];
+         barRoleInfo = roleInfos[1];
       } else {
-         fooRole = roleInfos[1];
-         barRole = roleInfos[0];
+         fooRoleInfo = roleInfos[1];
+         barRoleInfo = roleInfos[0];
       }
-      assertTrue(fooRole.isSend());
-      assertTrue(fooRole.isConsume());
-      assertFalse(fooRole.isCreateDurableQueue());
-      assertFalse(fooRole.isDeleteDurableQueue());
-      assertTrue(fooRole.isCreateNonDurableQueue());
-      assertFalse(fooRole.isDeleteNonDurableQueue());
-      assertFalse(fooRole.isManage());
-      assertFalse(fooRole.isBrowse());
-      assertTrue(fooRole.isCreateAddress());
+      assertTrue(fooRoleInfo.isSend());
+      assertTrue(fooRoleInfo.isConsume());
+      assertFalse(fooRoleInfo.isCreateDurableQueue());
+      assertFalse(fooRoleInfo.isDeleteDurableQueue());
+      assertTrue(fooRoleInfo.isCreateNonDurableQueue());
+      assertFalse(fooRoleInfo.isDeleteNonDurableQueue());
+      assertFalse(fooRoleInfo.isManage());
+      assertFalse(fooRoleInfo.isBrowse());
+      assertTrue(fooRoleInfo.isCreateAddress());
+      assertTrue(fooRoleInfo.isDeleteAddress());
 
-      assertFalse(barRole.isSend());
-      assertTrue(barRole.isConsume());
-      assertFalse(barRole.isCreateDurableQueue());
-      assertTrue(barRole.isDeleteDurableQueue());
-      assertTrue(barRole.isCreateNonDurableQueue());
-      assertFalse(barRole.isDeleteNonDurableQueue());
-      assertFalse(barRole.isManage());
-      assertTrue(barRole.isBrowse());
-      assertFalse(barRole.isCreateAddress());
+      assertFalse(barRoleInfo.isSend());
+      assertTrue(barRoleInfo.isConsume());
+      assertFalse(barRoleInfo.isCreateDurableQueue());
+      assertTrue(barRoleInfo.isDeleteDurableQueue());
+      assertTrue(barRoleInfo.isCreateNonDurableQueue());
+      assertFalse(barRoleInfo.isDeleteNonDurableQueue());
+      assertFalse(barRoleInfo.isManage());
+      assertTrue(barRoleInfo.isBrowse());
+      assertFalse(barRoleInfo.isCreateAddress());
+      assertFalse(barRoleInfo.isDeleteAddress());
+
+      Object[] roles = serverControl.getRoles(exactAddress);
+      assertEquals(2, roles.length);
+      Object[] fooRole = null;
+      Object[] barRole = null;
+      if ("foo".equals(((Object[])roles[0])[0])) {
+         fooRole = (Object[]) roles[0];
+         barRole = (Object[]) roles[1];
+      } else {
+         fooRole = (Object[]) roles[1];
+         barRole = (Object[]) roles[0];
+      }
+      Assert.assertEquals(CheckType.values().length + 1, fooRole.length);
+      Assert.assertEquals(CheckType.values().length + 1, barRole.length);
+
+      assertTrue((boolean)fooRole[1]);
+      assertTrue((boolean)fooRole[2]);
+      assertFalse((boolean)fooRole[3]);
+      assertFalse((boolean)fooRole[4]);
+      assertTrue((boolean)fooRole[5]);
+      assertFalse((boolean)fooRole[6]);
+      assertFalse((boolean)fooRole[7]);
+      assertFalse((boolean)fooRole[8]);
+      assertTrue((boolean)fooRole[9]);
+      assertTrue((boolean)fooRole[10]);
+
+      assertFalse((boolean)barRole[1]);
+      assertTrue((boolean)barRole[2]);
+      assertFalse((boolean)barRole[3]);
+      assertTrue((boolean)barRole[4]);
+      assertTrue((boolean)barRole[5]);
+      assertFalse((boolean)barRole[6]);
+      assertFalse((boolean)barRole[7]);
+      assertTrue((boolean)barRole[8]);
+      assertFalse((boolean)barRole[9]);
+      assertFalse((boolean)barRole[10]);
 
       serverControl.removeSecuritySettings(addressMatch);
       assertEquals(1, serverControl.getRoles(exactAddress).length);
@@ -1974,6 +2025,15 @@ public class ActiveMQServerControlTest extends ManagementTestBase {
 
    @Test
    public void testCreateAndDestroyBridgeFromJson() throws Exception {
+      internalTestCreateAndDestroyBridgeFromJson(false);
+   }
+
+   @Test
+   public void testCreateAndDestroyBridgeFromJsonDynamicConnector() throws Exception {
+      internalTestCreateAndDestroyBridgeFromJson(true);
+   }
+
+   private void internalTestCreateAndDestroyBridgeFromJson(boolean dynamicConnector) throws Exception {
       String name = RandomUtil.randomString();
       String sourceAddress = RandomUtil.randomString();
       String sourceQueue = RandomUtil.randomString();
@@ -1997,13 +2057,19 @@ public class ActiveMQServerControlTest extends ManagementTestBase {
          session.createQueue(new QueueConfiguration(targetQueue).setAddress(targetAddress).setRoutingType(RoutingType.ANYCAST).setDurable(false));
       }
 
+      String connectorName = connectorConfig.getName();
+      if (dynamicConnector) {
+         connectorName = RandomUtil.randomString();
+         serverControl.addConnector(connectorName, "vm://0");
+      }
+
       BridgeConfiguration bridgeConfiguration = new BridgeConfiguration(name)
          .setQueueName(sourceQueue)
          .setForwardingAddress(targetAddress)
          .setUseDuplicateDetection(false)
          .setConfirmationWindowSize(1)
          .setProducerWindowSize(-1)
-         .setStaticConnectors(Collections.singletonList(connectorConfig.getName()))
+         .setStaticConnectors(Collections.singletonList(connectorName))
          .setHA(false)
          .setUser(null)
          .setPassword(null);
@@ -2060,6 +2126,16 @@ public class ActiveMQServerControlTest extends ManagementTestBase {
       session.close();
 
       locator.close();
+   }
+
+   @Test
+   public void testAddAndRemoveConnector() throws Exception {
+      ActiveMQServerControl serverControl = createManagementControl();
+      String connectorName = RandomUtil.randomString();
+      serverControl.addConnector(connectorName, "vm://0");
+      assertEquals(connectorName, server.getConfiguration().getConnectorConfigurations().get(connectorName).getName());
+      serverControl.removeConnector(connectorName);
+      assertNull(server.getConfiguration().getConnectorConfigurations().get(connectorName));
    }
 
    @Test
@@ -2535,7 +2611,7 @@ public class ActiveMQServerControlTest extends ManagementTestBase {
       addClientSession(factories.get(1).createSession());
 
       String jsonString = serverControl.listConnectionsAsJSON();
-      log.debug(jsonString);
+      logger.debug(jsonString);
       Assert.assertNotNull(jsonString);
       JsonArray array = JsonUtil.readJsonArray(jsonString);
       Assert.assertEquals(usingCore() ? 3 : 2, array.size());
@@ -2598,7 +2674,7 @@ public class ActiveMQServerControlTest extends ManagementTestBase {
       addClientConsumer(session.createConsumer(queueName, SimpleString.toSimpleString(filter), true));
 
       String jsonString = serverControl.listConsumersAsJSON(factory.getConnection().getID().toString());
-      log.debug(jsonString);
+      logger.debug(jsonString);
       Assert.assertNotNull(jsonString);
       JsonArray array = JsonUtil.readJsonArray(jsonString);
       Assert.assertEquals(2, array.size());
@@ -2661,7 +2737,7 @@ public class ActiveMQServerControlTest extends ManagementTestBase {
       addClientConsumer(session2.createConsumer(queueName));
 
       String jsonString = serverControl.listAllConsumersAsJSON();
-      log.debug(jsonString);
+      logger.debug(jsonString);
       Assert.assertNotNull(jsonString);
       JsonArray array = JsonUtil.readJsonArray(jsonString);
       Assert.assertEquals(usingCore() ? 3 : 2, array.size());
@@ -2734,7 +2810,7 @@ public class ActiveMQServerControlTest extends ManagementTestBase {
       session2.createConsumer(queueName);
 
       String jsonString = serverControl.listSessionsAsJSON(factory.getConnection().getID().toString());
-      log.debug(jsonString);
+      logger.debug(jsonString);
       Assert.assertNotNull(jsonString);
       JsonArray array = JsonUtil.readJsonArray(jsonString);
       Assert.assertEquals(2, array.size());
@@ -2798,7 +2874,7 @@ public class ActiveMQServerControlTest extends ManagementTestBase {
       session2.createConsumer(queueName);
 
       String jsonString = serverControl.listAllSessionsAsJSON();
-      log.debug(jsonString);
+      logger.debug(jsonString);
       Assert.assertNotNull(jsonString);
       JsonArray array = JsonUtil.readJsonArray(jsonString);
       Assert.assertEquals(2 + (usingCore() ? 1 : 0), array.size());
@@ -2839,7 +2915,7 @@ public class ActiveMQServerControlTest extends ManagementTestBase {
       con.setClientID(clientID);
 
       String jsonString = serverControl.listAllSessionsAsJSON();
-      log.debug(jsonString);
+      logger.debug(jsonString);
       Assert.assertNotNull(jsonString);
       JsonArray array = JsonUtil.readJsonArray(jsonString);
       Assert.assertEquals(1 + (usingCore() ? 1 : 0), array.size());
@@ -2919,7 +2995,7 @@ public class ActiveMQServerControlTest extends ManagementTestBase {
       Assert.assertNotEquals("consumerCount", "", array.getJsonObject(0).getString("consumerCount"));
       Assert.assertEquals("maxConsumers", "-1", array.getJsonObject(0).getString("maxConsumers"));
       Assert.assertEquals("autoCreated", "false", array.getJsonObject(0).getString("autoCreated"));
-      Assert.assertEquals("user", "", array.getJsonObject(0).getString("user"));
+      Assert.assertEquals("user", usingCore() ? "guest" : "", array.getJsonObject(0).getString("user"));
       Assert.assertNotEquals("routingType", "", array.getJsonObject(0).getString("routingType"));
       Assert.assertEquals("messagesAdded", "0", array.getJsonObject(0).getString("messagesAdded"));
       Assert.assertEquals("messageCount", "0", array.getJsonObject(0).getString("messageCount"));
@@ -2932,6 +3008,7 @@ public class ActiveMQServerControlTest extends ManagementTestBase {
       Assert.assertEquals("groupRebalance", "false", array.getJsonObject(0).getString("groupRebalance"));
       Assert.assertEquals("groupBuckets", "-1", array.getJsonObject(0).getString("groupBuckets"));
       Assert.assertEquals("groupFirstKey", "", array.getJsonObject(0).getString("groupFirstKey"));
+      Assert.assertEquals("autoDelete", "false", array.getJsonObject(0).getString("autoDelete"));
    }
 
    @Test
@@ -4287,6 +4364,131 @@ public class ActiveMQServerControlTest extends ManagementTestBase {
          serverControl.stopBrokerConnection(fake.getName());
          Assert.assertFalse(fake.isStarted());
       } catch (Exception expected) {
+      }
+   }
+
+   @Test
+   public void testManualStopStartEmbeddedWebServer() throws Exception {
+      FakeWebServerComponent fake = new FakeWebServerComponent();
+      server.addExternalComponent(fake, true);
+      Assert.assertTrue(fake.isStarted());
+
+      ActiveMQServerControl serverControl = createManagementControl();
+      serverControl.stopEmbeddedWebServer();
+      Assert.assertFalse(fake.isStarted());
+      serverControl.startEmbeddedWebServer();
+      Assert.assertTrue(fake.isStarted());
+   }
+
+   @Test
+   public void testRestartEmbeddedWebServer() throws Exception {
+      FakeWebServerComponent fake = new FakeWebServerComponent();
+      server.addExternalComponent(fake, true);
+      Assert.assertTrue(fake.isStarted());
+
+      ActiveMQServerControl serverControl = createManagementControl();
+      long time = System.currentTimeMillis();
+      Assert.assertTrue(time >= fake.getStartTime());
+      Assert.assertTrue(time > fake.getStopTime());
+      Thread.sleep(5);
+      serverControl.restartEmbeddedWebServer();
+      Assert.assertTrue(serverControl.isEmbeddedWebServerStarted());
+      Assert.assertTrue(time < fake.getStartTime());
+      Assert.assertTrue(time < fake.getStopTime());
+   }
+
+   @Test
+   public void testRestartEmbeddedWebServerTimeout() throws Exception {
+      final CountDownLatch startDelay = new CountDownLatch(1);
+      FakeWebServerComponent fake = new FakeWebServerComponent(startDelay);
+      server.addExternalComponent(fake, false);
+
+      ActiveMQServerControl serverControl = createManagementControl();
+      try {
+         serverControl.restartEmbeddedWebServer(1);
+         fail();
+      } catch (ActiveMQTimeoutException e) {
+         // expected
+      } finally {
+         startDelay.countDown();
+      }
+      Wait.waitFor(() -> fake.isStarted());
+   }
+
+   @Test
+   public void testRestartEmbeddedWebServerException() throws Exception {
+      final String message = RandomUtil.randomString();
+      final Exception startException = new ActiveMQIllegalStateException(message);
+      FakeWebServerComponent fake = new FakeWebServerComponent(startException);
+      server.addExternalComponent(fake, false);
+
+      ActiveMQServerControl serverControl = createManagementControl();
+      try {
+         serverControl.restartEmbeddedWebServer(1000);
+         fail();
+      } catch (ActiveMQException e) {
+         assertSame("Unexpected cause", startException, e.getCause());
+      }
+   }
+
+   class FakeWebServerComponent implements ServiceComponent, WebServerComponentMarker {
+      AtomicBoolean started = new AtomicBoolean(false);
+      AtomicLong startTime = new AtomicLong(0);
+      AtomicLong stopTime = new AtomicLong(0);
+      CountDownLatch startDelay;
+      Exception startException;
+
+      FakeWebServerComponent(CountDownLatch startDelay) {
+         this.startDelay = startDelay;
+      }
+
+      FakeWebServerComponent(Exception startException) {
+         this.startException = startException;
+      }
+
+      FakeWebServerComponent() {
+      }
+
+      @Override
+      public void start() throws Exception {
+         if (started.get()) {
+            return;
+         }
+         if (startDelay != null) {
+            startDelay.await();
+         }
+         if (startException != null) {
+            throw startException;
+         }
+         startTime.set(System.currentTimeMillis());
+         started.set(true);
+      }
+
+      @Override
+      public void stop() throws Exception {
+         stop(false);
+      }
+
+      @Override
+      public void stop(boolean shutdown) throws Exception {
+         if (!shutdown) {
+            throw new RuntimeException("shutdown flag must be true");
+         }
+         stopTime.set(System.currentTimeMillis());
+         started.set(false);
+      }
+
+      @Override
+      public boolean isStarted() {
+         return started.get();
+      }
+
+      public long getStartTime() {
+         return startTime.get();
+      }
+
+      public long getStopTime() {
+         return stopTime.get();
       }
    }
 

@@ -60,11 +60,13 @@ import org.apache.activemq.artemis.core.server.cluster.ClusterConnection;
 import org.apache.activemq.artemis.core.server.cluster.ha.ReplicatedPolicy;
 import org.apache.activemq.artemis.core.server.cluster.qourum.QuorumManager;
 import org.apache.activemq.artemis.spi.core.remoting.Acceptor;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 public class SharedNothingLiveActivation extends LiveActivation {
 
-   private static final Logger logger = Logger.getLogger(SharedNothingLiveActivation.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    //this is how we act when we initially start as a live
    private ReplicatedPolicy replicatedPolicy;
@@ -102,14 +104,13 @@ public class SharedNothingLiveActivation extends LiveActivation {
          if (replicatedPolicy.isCheckForLiveServer() && isNodeIdUsed()) {
             //set for when we failback
             if (logger.isTraceEnabled()) {
-               logger.tracef("@@@ setting up replicatedPolicy.getReplicaPolicy for back start, replicaPolicy::%s, isBackup=%s, server=%s", replicatedPolicy.getReplicaPolicy(), replicatedPolicy.isBackup(), activeMQServer);
+               logger.trace("setting up replicatedPolicy.getReplicaPolicy for back start, replicaPolicy::{}, isBackup={}, server={}",
+                     replicatedPolicy.getReplicaPolicy(), replicatedPolicy.isBackup(), activeMQServer);
             }
             replicatedPolicy.getReplicaPolicy().setReplicatedPolicy(replicatedPolicy);
             activeMQServer.setHAPolicy(replicatedPolicy.getReplicaPolicy());
             return;
          }
-
-         logger.trace("@@@ did not do it now");
 
          activeMQServer.initialisePart1(false);
 
@@ -272,12 +273,11 @@ public class SharedNothingLiveActivation extends LiveActivation {
                                     @Override
                                     public void run() {
                                        try {
-                                          if (logger.isTraceEnabled()) {
-                                             logger.trace("Calling activeMQServer.stop() to stop the server");
-                                          }
+                                          logger.trace("Calling activeMQServer.stop() to stop the server");
+
                                           activeMQServer.stop();
                                        } catch (Exception e) {
-                                          ActiveMQServerLogger.LOGGER.errorRestartingBackupServer(e, activeMQServer);
+                                          ActiveMQServerLogger.LOGGER.errorRestartingBackupServer(activeMQServer, e);
                                        }
                                     }
                                  });
@@ -445,9 +445,7 @@ public class SharedNothingLiveActivation extends LiveActivation {
               ClientSession clientSession = clientSessionFactory.createSession(user, password, false, false, false, false, 0)) {
             result = true;
          } catch (Exception e) {
-            if (logger.isDebugEnabled()) {
-               logger.debug("isActive check failed", e);
-            }
+            logger.debug("isActive check failed", e);
          }
 
          return result;

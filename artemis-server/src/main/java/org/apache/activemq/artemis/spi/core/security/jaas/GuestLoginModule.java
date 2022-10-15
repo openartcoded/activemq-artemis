@@ -28,7 +28,9 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 /**
  * Always login the user with a default 'guest' identity.
@@ -38,7 +40,7 @@ import org.jboss.logging.Logger;
  */
 public class GuestLoginModule implements AuditLoginModule {
 
-   private static final Logger logger = Logger.getLogger(GuestLoginModule.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private static final String GUEST_USER = "org.apache.activemq.jaas.guest.user";
    private static final String GUEST_ROLE = "org.apache.activemq.jaas.guest.role";
@@ -71,7 +73,7 @@ public class GuestLoginModule implements AuditLoginModule {
       principals.add(new RolePrincipal(roleName));
 
       if (debug) {
-         logger.debug("Initialized debug=" + debug + " guestUser=" + userName + " guestGroup=" + roleName);
+         logger.debug("Initialized debug={} guestUser={} guestGroup={}", debug, userName, roleName);
       }
 
    }
@@ -94,7 +96,7 @@ public class GuestLoginModule implements AuditLoginModule {
          }
       }
       if (debug) {
-         logger.debug("Guest login " + loginSucceeded);
+         logger.debug("Guest login {}", loginSucceeded);
       }
       return loginSucceeded;
    }
@@ -106,7 +108,7 @@ public class GuestLoginModule implements AuditLoginModule {
       }
 
       if (debug) {
-         logger.debug("commit: " + loginSucceeded);
+         logger.debug("commit: {}", loginSucceeded);
       }
       return loginSucceeded;
    }

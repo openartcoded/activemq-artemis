@@ -111,7 +111,9 @@ import org.apache.activemq.artemis.utils.PasswordMaskingUtil;
 import org.apache.activemq.artemis.utils.XMLConfigurationUtil;
 import org.apache.activemq.artemis.utils.XMLUtil;
 import org.apache.activemq.artemis.utils.critical.CriticalAnalyzerPolicy;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 import org.w3c.dom.Element;
 import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
@@ -122,7 +124,7 @@ import org.w3c.dom.NodeList;
  */
 public final class FileConfigurationParser extends XMLConfigurationUtil {
 
-   private static final Logger logger = Logger.getLogger(FileConfigurationParser.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    // Security Parsing
    public static final String SECURITY_ELEMENT_NAME = "security-setting";
@@ -217,6 +219,10 @@ public final class FileConfigurationParser extends XMLConfigurationUtil {
    private static final String MAX_SIZE_BYTES_REJECT_THRESHOLD_NODE_NAME = "max-size-bytes-reject-threshold";
 
    private static final String ADDRESS_FULL_MESSAGE_POLICY_NODE_NAME = "address-full-policy";
+
+   private static final String MAX_READ_PAGE_BYTES_NODE_NAME = "max-read-page-bytes";
+
+   private static final String MAX_READ_PAGE_MESSAGES_NODE_NAME = "max-read-page-messages";
 
    private static final String PAGE_SIZE_BYTES_NODE_NAME = "page-size-bytes";
 
@@ -330,6 +336,8 @@ public final class FileConfigurationParser extends XMLConfigurationUtil {
 
    private boolean validateAIO = false;
 
+   private boolean printPageMaxSizeUsed = false;
+
    /**
     * @return the validateAIO
     */
@@ -352,7 +360,7 @@ public final class FileConfigurationParser extends XMLConfigurationUtil {
       try {
          validator.validate(new DOMSource(e));
       } catch (Exception ex) {
-         ActiveMQServerLogger.LOGGER.error(ex.getMessage());
+         logger.error(ex.getMessage(), ex);
       }
       Configuration config = new ConfigurationImpl();
       parseMainConfig(e, config);
@@ -761,7 +769,7 @@ public final class FileConfigurationParser extends XMLConfigurationUtil {
 
       config.setNetworkCheckTimeout(getInteger(e, "network-check-timeout", config.getNetworkCheckTimeout(), Validators.GT_ZERO));
 
-      config.setNetworCheckNIC(getString(e, "network-check-NIC", config.getNetworkCheckNIC(), Validators.NO_CHECK));
+      config.setNetworkCheckNIC(getString(e, "network-check-NIC", config.getNetworkCheckNIC(), Validators.NO_CHECK));
 
       config.setNetworkCheckPing6Command(getString(e, "network-check-ping6-command", config.getNetworkCheckPing6Command(), Validators.NO_CHECK));
 
@@ -1036,11 +1044,11 @@ public final class FileConfigurationParser extends XMLConfigurationUtil {
          NodeList list = node.getElementsByTagName("address-setting");
          for (int i = 0; i < list.getLength(); i++) {
             Pair<String, AddressSettings> newAddressSettings = parseAddressSettings(list.item(i));
-            Map<String, AddressSettings> addressSettings = config.getAddressesSettings();
+            Map<String, AddressSettings> addressSettings = config.getAddressSettings();
             if (addressSettings.containsKey(newAddressSettings.getA())) {
                ActiveMQServerLogger.LOGGER.duplicateAddressSettingMatch(newAddressSettings.getA());
             } else {
-               config.getAddressesSettings().put(newAddressSettings.getA(), newAddressSettings.getB());
+               config.getAddressSettings().put(newAddressSettings.getA(), newAddressSettings.getB());
             }
          }
       }
@@ -1261,7 +1269,19 @@ public final class FileConfigurationParser extends XMLConfigurationUtil {
             long pageSizeLong = ByteUtil.convertTextBytes(getTrimmedTextContent(child));
             Validators.POSITIVE_INT.validate(PAGE_SIZE_BYTES_NODE_NAME, pageSizeLong);
             addressSettings.setPageSizeBytes((int) pageSizeLong);
+         }  else if (MAX_READ_PAGE_MESSAGES_NODE_NAME.equalsIgnoreCase(name)) {
+            long maxReadPageMessages = Long.parseLong(getTrimmedTextContent(child));
+            Validators.MINUS_ONE_OR_POSITIVE_INT.validate(MAX_READ_PAGE_MESSAGES_NODE_NAME, maxReadPageMessages);
+            addressSettings.setMaxReadPageMessages((int)maxReadPageMessages);
+         }  else if (MAX_READ_PAGE_BYTES_NODE_NAME.equalsIgnoreCase(name)) {
+            long maxReadPageBytes = ByteUtil.convertTextBytes(getTrimmedTextContent(child));
+            Validators.MINUS_ONE_OR_POSITIVE_INT.validate(MAX_READ_PAGE_BYTES_NODE_NAME, maxReadPageBytes);
+            addressSettings.setMaxReadPageBytes((int)maxReadPageBytes);
          } else if (PAGE_MAX_CACHE_SIZE_NODE_NAME.equalsIgnoreCase(name)) {
+            if (!printPageMaxSizeUsed) {
+               printPageMaxSizeUsed = true;
+               ActiveMQServerLogger.LOGGER.pageMaxSizeUsed();
+            }
             addressSettings.setPageCacheMaxSize(XMLUtil.parseInt(child));
          } else if (MESSAGE_COUNTER_HISTORY_DAY_LIMIT_NODE_NAME.equalsIgnoreCase(name)) {
             addressSettings.setMessageCounterHistoryDayLimit(XMLUtil.parseInt(child));
@@ -1933,6 +1953,7 @@ public final class FileConfigurationParser extends XMLConfigurationUtil {
       conf.setJdbcLockRenewPeriodMillis(getLong(storeNode, "jdbc-lock-renew-period", conf.getJdbcLockRenewPeriodMillis(), Validators.NO_CHECK));
       conf.setJdbcLockExpirationMillis(getLong(storeNode, "jdbc-lock-expiration", conf.getJdbcLockExpirationMillis(), Validators.NO_CHECK));
       conf.setJdbcJournalSyncPeriodMillis(getLong(storeNode, "jdbc-journal-sync-period", conf.getJdbcJournalSyncPeriodMillis(), Validators.NO_CHECK));
+      conf.setJdbcAllowedTimeDiff(getLong(storeNode, "jdbc-allowed-time-diff", conf.getJdbcAllowedTimeDiff(), Validators.NO_CHECK));
       String jdbcUser = getString(storeNode, "jdbc-user", conf.getJdbcUser(), Validators.NO_CHECK);
       if (jdbcUser != null) {
          jdbcUser = PasswordMaskingUtil.resolveMask(mainConfig.isMaskPassword(), jdbcUser, mainConfig.getPasswordCodec());
@@ -2056,9 +2077,7 @@ public final class FileConfigurationParser extends XMLConfigurationUtil {
 
       ClusterConnectionConfiguration config = mainConfig.addClusterConfiguration(name, uri);
 
-      if (logger.isDebugEnabled()) {
-         logger.debug("Adding cluster connection :: " + config);
-      }
+      logger.debug("Adding cluster connection :: {}", config);
    }
 
    private void parseAMQPBrokerConnections(final Element e,
@@ -2070,7 +2089,13 @@ public final class FileConfigurationParser extends XMLConfigurationUtil {
       int retryInterval = getAttributeInteger(e, "retry-interval", 5000, Validators.GT_ZERO);
       int reconnectAttempts = getAttributeInteger(e, "reconnect-attempts", -1, Validators.MINUS_ONE_OR_GT_ZERO);
       String user = getAttributeValue(e, "user");
+      if (user != null && PasswordMaskingUtil.isEncMasked(user)) {
+         user = PasswordMaskingUtil.resolveMask(mainConfig.isMaskPassword(), user, mainConfig.getPasswordCodec());
+      }
       String password = getAttributeValue(e, "password");
+      if (password != null && PasswordMaskingUtil.isEncMasked(password)) {
+         password = PasswordMaskingUtil.resolveMask(mainConfig.isMaskPassword(), password, mainConfig.getPasswordCodec());
+      }
       boolean autoStart = getBooleanAttribute(e, "auto-start", true);
 
       getInteger(e, "local-bind-port", -1, Validators.MINUS_ONE_OR_GT_ZERO);
@@ -2094,8 +2119,10 @@ public final class FileConfigurationParser extends XMLConfigurationUtil {
                boolean queueCreation = getBooleanAttribute(e2,"queue-creation", true);
                boolean durable = getBooleanAttribute(e2, "durable", true);
                boolean queueRemoval = getBooleanAttribute(e2, "queue-removal", true);
+               String addressFilter = getAttributeValue(e2, "address-filter");
+
                AMQPMirrorBrokerConnectionElement amqpMirrorConnectionElement = new AMQPMirrorBrokerConnectionElement();
-               amqpMirrorConnectionElement.setMessageAcknowledgements(messageAcks).setQueueCreation(queueCreation).setQueueRemoval(queueRemoval).setDurable(durable);
+               amqpMirrorConnectionElement.setMessageAcknowledgements(messageAcks).setQueueCreation(queueCreation).setQueueRemoval(queueRemoval).setDurable(durable).setAddressFilter(addressFilter);
                connectionElement = amqpMirrorConnectionElement;
                connectionElement.setType(AMQPBrokerConnectionAddressType.MIRROR);
             } else {
@@ -2110,9 +2137,7 @@ public final class FileConfigurationParser extends XMLConfigurationUtil {
          }
       }
 
-      if (logger.isDebugEnabled()) {
-         logger.debug("Adding AMQP connection :: " + config);
-      }
+      logger.debug("Adding AMQP connection :: {}", config);
    }
 
    private void parseClusterConnectionConfiguration(final Element e, final Configuration mainConfig) throws Exception {

@@ -18,11 +18,16 @@ package org.apache.activemq.artemis.tests.soak.failover;
 
 import org.apache.activemq.artemis.tests.integration.cluster.reattach.RandomReattachTest;
 
+import static org.apache.activemq.artemis.tests.soak.TestParameters.testProperty;
+
 public class RandomFailoverSoakTest extends RandomReattachTest {
+
+   private static final String TEST_NAME = "RANDOM";
+   public static final int TEST_REPETITION = testProperty(TEST_NAME, "TEST_REPETITION", 10);
 
    @Override
    protected int getNumIterations() {
-      return 500;
+      return TEST_REPETITION;
    }
 
 }

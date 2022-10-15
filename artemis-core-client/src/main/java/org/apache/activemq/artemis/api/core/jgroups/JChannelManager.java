@@ -21,7 +21,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.apache.activemq.artemis.api.core.JGroupsBroadcastEndpoint;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 /**
  * This class maintain a global Map of JChannels wrapped in JChannelWrapper for
@@ -31,6 +33,8 @@ import org.jboss.logging.Logger;
  * method of this class. The real disconnect of channels are also done here only.
  */
 public class JChannelManager {
+
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private static final JChannelManager theInstance = new JChannelManager();
 
@@ -54,8 +58,6 @@ public class JChannelManager {
    // this is useful for testcases using a single channel.
    private boolean loopbackMessages = false;
 
-   private final Logger logger = Logger.getLogger(JChannelManager.class);
-
    private static final Map<String, JChannelWrapper> channels = new HashMap<>();
 
    public boolean isLoopbackMessages() {
@@ -73,12 +75,11 @@ public class JChannelManager {
       if (wrapper == null) {
          wrapper = new JChannelWrapper(this, channelName, endpoint.createChannel());
          channels.put(channelName, wrapper);
-         if (logger.isTraceEnabled())
-            logger.trace("Put Channel " + channelName);
+         logger.trace("Put Channel {}", channelName);
          return wrapper;
       }
-      if (logger.isTraceEnabled())
-         logger.trace("Add Ref Count " + channelName);
+      logger.trace("Add Ref Count {}", channelName);
+
       return wrapper.addRef();
    }
 

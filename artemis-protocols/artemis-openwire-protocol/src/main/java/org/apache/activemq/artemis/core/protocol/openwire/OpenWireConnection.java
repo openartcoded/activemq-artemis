@@ -133,17 +133,20 @@ import org.apache.activemq.state.ConsumerState;
 import org.apache.activemq.state.SessionState;
 import org.apache.activemq.transport.TransmitCallback;
 import org.apache.activemq.util.ByteSequence;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 /**
  * Represents an activemq connection.
  */
 public class OpenWireConnection extends AbstractRemotingConnection implements SecurityAuth, TempQueueObserver {
 
+
    // to be used on the packet size estimate processing for the ThresholdActor
    private static final int MINIMAL_SIZE_ESTIAMTE = 1024;
 
-   private static final Logger logger = Logger.getLogger(OpenWireConnection.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private static final KeepAliveInfo PING = new KeepAliveInfo();
 
@@ -290,7 +293,7 @@ public class OpenWireConnection extends AbstractRemotingConnection implements Se
     * Log packaged into a separate method for performance reasons.
     */
    private static void traceBufferReceived(Object connectionID, Command command) {
-      logger.trace("connectionID: " + connectionID + " RECEIVED: " + (command == null ? "NULL" : command));
+      logger.trace("connectionID: {} RECEIVED: {}", connectionID, (command == null ? "NULL" : command));
    }
 
    @Override
@@ -312,7 +315,7 @@ public class OpenWireConnection extends AbstractRemotingConnection implements Se
             act(command);
          }
       } catch (Exception e) {
-         ActiveMQServerLogger.LOGGER.debug(e);
+         logger.debug(e.getMessage(), e);
          sendException(e);
       }
 
@@ -352,7 +355,7 @@ public class OpenWireConnection extends AbstractRemotingConnection implements Se
          }
 
          if (this.protocolManager.invokeIncoming(command, this) != null) {
-            logger.debugf("Interceptor rejected OpenWire command: %s", command);
+            logger.debug("Interceptor rejected OpenWire command: {}", command);
             disconnect(true);
             return;
          }
@@ -368,7 +371,7 @@ public class OpenWireConnection extends AbstractRemotingConnection implements Se
                setLastCommand(command);
                response = command.visit(commandProcessorInstance);
             } catch (Exception e) {
-               ActiveMQServerLogger.LOGGER.warn("Errors occurred during the buffering operation ", e);
+               logger.warn("Errors occurred during the buffering operation ", e);
                if (responseRequired) {
                   response = convertException(e);
                }
@@ -408,7 +411,7 @@ public class OpenWireConnection extends AbstractRemotingConnection implements Se
             sendAsyncResponse(commandId, response);
          }
       } catch (Exception e) {
-         ActiveMQServerLogger.LOGGER.debug(e);
+         logger.debug(e.getMessage(), e);
 
          sendException(e);
       } finally {
@@ -451,7 +454,7 @@ public class OpenWireConnection extends AbstractRemotingConnection implements Se
       try {
          dispatch(resp);
       } catch (IOException e2) {
-         ActiveMQServerLogger.LOGGER.warn(e.getMessage(), e2);
+         logger.warn(e.getMessage(), e2);
       }
    }
 
@@ -476,16 +479,6 @@ public class OpenWireConnection extends AbstractRemotingConnection implements Se
    @Override
    public void destroy() {
       fail(null, null);
-   }
-
-   @Override
-   public boolean isClient() {
-      return false;
-   }
-
-   @Override
-   public boolean isDestroyed() {
-      return destroyed;
    }
 
    @Override
@@ -538,7 +531,7 @@ public class OpenWireConnection extends AbstractRemotingConnection implements Se
     * Log packaged into a separate method for performance reasons.
     */
    private static void tracePhysicalSend(Connection transportConnection, Command command) {
-      logger.trace("connectionID: " + (transportConnection == null ? "" : transportConnection.getID()) + " SENDING: " + (command == null ? "NULL" : command));
+      logger.trace("connectionID: {} SENDING: {}", (transportConnection == null ? "" : transportConnection.getID()), (command == null ? "NULL" : command));
    }
 
    public void physicalSend(Command command) throws IOException {
@@ -553,16 +546,38 @@ public class OpenWireConnection extends AbstractRemotingConnection implements Se
       try {
          final ByteSequence bytes = outWireFormat.marshal(command);
          final int bufferSize = bytes.length;
-         final ActiveMQBuffer buffer = transportConnection.createTransportBuffer(bufferSize);
-         buffer.writeBytes(bytes.data, bytes.offset, bufferSize);
-         transportConnection.write(buffer, false, false);
+         final int maxChunkSize = protocolManager.getOpenwireMaxPacketChunkSize();
+
+         if (maxChunkSize > 0 && bufferSize > maxChunkSize) {
+            chunkSend(bytes, bufferSize, maxChunkSize);
+         } else {
+            final ActiveMQBuffer buffer = transportConnection.createTransportBuffer(bufferSize);
+            buffer.writeBytes(bytes.data, bytes.offset, bufferSize);
+            transportConnection.write(buffer, false, false);
+         }
          bufferSent();
       } catch (IOException e) {
          throw e;
       } catch (Throwable t) {
-         ActiveMQServerLogger.LOGGER.error("error sending", t);
+         logger.error("error sending", t);
       }
 
+   }
+
+   private void chunkSend(final ByteSequence bytes, final int bufferSize, final int maxChunkSize) {
+      if (logger.isTraceEnabled()) {
+         logger.trace("Sending a big packet sized as {} with smaller packets of {}", bufferSize, maxChunkSize);
+      }
+      while (bytes.remaining() > 0) {
+         int chunkSize = Math.min(bytes.remaining(), maxChunkSize);
+         if (logger.isTraceEnabled()) {
+            logger.trace("Sending a partial packet of {} bytes, starting at {}", chunkSize, bytes.remaining());
+         }
+         final ActiveMQBuffer chunk = transportConnection.createTransportBuffer(chunkSize);
+         chunk.writeBytes(bytes.data, bytes.offset, chunkSize);
+         transportConnection.write(chunk, true, false);
+         bytes.setOffset(bytes.getOffset() + chunkSize);
+      }
    }
 
    public void dispatchAsync(Command message) throws Exception {
@@ -694,7 +709,7 @@ public class OpenWireConnection extends AbstractRemotingConnection implements Se
          }
          internalSession.close(false);
       } catch (Exception e) {
-         ActiveMQServerLogger.LOGGER.warn(e.getMessage(), e);
+         logger.warn(e.getMessage(), e);
       }
 
       // Then call the listeners
@@ -714,7 +729,7 @@ public class OpenWireConnection extends AbstractRemotingConnection implements Se
          try {
             dispatchSync(lastResponse);
          } catch (Throwable e) {
-            ActiveMQServerLogger.LOGGER.warn(e.getMessage(), e);
+            logger.warn(e.getMessage(), e);
          }
       }
       if (fail) {
@@ -745,7 +760,7 @@ public class OpenWireConnection extends AbstractRemotingConnection implements Se
             protocolManager.removeConnection(this.getConnectionInfo(), me);
          }
       } catch (InvalidClientIDException e) {
-         ActiveMQServerLogger.LOGGER.warn("Couldn't close connection because invalid clientID", e);
+         logger.warn("Couldn't close connection because invalid clientID", e);
       }
       shutdown(true);
    }
@@ -755,11 +770,10 @@ public class OpenWireConnection extends AbstractRemotingConnection implements Se
          try {
             protocolManager.getScheduledPool().schedule(() -> {
                fail(new ActiveMQException(reason, cause, ActiveMQExceptionType.GENERIC_EXCEPTION), reason);
-               ActiveMQServerLogger.LOGGER.warn("Stopping " + transportConnection.getRemoteAddress() + "because " +
-                        reason);
+               logger.warn("Stopping {} because {}", transportConnection.getRemoteAddress(), reason);
             }, waitTimeMillis, TimeUnit.MILLISECONDS);
          } catch (Throwable t) {
-            ActiveMQServerLogger.LOGGER.warn("Cannot stop connection. This exception will be ignored.", t);
+            logger.warn("Cannot stop connection. This exception will be ignored.", t);
          }
       }
    }
@@ -853,9 +867,7 @@ public class OpenWireConnection extends AbstractRemotingConnection implements Se
     * This will answer with commands to the client
     */
    public boolean sendCommand(final Command command) {
-      if (ActiveMQServerLogger.LOGGER.isTraceEnabled()) {
-         ActiveMQServerLogger.LOGGER.trace("sending " + command);
-      }
+      logger.trace("sending {}", command);
 
       if (isDestroyed()) {
          return false;
@@ -907,7 +919,8 @@ public class OpenWireConnection extends AbstractRemotingConnection implements Se
          if (!tempDestinationExists(info.getDestination().getPhysicalName())) {
             this.state.addTempDestination(info);
             if (logger.isDebugEnabled()) {
-               logger.debug(this + " added temp destination to state: " + info.getDestination().getPhysicalName() + "; " + state.getTempDestinations().size());
+               logger.debug("{} added temp destination to state: {} ; {}",
+                  this, info.getDestination().getPhysicalName(), state.getTempDestinations().size());
             }
          }
       }
@@ -1020,7 +1033,7 @@ public class OpenWireConnection extends AbstractRemotingConnection implements Se
       ActiveMQDestination dest = new ActiveMQTempQueue(bindingName.toString());
       state.removeTempDestination(dest);
       if (logger.isDebugEnabled()) {
-         logger.debug(this + " removed temp destination from state: " + bindingName + "; " + state.getTempDestinations().size());
+         logger.debug("{} removed temp destination from state: {} ; {}", this, bindingName, state.getTempDestinations().size());
       }
 
       if (!AdvisorySupport.isAdvisoryTopic(dest)) {
@@ -1031,7 +1044,7 @@ public class OpenWireConnection extends AbstractRemotingConnection implements Se
          try {
             protocolManager.fireAdvisory(context, topic, advInfo);
          } catch (Exception e) {
-            logger.warn("Failed to fire advisory on " + topic, e);
+            logger.warn("Failed to fire advisory on {}", topic, e);
          }
       }
    }
@@ -1084,7 +1097,7 @@ public class OpenWireConnection extends AbstractRemotingConnection implements Se
                advisoryMessage.setStringProperty(AdvisorySupport.MSG_PROPERTY_CONSUMER_ID, amqConsumer.getId().toString());
                protocolManager.fireAdvisory(context, topic, advisoryMessage, amqConsumer.getId(), null);
             } catch (Exception e) {
-               ActiveMQServerLogger.LOGGER.warn("Error during method invocation", e);
+               logger.warn("Error during method invocation", e);
             }
          }
       }
@@ -1123,13 +1136,13 @@ public class OpenWireConnection extends AbstractRemotingConnection implements Se
          if (!dest.isTemporary()) {
             // this should not really happen,
             // so I'm not creating a Logger for this
-            logger.warn("OpenWire client sending a queue remove towards " + dest.getPhysicalName());
+            logger.warn("OpenWire client sending a queue remove towards {}", dest.getPhysicalName());
          }
          try {
             server.destroyQueue(new SimpleString(dest.getPhysicalName()), getRemotingConnection());
          } catch (ActiveMQNonExistentQueueException neq) {
             //this is ok, ActiveMQ 5 allows this and will actually do it quite often
-            ActiveMQServerLogger.LOGGER.debug("queue never existed");
+            logger.debug("queue never existed");
          }
       }
 
@@ -1354,16 +1367,14 @@ public class OpenWireConnection extends AbstractRemotingConnection implements Se
                   ex.errorCode = XAException.XA_HEURRB;
                   throw ex;
                } else {
-                  if (logger.isTraceEnabled()) {
-                     logger.trace("xarollback into " + tx + ", xid=" + xid + " forcing a rollback regular");
-                  }
+                  logger.trace("xarollback into {}, xid={} forcing a rollback regular", tx, xid);
 
                   try {
                      if (amqSession != null) {
                         amqSession.getCoreSession().rollback(false);
                      }
                   } catch (Exception e) {
-                     ActiveMQServerLogger.LOGGER.warn(e.getMessage(), e);
+                     logger.warn(e.getMessage(), e);
                   }
 
                   XAException ex = new XAException("Cannot find xid in resource manager: " + xid);
@@ -1372,9 +1383,8 @@ public class OpenWireConnection extends AbstractRemotingConnection implements Se
                }
             } else {
                if (tx.getState() == Transaction.State.SUSPENDED) {
-                  if (logger.isTraceEnabled()) {
-                     logger.trace("xarollback into " + tx + " sending tx back as it was suspended");
-                  }
+                  logger.trace("xarollback into {} sending tx back as it was suspended", tx);
+
                   // Put it back
                   resourceManager.putTransaction(xid, tx, OpenWireConnection.this);
                   XAException ex = new XAException("Cannot commit transaction, it is suspended " + xid);
@@ -1505,9 +1515,8 @@ public class OpenWireConnection extends AbstractRemotingConnection implements Se
          if (txID.isXATransaction()) {
             ResourceManager resourceManager = server.getResourceManager();
             Xid xid = OpenWireUtil.toXID(txID);
-            if (logger.isTraceEnabled()) {
-               logger.trace("XAcommit into " + tx + ", xid=" + xid);
-            }
+
+            logger.trace("XAcommit into {}, xid={}", tx, xid);
 
             if (tx == null) {
                if (resourceManager.getHeuristicCommittedTransactions().contains(xid)) {
@@ -1520,9 +1529,7 @@ public class OpenWireConnection extends AbstractRemotingConnection implements Se
                   ex.errorCode = XAException.XA_HEURRB;
                   throw ex;
                } else {
-                  if (logger.isTraceEnabled()) {
-                     logger.trace("XAcommit into " + tx + ", xid=" + xid + " cannot find it");
-                  }
+                  logger.trace("XAcommit into {}, xid={} cannot find it", tx, xid);
                   XAException ex = new XAException("Cannot find xid in resource manager: " + xid);
                   ex.errorCode = XAException.XAER_NOTA;
                   throw ex;
@@ -1561,7 +1568,7 @@ public class OpenWireConnection extends AbstractRemotingConnection implements Se
                Xid xid = OpenWireUtil.toXID(info.getTransactionId());
                internalSession.xaForget(xid);
             } catch (Exception e) {
-               ActiveMQServerLogger.LOGGER.warn("Error during method invocation", e);
+               logger.warn("Error during method invocation", e);
                throw e;
             }
          } else {
@@ -1581,7 +1588,7 @@ public class OpenWireConnection extends AbstractRemotingConnection implements Se
                   Xid xid = OpenWireUtil.toXID(info.getTransactionId());
                   internalSession.xaPrepare(xid);
                } catch (Exception e) {
-                  ActiveMQServerLogger.LOGGER.warn("Error during method invocation", e);
+                  logger.warn("Error during method invocation", e);
                   throw e;
                }
             } else {
@@ -1610,7 +1617,7 @@ public class OpenWireConnection extends AbstractRemotingConnection implements Se
                   internalSession.resetTX(null);
                }
             } catch (Exception e) {
-               ActiveMQServerLogger.LOGGER.warn("Error during method invocation", e);
+               logger.warn("Error during method invocation", e);
                throw e;
             }
          } else {
@@ -1683,6 +1690,9 @@ public class OpenWireConnection extends AbstractRemotingConnection implements Se
          } catch (Exception e) {
             if (tx != null) {
                tx.markAsRollbackOnly(new ActiveMQException(e.getMessage()));
+            } else if (e instanceof ActiveMQNonExistentQueueException && producerInfo.getDestination() == null) {
+               //Send exception for non transacted anonymous producers using an incorrect destination
+               sendException(e);
             }
             throw e;
          } finally {
@@ -1832,8 +1842,8 @@ public class OpenWireConnection extends AbstractRemotingConnection implements Se
    }
 
    @Override
-   public void killMessage(SimpleString nodeID) {
-      //unsupported
+   public boolean isSupportsFlowControl() {
+      return true;
    }
 
    @Override
@@ -1844,11 +1854,6 @@ public class OpenWireConnection extends AbstractRemotingConnection implements Se
    @Override
    public String getClientID() {
       return context != null ? context.getClientId() : null;
-   }
-
-   @Override
-   public String getTransportLocalAddress() {
-      return transportConnection.getLocalAddress();
    }
 
    public CoreMessageObjectPools getCoreMessageObjectPools() {

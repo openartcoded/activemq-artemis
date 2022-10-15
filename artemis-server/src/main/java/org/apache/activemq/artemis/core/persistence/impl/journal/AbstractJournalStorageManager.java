@@ -37,7 +37,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
@@ -60,13 +59,13 @@ import org.apache.activemq.artemis.core.journal.Journal;
 import org.apache.activemq.artemis.core.journal.JournalLoadInformation;
 import org.apache.activemq.artemis.core.journal.PreparedTransactionInfo;
 import org.apache.activemq.artemis.core.journal.RecordInfo;
+import org.apache.activemq.artemis.core.paging.cursor.QueryPagedReferenceImpl;
 import org.apache.activemq.artemis.core.persistence.CoreMessageObjectPools;
 import org.apache.activemq.artemis.core.paging.PageTransactionInfo;
 import org.apache.activemq.artemis.core.paging.PagingManager;
 import org.apache.activemq.artemis.core.paging.PagingStore;
 import org.apache.activemq.artemis.core.paging.cursor.PagePosition;
 import org.apache.activemq.artemis.core.paging.cursor.PageSubscription;
-import org.apache.activemq.artemis.core.paging.cursor.PagedReferenceImpl;
 import org.apache.activemq.artemis.core.paging.impl.PageTransactionInfoImpl;
 import org.apache.activemq.artemis.core.persistence.AddressBindingInfo;
 import org.apache.activemq.artemis.core.persistence.GroupingInfo;
@@ -127,7 +126,9 @@ import org.apache.activemq.artemis.utils.critical.CriticalAnalyzer;
 import org.apache.activemq.artemis.utils.critical.CriticalCloseable;
 import org.apache.activemq.artemis.utils.critical.CriticalComponentImpl;
 import org.apache.activemq.artemis.utils.critical.CriticalMeasure;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 /**
  * Controls access to the journals and other storage files such as the ones used to store pages and
@@ -144,7 +145,7 @@ public abstract class AbstractJournalStorageManager extends CriticalComponentImp
    protected static final int CRITICAL_STOP_2 = 2;
 
 
-   private static final Logger logger = Logger.getLogger(AbstractJournalStorageManager.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    public enum JournalContent {
       BINDINGS((byte) 0), MESSAGES((byte) 1);
@@ -166,20 +167,26 @@ public abstract class AbstractJournalStorageManager extends CriticalComponentImp
 
    private static final long CHECKPOINT_BATCH_SIZE = Integer.MAX_VALUE;
 
-   protected Semaphore pageMaxConcurrentIO;
-
    protected BatchingIDGenerator idGenerator;
 
    protected final ExecutorFactory ioExecutorFactory;
 
    protected final ScheduledExecutorService scheduledExecutorService;
 
-   protected final ReentrantReadWriteLock storageManagerLock = new ReentrantReadWriteLock(true);
+   protected final ReentrantReadWriteLock storageManagerLock = new ReentrantReadWriteLock(false);
 
    // I would rather cache the Closeable instance here..
    // I never know when the JRE decides to create a new instance on every call.
    // So I'm playing safe here. That's all
-   protected final ArtemisCloseable unlockCloseable = storageManagerLock.readLock()::unlock;
+   protected final ArtemisCloseable unlockCloseable = this::unlockCloseable;
+   protected static final ArtemisCloseable dummyCloseable = () -> { };
+
+   private static final ThreadLocal<Boolean> reentrant = ThreadLocal.withInitial(() -> false);
+
+   private void unlockCloseable() {
+      storageManagerLock.readLock().unlock();
+      reentrant.set(false);
+   }
 
    protected Journal messageJournal;
 
@@ -395,6 +402,12 @@ public abstract class AbstractJournalStorageManager extends CriticalComponentImp
 
    @Override
    public ArtemisCloseable closeableReadLock() {
+      if (reentrant.get()) {
+         return dummyCloseable;
+      }
+
+      reentrant.set(true);
+
       CriticalCloseable measure = measureCritical(CRITICAL_STORE);
       storageManagerLock.readLock().lock();
 
@@ -413,20 +426,6 @@ public abstract class AbstractJournalStorageManager extends CriticalComponentImp
          measure.beforeClose(unlockCloseable);
          return measure;
       }
-   }
-
-   /**
-    * for internal use and testsuite, don't use it outside of tests
-    */
-   public void writeLock() {
-      storageManagerLock.writeLock().lock();
-   }
-
-   /**
-    * for internal use and testsuite, don't use it outside of tests
-    */
-   public void writeUnlock() {
-      storageManagerLock.writeLock().unlock();
    }
 
    @Override
@@ -458,14 +457,14 @@ public abstract class AbstractJournalStorageManager extends CriticalComponentImp
 
    private void messageUpdateCallback(long id, boolean found) {
       if (!found) {
-         ActiveMQServerLogger.LOGGER.cannotFindMessageOnJournal(new Exception(), id);
+         ActiveMQServerLogger.LOGGER.cannotFindMessageOnJournal(id, new Exception("trace"));
       }
    }
 
    private void recordNotFoundCallback(long id, boolean found) {
       if (!found) {
          if (logger.isDebugEnabled()) {
-            logger.debug("Record " + id + " not found");
+            logger.debug("Record {} not found", id);
          }
       }
    }
@@ -640,7 +639,8 @@ public abstract class AbstractJournalStorageManager extends CriticalComponentImp
          messageJournal.appendCommitRecord(txID, syncTransactional, getContext(syncTransactional), lineUpContext);
          if (!lineUpContext && !syncTransactional) {
             if (logger.isTraceEnabled()) {
-               logger.trace("calling getContext(true).done() for txID=" + txID + ",lineupContext=" + lineUpContext + " syncTransactional=" + syncTransactional + "... forcing call on getContext(true).done");
+               logger.trace("calling getContext(true).done() for txID={}, lineupContext={} syncTransactional={}... forcing call on getContext(true).done",
+                  txID, lineUpContext, syncTransactional);
             }
             /**
              * If {@code lineUpContext == false}, it means that we have previously lined up a
@@ -1198,7 +1198,7 @@ public abstract class AbstractJournalStorageManager extends CriticalComponentImp
                      if (sub != null) {
                         if (!sub.reloadPageCompletion(encoding.position)) {
                            if (logger.isDebugEnabled()) {
-                              logger.debug("Complete page " + encoding.position.getPageNr() + " doesn't exist on page manager " + sub.getPagingStore().getAddress());
+                              logger.debug("Complete page {} doesn't exist on page manager {}", encoding.position.getPageNr(), sub.getPagingStore().getAddress());
                            }
                            messageJournal.tryAppendDeleteRecord(record.id, this::recordNotFoundCallback, false);
                         }
@@ -1282,7 +1282,7 @@ public abstract class AbstractJournalStorageManager extends CriticalComponentImp
       } catch (Throwable ignored) {
       }
 
-      ActiveMQServerLogger.LOGGER.failedToLoadPreparedTX(e, String.valueOf(encodingXid != null ? encodingXid.xid : null));
+      ActiveMQServerLogger.LOGGER.failedToLoadPreparedTX(String.valueOf(encodingXid != null ? encodingXid.xid : null), e);
 
       try {
          rollback(txInfo.getId());
@@ -1709,29 +1709,6 @@ public abstract class AbstractJournalStorageManager extends CriticalComponentImp
    }
 
    @Override
-   public void beforePageRead() throws Exception {
-      if (pageMaxConcurrentIO != null) {
-         pageMaxConcurrentIO.acquire();
-      }
-   }
-
-   @Override
-   public boolean beforePageRead(long timeout, TimeUnit unit) throws InterruptedException {
-      final Semaphore pageMaxConcurrentIO = this.pageMaxConcurrentIO;
-      if (pageMaxConcurrentIO == null) {
-         return true;
-      }
-      return pageMaxConcurrentIO.tryAcquire(timeout, unit);
-   }
-
-   @Override
-   public void afterPageRead() throws Exception {
-      if (pageMaxConcurrentIO != null) {
-         pageMaxConcurrentIO.release();
-      }
-   }
-
-   @Override
    public Journal getMessageJournal() {
       return messageJournal;
    }
@@ -1750,9 +1727,9 @@ public abstract class AbstractJournalStorageManager extends CriticalComponentImp
             } catch (ActiveMQShutdownException e) {
                // this may happen, this is asynchronous as all that would happen is we missed the update
                // since the update was missed, next restart this operation will be retried
-               ActiveMQServerLogger.LOGGER.debug(e.getMessage(), e);
+               logger.debug(e.getMessage(), e);
             } catch (Throwable e) {
-               ActiveMQServerLogger.LOGGER.warn(e.getMessage(), e);
+               logger.warn(e.getMessage(), e);
             }
          }
       }
@@ -1912,7 +1889,7 @@ public abstract class AbstractJournalStorageManager extends CriticalComponentImp
 
                if (sub != null) {
                   sub.reloadPreparedACK(tx, encoding.position);
-                  referencesToAck.add(new PagedReferenceImpl(encoding.position, null, sub));
+                  referencesToAck.add(new QueryPagedReferenceImpl(encoding.position, null, sub));
                } else {
                   ActiveMQServerLogger.LOGGER.journalCannotFindQueueReloadingACK(encoding.queueID);
                }
@@ -2150,17 +2127,9 @@ public abstract class AbstractJournalStorageManager extends CriticalComponentImp
 
    @Override
    public boolean addToPage(PagingStore store, Message msg, Transaction tx, RouteContextList listCtx) throws Exception {
-      /**
-       * Exposing the read-lock here is an encapsulation violation done in order to keep the code
-       * simpler. The alternative would be to add a second method, say 'verifyPaging', to
-       * PagingStore.
-       * <p>
-       * Adding this second method would also be more surprise prone as it would require a certain
-       * calling order.
-       * <p>
-       * The reasoning is that exposing the lock is more explicit and therefore `less bad`.
-       */
-      return store.page(msg, tx, listCtx, storageManagerLock.readLock());
+      try (ArtemisCloseable closeable = closeableReadLock()) {
+         return store.page(msg, tx, listCtx);
+      }
    }
 
    private void installLargeMessageConfirmationOnTX(Transaction tx, long recordID) {

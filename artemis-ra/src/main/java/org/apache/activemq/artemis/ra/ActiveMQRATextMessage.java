@@ -19,10 +19,16 @@ package org.apache.activemq.artemis.ra;
 import javax.jms.JMSException;
 import javax.jms.TextMessage;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
+
 /**
  * A wrapper for a message
  */
 public class ActiveMQRATextMessage extends ActiveMQRAMessage implements TextMessage {
+
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    /**
     * Create a new wrapper
@@ -33,9 +39,7 @@ public class ActiveMQRATextMessage extends ActiveMQRAMessage implements TextMess
    public ActiveMQRATextMessage(final TextMessage message, final ActiveMQRASession session) {
       super(message, session);
 
-      if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-         ActiveMQRALogger.LOGGER.trace("constructor(" + message + ", " + session + ")");
-      }
+      logger.trace("constructor({}, {})", message, session);
    }
 
    /**
@@ -46,9 +50,7 @@ public class ActiveMQRATextMessage extends ActiveMQRAMessage implements TextMess
     */
    @Override
    public String getText() throws JMSException {
-      if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-         ActiveMQRALogger.LOGGER.trace("getText()");
-      }
+      logger.trace("getText()");
 
       return ((TextMessage) message).getText();
    }
@@ -61,9 +63,7 @@ public class ActiveMQRATextMessage extends ActiveMQRAMessage implements TextMess
     */
    @Override
    public void setText(final String string) throws JMSException {
-      if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-         ActiveMQRALogger.LOGGER.trace("setText(" + string + ")");
-      }
+      logger.trace("setText({})", string);
 
       ((TextMessage) message).setText(string);
    }

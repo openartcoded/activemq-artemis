@@ -22,8 +22,8 @@ import org.apache.activemq.artemis.api.core.Message;
 import org.apache.activemq.artemis.api.core.SimpleString;
 import org.apache.activemq.artemis.core.filter.Filter;
 import org.apache.activemq.artemis.core.message.impl.CoreMessage;
-import org.apache.activemq.artemis.tests.util.SilentTestCase;
 import org.apache.activemq.artemis.utils.RandomUtil;
+import org.apache.activemq.artemis.utils.SilentTestCase;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -170,9 +170,15 @@ public class FilterTest extends SilentTestCase {
    @Test
    public void testDifferentNullString() throws Exception {
       filter = FilterImpl.createFilter(new SimpleString("prop <> 'foo'"));
+      Assert.assertFalse(filter.match(message));
+
+      filter = FilterImpl.createFilter(new SimpleString("prop <> 'foo' OR prop IS NULL"));
       Assert.assertTrue(filter.match(message));
 
       filter = FilterImpl.createFilter(new SimpleString("NOT (prop = 'foo')"));
+      Assert.assertFalse(filter.match(message));
+
+      filter = FilterImpl.createFilter(new SimpleString("NOT (prop = 'foo') OR prop IS NULL"));
       Assert.assertTrue(filter.match(message));
 
       filter = FilterImpl.createFilter(new SimpleString("prop <> 'foo'"));

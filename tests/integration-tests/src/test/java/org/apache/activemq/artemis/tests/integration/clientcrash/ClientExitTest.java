@@ -25,9 +25,11 @@ import org.apache.activemq.artemis.api.core.client.ClientSessionFactory;
 import org.apache.activemq.artemis.api.core.client.ServerLocator;
 import org.apache.activemq.artemis.utils.SpawnedVMSupport;
 import org.apache.activemq.artemis.utils.RandomUtil;
-import org.jboss.logging.Logger;
 import org.junit.Before;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 /**
  * A test that makes sure that an ActiveMQ Artemis client gracefully exists after the last session is
@@ -43,7 +45,7 @@ public class ClientExitTest extends ClientTestBase {
 
    private static final SimpleString QUEUE = new SimpleString("ClientExitTestQueue");
 
-   private static final Logger log = Logger.getLogger(ClientExitTest.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private ClientSession session;
 
@@ -63,7 +65,7 @@ public class ClientExitTest extends ClientTestBase {
 
       // the client VM should exit by itself. If it doesn't, that means we have a problem
       // and the test will timeout
-      ClientExitTest.log.debug("waiting for the client VM to exit ...");
+      ClientExitTest.logger.debug("waiting for the client VM to exit ...");
       p.waitFor();
 
       assertEquals(0, p.exitValue());

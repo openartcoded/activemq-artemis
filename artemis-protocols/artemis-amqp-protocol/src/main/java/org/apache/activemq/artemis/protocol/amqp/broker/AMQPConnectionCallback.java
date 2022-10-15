@@ -52,13 +52,15 @@ import org.apache.activemq.artemis.utils.UUIDGenerator;
 import org.apache.qpid.proton.amqp.Binary;
 import org.apache.qpid.proton.amqp.Symbol;
 import org.apache.qpid.proton.amqp.transport.AmqpError;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 import io.netty.buffer.ByteBuf;
 
 public class AMQPConnectionCallback implements FailureListener, CloseListener {
 
-   private static final Logger logger = Logger.getLogger(AMQPConnectionCallback.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private final ConcurrentMap<Binary, Transaction> transactions = new ConcurrentHashMap<>();
 
@@ -106,7 +108,7 @@ public class AMQPConnectionCallback implements FailureListener, CloseListener {
          if (factory != null) {
             result = factory.create(server, manager, connection, protonConnectionDelegate);
          } else {
-            logger.debug("Mo matching mechanism found for: " + mechanism);
+            logger.debug("Mo matching mechanism found for: {}", mechanism);
          }
       }
       return result;
@@ -239,7 +241,7 @@ public class AMQPConnectionCallback implements FailureListener, CloseListener {
       }
 
       if (tx == null) {
-         logger.warn("Couldn't find txid = " + txid);
+         logger.warn("Couldn't find txid = {}", txid);
          throw ActiveMQAMQPProtocolMessageBundle.BUNDLE.txNotFound(txid.toString());
       }
 

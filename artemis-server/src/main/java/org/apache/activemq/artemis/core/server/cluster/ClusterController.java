@@ -52,14 +52,16 @@ import org.apache.activemq.artemis.core.server.ActiveMQServerLogger;
 import org.apache.activemq.artemis.core.server.cluster.qourum.QuorumManager;
 import org.apache.activemq.artemis.core.server.impl.Activation;
 import org.apache.activemq.artemis.spi.core.remoting.Acceptor;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 /**
  * used for creating and managing cluster control connections for each cluster connection and the replication connection
  */
 public class ClusterController implements ActiveMQComponent {
 
-   private static final Logger logger = Logger.getLogger(ClusterController.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private final QuorumManager quorumManager;
 
@@ -100,10 +102,12 @@ public class ClusterController implements ActiveMQComponent {
    @Override
    public void start() throws Exception {
       if (logger.isDebugEnabled()) {
-         logger.debug("Starting Cluster Controller " + System.identityHashCode(this) + " for server " + server);
+         logger.debug("Starting Cluster Controller {} for server {}", System.identityHashCode(this), server);
       }
-      if (started)
+      if (started) {
          return;
+      }
+
       //set the default locator that will be used to connecting to the default cluster.
       defaultLocator = locators.get(defaultClusterConnectionName);
       //create a locator for replication, either the default or the specified if not set
@@ -160,8 +164,7 @@ public class ClusterController implements ActiveMQComponent {
    @Override
    public void stop() throws Exception {
       if (logger.isDebugEnabled()) {
-
-         logger.debug("Stopping Cluster Controller " + System.identityHashCode(this) + " for server " + this.server);
+         logger.debug("Stopping Cluster Controller {} for server {}", System.identityHashCode(this), server);
       }
       started = false;
       //close all the locators
@@ -444,8 +447,9 @@ public class ClusterController implements ActiveMQComponent {
                } else {
                   pair = new Pair<>(msg.getConnector(), msg.getBackupConnector());
                }
+
                if (logger.isTraceEnabled()) {
-                  logger.trace("Server " + server + " receiving nodeUp from NodeID=" + msg.getNodeID() + ", pair=" + pair);
+                  logger.trace("Server {} receiving nodeUp from NodeID={}, pair={}", server, msg.getNodeID(), pair);
                }
 
                if (acceptorUsed != null) {
@@ -454,16 +458,16 @@ public class ClusterController implements ActiveMQComponent {
                      String scaleDownGroupName = msg.getScaleDownGroupName();
                      clusterConn.nodeAnnounced(msg.getCurrentEventID(), msg.getNodeID(), msg.getBackupGroupName(), scaleDownGroupName, pair, msg.isBackup());
                   } else {
-                     logger.debug("Cluster connection is null on acceptor = " + acceptorUsed);
+                     logger.debug("Cluster connection is null on acceptor = {}", acceptorUsed);
                   }
                } else {
-                  logger.debug("there is no acceptor used configured at the CoreProtocolManager " + this);
+                  logger.debug("there is no acceptor used configured at the CoreProtocolManager {}", this);
                }
             } else if (packet.getType() == PacketImpl.QUORUM_VOTE) {
                if (quorumManager != null) {
                   quorumManager.handleQuorumVote(clusterChannel, packet);
                } else {
-                  logger.warnf("Received %s on a cluster connection that's using the new quorum vote algorithm.", packet);
+                  logger.warn("Received {} on a cluster connection that's using the new quorum vote algorithm.", packet);
                }
             } else if (packet.getType() == PacketImpl.SCALEDOWN_ANNOUNCEMENT) {
                ScaleDownAnnounceMessage message = (ScaleDownAnnounceMessage) packet;
@@ -504,8 +508,7 @@ public class ClusterController implements ActiveMQComponent {
                return;
             }
             if (logger.isDebugEnabled()) {
-
-               logger.debug("retry on Cluster Controller " + System.identityHashCode(ClusterController.this) + " server = " + server);
+               logger.debug("retry on Cluster Controller {} server = {}", System.identityHashCode(ClusterController.this), server);
             }
             server.getScheduledPool().schedule(this, serverLocator.getRetryInterval(), TimeUnit.MILLISECONDS);
          }

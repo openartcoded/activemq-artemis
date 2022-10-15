@@ -21,12 +21,17 @@ import org.apache.activemq.artemis.api.core.ActiveMQAddressFullException;
 import org.apache.activemq.artemis.api.core.ActiveMQException;
 import org.apache.activemq.artemis.api.core.SimpleString;
 import org.apache.activemq.artemis.spi.core.remoting.SessionContext;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 public abstract class AbstractProducerCreditsImpl implements ClientProducerCredits {
 
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
+
    protected int pendingCredits;
 
-   private final int windowSize;
+   protected final int windowSize;
 
    protected volatile boolean closed;
 
@@ -81,7 +86,10 @@ public abstract class AbstractProducerCreditsImpl implements ClientProducerCredi
    }
 
    protected void afterAcquired(int credits) throws ActiveMQAddressFullException {
-      // check to see if the blocking mode is FAIL on the server
+      if (logger.isDebugEnabled()) {
+         logger.debug("AfterAcquire {} credits on address {}", credits, address);
+      }
+
       synchronized (this) {
          pendingCredits -= credits;
       }
@@ -112,6 +120,7 @@ public abstract class AbstractProducerCreditsImpl implements ClientProducerCredi
 
    @Override
    public synchronized void reset() {
+      logger.debug("reset credits on address {}", address);
       // Any pendingCredits credits from before failover won't arrive, so we re-initialise
 
       int beforeFailure = pendingCredits;
@@ -144,6 +153,9 @@ public abstract class AbstractProducerCreditsImpl implements ClientProducerCredi
 
    protected void checkCredits(final int credits) {
       int needed = Math.max(credits, windowSize);
+      if (logger.isTraceEnabled()) {
+         logger.trace("CheckCredits {} on address {}, needed={}, credits={}, window={}", credits, address, needed, credits, windowSize);
+      }
 
       int toRequest = -1;
 
@@ -151,17 +163,32 @@ public abstract class AbstractProducerCreditsImpl implements ClientProducerCredi
          if (getBalance() + arriving < needed) {
             toRequest = needed - arriving;
 
-            pendingCredits += toRequest;
-            arriving += toRequest;
+            if (logger.isTraceEnabled()) {
+               logger.trace("CheckCredits on Address {}, requesting={}, arriving={}, balance={}", address, toRequest, arriving, getBalance());
+            }
+         } else {
+            if (logger.isTraceEnabled()) {
+               logger.trace("CheckCredits did not need it, balance={}, arriving={},  needed={}, getbalance + arriving < needed={}", getBalance(), arriving, needed, (boolean)(getBalance() + arriving < needed));
+            }
          }
       }
 
-      if (toRequest != -1) {
+      if (toRequest > 0) {
+         if (logger.isDebugEnabled()) {
+            logger.debug("Requesting {} credits on address {}, needed = {}, arriving = {}", toRequest, address, needed, arriving);
+         }
          requestCredits(toRequest);
+      } else {
+         logger.debug("not asking for {} credits on {}", toRequest, address);
       }
    }
 
-   private void requestCredits(final int credits) {
+   protected void requestCredits(final int credits) {
+      logger.debug("Request {} credits on address {}", credits, address);
+      synchronized (this) {
+         pendingCredits += credits;
+         arriving += credits;
+      }
       session.sendProducerCreditsMessage(credits, address);
    }
 }

@@ -30,7 +30,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.activemq.artemis.tests.util.ActiveMQTestBase;
 import org.apache.activemq.artemis.utils.ReusableLatch;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -38,7 +40,7 @@ import org.junit.Test;
 
 public class FileStoreMonitorTest extends ActiveMQTestBase {
 
-   private static final Logger log = Logger.getLogger(FileStoreMonitorTest.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private ScheduledExecutorService scheduledExecutorService;
    private ExecutorService executorService;
@@ -79,19 +81,19 @@ public class FileStoreMonitorTest extends ActiveMQTestBase {
          @Override
          public void tick(long usableSpace, long totalSpace) {
             tick.incrementAndGet();
-            log.debug("tick:: usableSpace: " + usableSpace + ", totalSpace:" + totalSpace);
+            logger.debug("tick:: usableSpace: {}, totalSpace:{}", usableSpace, totalSpace);
          }
 
          @Override
          public void over(long usableSpace, long totalSpace) {
             over.incrementAndGet();
-            log.debug("over:: usableSpace: " + usableSpace + ", totalSpace:" + totalSpace);
+            logger.debug("over:: usableSpace: {}, totalSpace:{}", usableSpace, totalSpace);
          }
 
          @Override
          public void under(long usableSpace, long totalSpace) {
             under.incrementAndGet();
-            log.debug("under:: usableSpace: " + usableSpace + ", totalSpace:" + totalSpace);
+            logger.debug("under:: usableSpace: {}, totalSpace: {}", usableSpace, totalSpace);
          }
       };
       FileStoreMonitor storeMonitor = new FileStoreMonitor(scheduledExecutorService, executorService, 100, TimeUnit.MILLISECONDS, 0.999, null);
@@ -123,7 +125,7 @@ public class FileStoreMonitorTest extends ActiveMQTestBase {
       storeMonitor.addCallback(new FileStoreMonitor.Callback() {
          @Override
          public void tick(long usableSpace, long totalSpace) {
-            log.debug("Tick");
+            logger.debug("Tick");
             latch.countDown();
          }
 

@@ -21,13 +21,15 @@ import java.util.List;
 
 import org.apache.activemq.artemis.api.core.TransportConfiguration;
 import org.apache.activemq.artemis.uri.ConnectorTransportConfigurationParser;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 import org.junit.Assert;
 import org.junit.Test;
 
 public class ConnectorTransportConfigurationParserURITest {
 
-   private static final Logger logger = Logger.getLogger(ConnectorTransportConfigurationParserURITest.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    @Test
    public void testParse() throws Exception {
@@ -37,7 +39,7 @@ public class ConnectorTransportConfigurationParserURITest {
       System.out.println(transportURI);
       List<TransportConfiguration> objects = parser.newObject(transportURI, "test");
       if (logger.isInfoEnabled()) {
-         objects.forEach((t) -> logger.info("transportConfig:" + t.toString()));
+         objects.forEach(t -> logger.info("transportConfig: {}", t));
       }
 
       Assert.assertEquals(3, objects.size());

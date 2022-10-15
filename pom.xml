@@ -20,7 +20,7 @@
    <groupId>org.apache.activemq</groupId>
    <artifactId>artemis-pom</artifactId>
    <packaging>pom</packaging>
-   <version>2.23.0-SNAPSHOT</version>
+   <version>2.27.0-SNAPSHOT</version>
 
    <parent>
       <groupId>org.apache</groupId>
@@ -30,6 +30,7 @@
    </parent>
 
    <modules>
+      <module>artemis-log-annotation-processor</module>
       <module>artemis-protocols</module>
       <module>artemis-dto</module>
       <module>artemis-cdi-client</module>
@@ -54,7 +55,6 @@
       <module>artemis-journal</module>
       <module>artemis-ra</module>
       <module>artemis-jakarta-ra</module>
-      <module>artemis-rest</module>
       <module>artemis-service-extensions</module>
       <module>artemis-jakarta-service-extensions</module>
       <module>artemis-jdbc-store</module>
@@ -63,6 +63,7 @@
       <module>artemis-hawtio</module>
       <module>integration/activemq-spring-integration</module>
       <module>artemis-distribution</module>
+      <module>artemis-unit-test-support</module>
       <module>tests</module>
       <module>artemis-features</module>
       <module>artemis-quorum-api</module>
@@ -80,16 +81,16 @@
       <staging.siteURL>scp://people.apache.org/x1/www/activemq.apache.org</staging.siteURL>
 
       <retryTests>false</retryTests>
-      <logging.config>logging.properties</logging.config>
+      <logging.config>log4j2-tests-config.properties</logging.config>
       <modular.jdk.surefire.arg>--add-modules java.sql,jdk.unsupported </modular.jdk.surefire.arg>
 
-      <activemq-artemis-native-version>1.0.2</activemq-artemis-native-version>
+      <activemq-artemis-native-version>2.0.0</activemq-artemis-native-version>
       <karaf.version>4.3.3</karaf.version>
       <pax.exam.version>4.13.4</pax.exam.version>
-      <commons.config.version>2.7</commons.config.version>
+      <commons.config.version>2.8.0</commons.config.version>
       <commons.lang.version>3.12.0</commons.lang.version>
-      <activemq5-version>5.16.0</activemq5-version>
-      <apache.derby.version>10.11.1.1</apache.derby.version>
+      <activemq5-version>5.17.2</activemq5-version>
+      <apache.derby.version>10.14.2.0</apache.derby.version>
       <commons.beanutils.version>1.9.4</commons.beanutils.version>
       <commons.dbcp2.version>2.7.0</commons.dbcp2.version>
       <commons.pool2.version>2.7.0</commons.pool2.version>
@@ -99,22 +100,21 @@
       <commons.codec.version>1.15</commons.codec.version>
       <fuse.mqtt.client.version>1.16</fuse.mqtt.client.version>
       <guava.version>30.1-jre</guava.version>
-      <hawtio.version>2.14.2</hawtio.version>
+      <hawtio.version>2.15.0</hawtio.version>
       <jsr305.version>3.0.2</jsr305.version>
-      <jboss.logging.version>3.4.3.Final</jboss.logging.version>
-      <jetty.version>9.4.45.v20220203</jetty.version>
+      <jetty.version>10.0.11</jetty.version>
       <tomcat.servlet-api.version>8.5.78</tomcat.servlet-api.version>
       <jgroups.version>5.2.0.Final</jgroups.version>
       <errorprone.version>2.10.0</errorprone.version>
-      <maven.enforcer.plugin.version>3.0.0-M3</maven.enforcer.plugin.version>
-      <maven.bundle.plugin.version>5.1.2</maven.bundle.plugin.version>
-      <maven.shade.plugin.version>3.2.4</maven.shade.plugin.version>
+      <maven.enforcer.plugin.version>3.0.0</maven.enforcer.plugin.version>
+      <maven.bundle.plugin.version>5.1.6</maven.bundle.plugin.version>
+      <maven.shade.plugin.version>3.3.0</maven.shade.plugin.version>
       <maven.checkstyle.plugin.version>3.1.2</maven.checkstyle.plugin.version>
       <sevntu.checks.version>1.39.0</sevntu.checks.version>
       <checkstyle.version>9.2.1</checkstyle.version>
       <mockito.version>4.4.0</mockito.version>
       <jctools.version>2.1.2</jctools.version>
-      <netty.version>4.1.75.Final</netty.version>
+      <netty.version>4.1.82.Final</netty.version>
       <hdrhistogram.version>2.1.12</hdrhistogram.version>
       <curator.version>5.2.0</curator.version>
       <zookeeper.version>3.6.3</zookeeper.version>
@@ -124,16 +124,13 @@
       <opentelemetry-alpha.version>1.10.0-alpha</opentelemetry-alpha.version>
 
       <!-- this is basically for tests -->
-      <netty-tcnative-version>2.0.50.Final</netty-tcnative-version>
-      <proton.version>0.33.10</proton.version>
-      <resteasy.version>3.15.0.Final</resteasy.version>
+      <netty-tcnative-version>2.0.54.Final</netty-tcnative-version>
+      <proton.version>0.34.0</proton.version>
       <slf4j.version>1.7.36</slf4j.version>
-      <qpid.jms.version>1.6.0</qpid.jms.version>
+      <log4j.version>2.19.0</log4j.version>
+      <qpid.jms.version>1.7.0</qpid.jms.version>
       <johnzon.version>1.2.16</johnzon.version>
       <hawtbuff.version>1.11</hawtbuff.version>
-      <jb.logmanager.version>2.1.18.Final</jb.logmanager.version>
-      <jb.slf4j-jboss-logmanager.version>1.0.4.GA</jb.slf4j-jboss-logmanager.version>
-      <version.org.wildfly.common.wildfly-common>1.5.2.Final</version.org.wildfly.common.wildfly-common>
       <airlift.version>0.8</airlift.version>
       <jakarta.activation-api.version>1.2.2</jakarta.activation-api.version>
       <jakarta.annotation-api.version>1.3.5</jakarta.annotation-api.version>
@@ -155,38 +152,40 @@
       <servicemix.json-1.1.spec.version>2.9.0</servicemix.json-1.1.spec.version>
       <version.org.jacoco>0.8.6</version.org.jacoco>
       <version.org.jacoco.plugin>0.8.6</version.org.jacoco.plugin>
-      <version.micrometer>1.6.3</version.micrometer>
+      <version.micrometer>1.8.5</version.micrometer>
       <hamcrest.version>2.1</hamcrest.version>
       <junit.version>4.13.2</junit.version>
       <surefire.version>2.22.2</surefire.version>
       <version.jaxb.runtime>2.3.3</version.jaxb.runtime>
       <paho.client.mqtt.version>1.2.5</paho.client.mqtt.version>
-      <postgresql.version>42.3.3</postgresql.version>
+      <postgresql.version>42.4.1</postgresql.version>
       <testcontainers.version>1.16.3</testcontainers.version>
       <exec-maven-plugin.version>3.0.0</exec-maven-plugin.version>
+      <apache.httpcore.version>4.4.13</apache.httpcore.version>
+      <apache.httpclient.version>4.5.13</apache.httpclient.version>
 
       <!-- for JakartaEE -->
       <version.batavia>1.0.10.Final</version.batavia>
-      <jakarta.jms-api.version.alt>3.0.0</jakarta.jms-api.version.alt>
-      <jakarta.transaction-api.version.alt>2.0.0</jakarta.transaction-api.version.alt>
-      <jakarta.resource-api.version.alt>2.0.0</jakarta.resource-api.version.alt>
+      <jakarta.jms-api.version.alt>3.1.0</jakarta.jms-api.version.alt>
+      <jakarta.transaction-api.version.alt>2.0.1</jakarta.transaction-api.version.alt>
+      <jakarta.resource-api.version.alt>2.1.0</jakarta.resource-api.version.alt>
 
       <!-- used on tests -->
-      <groovy.version>4.0.0</groovy.version>
-      <vertx.version>3.9.4</vertx.version>
+      <groovy.version>4.0.5</groovy.version>
+      <vertx.version>4.3.3</vertx.version>
       <hadoop.minikdc.version>3.3.1</hadoop.minikdc.version>
 
       <owasp.version>6.1.0</owasp.version>
-      <spring.version>5.3.19</spring.version>
+      <spring.version>5.3.20</spring.version>
 
-      <jackson.version>2.13.2</jackson.version>
-      <jackson-databind.version>2.13.2.2</jackson-databind.version>
+      <jackson.version>2.13.4</jackson.version>
+      <jackson-databind.version>${jackson.version}</jackson-databind.version>
 
       <activemq.version.versionName>${project.version}</activemq.version.versionName>
       <activemq.version.majorVersion>1</activemq.version.majorVersion>
       <activemq.version.minorVersion>0</activemq.version.minorVersion>
       <activemq.version.microVersion>0</activemq.version.microVersion>
-      <activemq.version.incrementingVersion>132,131,130,129,128,127,126,125,124,123,122</activemq.version.incrementingVersion>
+      <activemq.version.incrementingVersion>133,132,131,130,129,128,127,126,125,124,123,122</activemq.version.incrementingVersion>
       <activemq.version.versionTag>${project.version}</activemq.version.versionTag>
       <ActiveMQ-Version>${project.version}(${activemq.version.incrementingVersion})</ActiveMQ-Version>
 
@@ -227,11 +226,11 @@
 
       -->
 
-      <activemq-surefire-argline>-Dorg.apache.commons.logging.Log=org.apache.activemq.artemis.logs.JBossLoggingApacheLoggerBridge -Dorg.apache.activemq.artemis.utils.RetryRule.retry=${retryTests} -Dbrokerconfig.maxDiskUsage=100 -Dorg.apache.activemq.artemis.core.remoting.impl.netty.TransportConstants.DEFAULT_QUIET_PERIOD=0 -Dorg.apache.activemq.artemis.core.remoting.impl.netty.TransportConstants.DEFAULT_SHUTDOWN_TIMEOUT=0 -Djava.util.logging.manager=org.jboss.logmanager.LogManager
-         -Dlogging.configuration="file:${activemq.basedir}/tests/config/${logging.config}"
+      <activemq-surefire-argline>-Dorg.apache.activemq.artemis.utils.RetryRule.retry=${retryTests} -Dbrokerconfig.maxDiskUsage=100 -Dorg.apache.activemq.artemis.core.remoting.impl.netty.TransportConstants.DEFAULT_QUIET_PERIOD=0 -Dorg.apache.activemq.artemis.core.remoting.impl.netty.TransportConstants.DEFAULT_SHUTDOWN_TIMEOUT=0
          -Djava.library.path="${activemq.basedir}/target/bin/lib/linux-x86_64:${activemq.basedir}/target/bin/lib/linux-i686" -Djgroups.bind_addr=localhost
          -Djava.net.preferIPv4Stack=true -Dbasedir=${basedir}
          -Djdk.attach.allowAttachSelf=true
+         -Dlog4j2.configurationFile="file:${activemq.basedir}/tests/config/${logging.config}"
       </activemq-surefire-argline>
       <activemq.basedir>${project.basedir}</activemq.basedir>
       <skipOWASP>true</skipOWASP>
@@ -296,13 +295,13 @@
 
    <dependencyManagement>
       <dependencies>
-         <!-- ## Test Dependencies ## Note: Junit is required in certain module tests.  We should control versions from here. -->
+         <!-- ## Test Dependencies ## -->
          <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
             <version>${junit.version}</version>
             <scope>test</scope>
-            <!-- License: CPL 1.0 -->
+            <!-- License: EPL 1.0 -->
          </dependency>
          <dependency>
             <groupId>org.easymock</groupId>
@@ -389,27 +388,6 @@
          </dependency>
 
          <!-- ## End Test Dependencies ## -->
-
-         <!-- ### Build Time Dependencies ### -->
-         <!-- This is a build dependency of this project, but is not needed at compile or runtime by other
-         projects that depend on this project. This should be in the compiler plugin but can't because of a bug,
-         see https://issues.apache.org/jira/browse/MCOMPILER-203-->
-         <dependency>
-            <groupId>org.jboss.logging</groupId>
-            <artifactId>jboss-logging-processor</artifactId>
-            <version>2.2.0.Final</version>
-            <optional>true</optional>
-            <scope>provided</scope>
-            <!-- License: LGPL-->
-         </dependency>
-         <dependency>
-            <groupId>org.jboss.logging</groupId>
-            <artifactId>jboss-logging-annotations</artifactId>
-            <version>2.2.0.Final</version>
-            <scope>provided</scope>
-            <optional>true</optional>
-            <!-- License: Apache 2.0-->
-         </dependency>
          <dependency>
              <groupId>com.google.errorprone</groupId>
              <artifactId>error_prone_core</artifactId>
@@ -473,30 +451,6 @@
             <!-- License: Apache 2.0 -->
          </dependency>
          <dependency>
-            <groupId>org.jboss.logging</groupId>
-            <artifactId>jboss-logging</artifactId>
-            <version>${jboss.logging.version}</version>
-            <!-- License: Apache 2.0 -->
-         </dependency>
-         <dependency>
-            <groupId>org.jboss.logmanager</groupId>
-            <artifactId>jboss-logmanager</artifactId>
-            <version>${jb.logmanager.version}</version>
-            <!-- License: Apache 2.0 -->
-         </dependency>
-         <dependency>
-            <groupId>org.jboss.slf4j</groupId>
-            <artifactId>slf4j-jboss-logmanager</artifactId>
-            <version>${jb.slf4j-jboss-logmanager.version}</version>
-            <!-- License: Apache 2.0 -->
-         </dependency>
-         <dependency>
-             <groupId>org.wildfly.common</groupId>
-             <artifactId>wildfly-common</artifactId>
-             <version>${version.org.wildfly.common.wildfly-common}</version>
-             <!-- License: Apache 2.0 -->
-         </dependency>
-         <dependency>
             <groupId>net.java.dev.javacc</groupId>
             <artifactId>javacc</artifactId>
             <version>4.0</version>
@@ -550,8 +504,6 @@
              <version>${commons.lang.version}</version>
              <!-- License: Apache 2.0 -->
          </dependency>
-
-         <!-- End JMS Injection -->
 
          <!-- ## Examples Dependencies ## -->
          <dependency>
@@ -750,30 +702,20 @@
            <version>${slf4j.version}</version>
            <!-- License: MIT -->
          </dependency>
-         <!--needed for the rest support-->
          <dependency>
-            <groupId>org.jboss.resteasy</groupId>
-            <artifactId>resteasy-jaxrs</artifactId>
-            <version>${resteasy.version}</version>
-            <!-- License: Apache 2.0 -->
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-slf4j-impl</artifactId>
+            <version>${log4j.version}</version>
          </dependency>
          <dependency>
-            <groupId>org.jboss.resteasy</groupId>
-            <artifactId>resteasy-jaxb-provider</artifactId>
-            <version>${resteasy.version}</version>
-            <!-- License: Apache 2.0 -->
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-api</artifactId>
+            <version>${log4j.version}</version>
          </dependency>
          <dependency>
-            <groupId>org.jboss.resteasy</groupId>
-            <artifactId>resteasy-jackson2-provider</artifactId>
-            <version>${resteasy.version}</version>
-            <!-- License: Apache 2.0 -->
-         </dependency>
-         <dependency>
-            <groupId>org.jboss.resteasy</groupId>
-            <artifactId>tjws</artifactId>
-            <version>${resteasy.version}</version>
-            <!-- License: Apache 2.0 -->
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-core</artifactId>
+            <version>${log4j.version}</version>
          </dependency>
          <dependency>
             <groupId>commons-codec</groupId>
@@ -826,17 +768,6 @@
             <!-- License: Apache 2.0 -->
          </dependency>
 
-         <!-- needed by artemis-selector -->
-         <dependency>
-            <groupId>xml-apis</groupId>
-            <artifactId>xml-apis</artifactId>
-            <version>2.0.2</version>
-         </dependency>
-         <dependency>
-            <groupId>xalan</groupId>
-            <artifactId>xalan</artifactId>
-            <version>2.7.2</version>
-         </dependency>
          <dependency>
             <groupId>commons-io</groupId>
             <artifactId>commons-io</artifactId>
@@ -1088,9 +1019,18 @@
             <version>${jackson.version}</version>
          </dependency>
 
+         <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpcore</artifactId>
+            <version>${apache.httpcore.version}</version>
+         </dependency>
+         <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpclient</artifactId>
+            <version>${apache.httpclient.version}</version>
+         </dependency>
 
       </dependencies>
-
    </dependencyManagement>
 
    <profiles>
@@ -1131,7 +1071,7 @@
                               <arg>--add-exports=jdk.unsupported/sun.misc=ALL-UNNAMED</arg>
                               <arg>--add-exports=java.base/jdk.internal.misc=ALL-UNNAMED</arg>
                               <arg>-XDcompilePolicy=simple</arg>
-                              <arg>-Xplugin:ErrorProne -Xep:MissingOverride:ERROR -Xep:NonAtomicVolatileUpdate:ERROR -Xep:SynchronizeOnNonFinalField:ERROR -Xep:StaticQualifiedUsingExpression:ERROR -Xep:WaitNotInLoop:ERROR -XepExcludedPaths:.*/generated-sources/.*</arg>
+                              <arg>-Xplugin:ErrorProne -Xep:ThreadLocalUsage:ERROR -Xep:MissingOverride:ERROR -Xep:NonAtomicVolatileUpdate:ERROR -Xep:SynchronizeOnNonFinalField:ERROR -Xep:StaticQualifiedUsingExpression:ERROR -Xep:WaitNotInLoop:ERROR -XepExcludedPaths:.*/generated-sources/.*</arg>
                           </compilerArgs>
                       </configuration>
                   </plugin>
@@ -1165,7 +1105,7 @@
                               <arg>--add-exports=jdk.unsupported/sun.misc=ALL-UNNAMED</arg>
                               <arg>--add-exports=java.base/jdk.internal.misc=ALL-UNNAMED</arg>
                               <arg>-XDcompilePolicy=simple</arg>
-                              <arg>-Xplugin:ErrorProne -Xep:MissingOverride:WARN -Xep:NonAtomicVolatileUpdate:ERROR -Xep:SynchronizeOnNonFinalField:ERROR -Xep:StaticQualifiedUsingExpression:ERROR -Xep:WaitNotInLoop:ERROR -XepExcludedPaths:.*/generated-sources/.*</arg>
+                              <arg>-Xplugin:ErrorProne -Xep:ThreadLocalUsage:ERROR -Xep:MissingOverride:WARN -Xep:NonAtomicVolatileUpdate:ERROR -Xep:SynchronizeOnNonFinalField:ERROR -Xep:StaticQualifiedUsingExpression:ERROR -Xep:WaitNotInLoop:ERROR -XepExcludedPaths:.*/generated-sources/.*</arg>
                               <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED</arg>
                               <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED</arg>
                               <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.main=ALL-UNNAMED</arg>
@@ -1301,14 +1241,6 @@
          </properties>
       </profile>
       <profile>
-         <!-- this will activate the property required to limit logging on the testsuite -->
-         <id>tests-CI</id>
-         <properties>
-            <!-- notice I did not intend to use retryTests on this profile, as this will be optional depending on where you run the tests -->
-            <logging.config>logging-CI.properties</logging.config>
-         </properties>
-      </profile>
-      <profile>
          <!-- tests is the profile we use to run the entire testsuite
                Running this entire build could take up to 2 hours -->
          <id>tests</id>
@@ -1338,7 +1270,7 @@
             <skipJoramTests>false</skipJoramTests>
             <skipCompatibilityTests>false</skipCompatibilityTests>
             <testFailureIgnore>false</testFailureIgnore>
-            <!-- This enables the karaf-client-integration-tests and
+            <!-- This enables the karaf-<foo>-integration-tests and
                  integration-tests module tests, see fast-tests profile
                  in the latter for specific tests it then runs -->
             <skipIntegrationTests>false</skipIntegrationTests>
@@ -1367,8 +1299,8 @@
             <!-- Property set by Jacoco plugin -->
             <jacoco.agent />
 
-            <activemq-surefire-argline>-Djava.util.logging.manager=org.jboss.logmanager.LogManager
-               -Dlogging.configuration="file:${activemq.basedir}/tests/config/logging.properties"
+            <activemq-surefire-argline>
+               -Dlog4j2.configurationFile="file:${activemq.basedir}/tests/config/${logging.config}"
                -Djava.library.path="${activemq.basedir}/activemq-artemis-native/bin" -Djgroups.bind_addr=localhost -Dorg.apache.activemq.artemis.api.core.UDPBroadcastEndpointFactory.localBindAddress=localhost
                -Djava.net.preferIPv4Stack=true -Dbasedir=${basedir}
                @{jacoco.agent} -Djacoco.agent=@{jacoco.agent}
@@ -1480,7 +1412,6 @@
                                        <fileset dir="${activemq.basedir}/artemis-journal/target/classes" />
                                        <fileset dir="${activemq.basedir}/activemq-artemis-native/target/classes" />
                                        <fileset dir="${activemq.basedir}/artemis-ra/target/classes" />
-                                       <fileset dir="${activemq.basedir}/artemis-rest/target/classes" />
                                        <fileset dir="${activemq.basedir}/artemis-selector/target/classes" />
                                        <fileset dir="${activemq.basedir}/artemis-server/target/classes" />
                                        <fileset dir="${activemq.basedir}/artemis-server-osgi/target/classes" />
@@ -1500,7 +1431,6 @@
                                        <fileset dir="${activemq.basedir}/artemis-journal/src/main/java" />
                                        <fileset dir="${activemq.basedir}/activemq-artemis-native/src/main/java" />
                                        <fileset dir="${activemq.basedir}/artemis-ra/src/main/java" />
-                                       <fileset dir="${activemq.basedir}/artemis-rest/src/main/java" />
                                        <fileset dir="${activemq.basedir}/artemis-selector/src/main/java" />
                                        <fileset dir="${activemq.basedir}/artemis-server/src/main/java" />
                                        <fileset dir="${activemq.basedir}/artemis-server-osgi/src/main/java" />
@@ -1745,6 +1675,8 @@
                      <exclude>docs/**/_book/</exclude>
                      <exclude>docs/**/_layouts/</exclude>
                      <exclude>docs/user-manual/en/diagrams/*.svg</exclude>
+                     <exclude>docs/user-manual/en/02-27-00-scripts-profiles.diff</exclude>
+                     <exclude>docs/user-manual/en/02-27-00-scripts-profiles-windows.diff</exclude>
                      <exclude>**/target/</exclude>
                      <exclude>**/META-INF/services/*</exclude>
                      <exclude>**/META-INF/MANIFEST.MF</exclude>
@@ -1846,6 +1778,9 @@
          <plugin>
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-javadoc-plugin</artifactId>
+            <configuration>
+               <noindex>true</noindex>
+            </configuration>
          </plugin>
          <plugin>
             <groupId>org.apache.maven.plugins</groupId>
@@ -1898,12 +1833,13 @@
             </executions>
          </plugin>
 
-         <!-- This is placing the .so somewhere other than the distribution so testsuite can take it
-              This is to avoid a dependency on having to build a distribution in order to run tests.
-         -->
+         <!-- This is placing the .so in the root target/bin/ dir, so the testsuite can use it, by
+              leveraging the surefire argLine. This avoids having to build a distribution to run tests.
+              Note the plugin config is not inherited, we only do this at the root. -->
          <plugin>
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-dependency-plugin</artifactId>
+            <inherited>false</inherited>
             <executions>
                <execution>
                   <id>copy</id>
@@ -1958,6 +1894,7 @@
             <configuration>
                <minmemory>128m</minmemory>
                <maxmemory>1024m</maxmemory>
+               <noindex>true</noindex>
                <quiet>false</quiet>
                <!-- XXX FIXME 'aggregate' is deprecated -->
                <aggregate>true</aggregate>
@@ -2003,5 +1940,4 @@
          </snapshots>
       </repository>
    </repositories> -->
-
 </project>

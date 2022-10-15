@@ -49,17 +49,19 @@ import org.apache.activemq.artemis.core.server.impl.LastValueQueue;
 import org.apache.activemq.artemis.core.settings.impl.AddressSettings;
 import org.apache.activemq.artemis.tests.util.Wait;
 import org.apache.activemq.artemis.utils.RetryRule;
-import org.jboss.logging.Logger;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 @RunWith(Parameterized.class)
 public class JMSNonDestructiveTest extends JMSClientTestSupport {
 
-   private static final Logger logger = Logger.getLogger(JMSNonDestructiveTest.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    @Rule
    public RetryRule retryRule = new RetryRule(2);
@@ -620,6 +622,7 @@ public class JMSNonDestructiveTest extends JMSClientTestSupport {
 
       HashMap<String, Integer> dups = new HashMap<>();
       List<Producer> producers = new ArrayList<>();
+      int receivedTally = 0;
 
       try (Connection connection = connectionSupplier.createConnection()) {
          Session session = connection.createSession(false, Session.CLIENT_ACKNOWLEDGE);
@@ -641,6 +644,7 @@ public class JMSNonDestructiveTest extends JMSClientTestSupport {
             if (tm == null) {
                break;
             }
+            receivedTally++;
             results.get(tm.getStringProperty("lastval")).add(tm.getText());
             tm.acknowledge();
          }
@@ -650,16 +654,16 @@ public class JMSNonDestructiveTest extends JMSClientTestSupport {
          }
       }
       for (Map.Entry<String, List<String>> entry : results.entrySet()) {
-         StringBuilder logMessage = new StringBuilder();
-         logMessage.append("Messages received with lastval=" + entry.getKey() + " (");
+         StringBuilder values = new StringBuilder();
          for (String s : entry.getValue()) {
             int occurrences = Collections.frequency(entry.getValue(), s);
             if (occurrences > 1 && !dups.containsValue(Integer.parseInt(s))) {
                dups.put(s, occurrences);
             }
-            logMessage.append(s + ",");
+            values.append(s);
+            values.append(",");
          }
-         logger.info(logMessage + ")");
+         logger.info("Messages received with lastval={} ({})", entry.getKey(), values);
       }
       if (dups.size() > 0) {
          StringBuffer sb = new StringBuffer();
@@ -669,6 +673,7 @@ public class JMSNonDestructiveTest extends JMSClientTestSupport {
          Assert.fail("Duplicate messages received " + sb);
       }
 
+      Assert.assertEquals("Got all messages produced", MESSAGE_COUNT_PER_GROUP * GROUP_COUNT * PRODUCER_COUNT, receivedTally);
       Wait.assertEquals((long) GROUP_COUNT, () -> server.locateQueue(NON_DESTRUCTIVE_LVQ_QUEUE_NAME).getMessageCount(), 2000, 100, false);
    }
 

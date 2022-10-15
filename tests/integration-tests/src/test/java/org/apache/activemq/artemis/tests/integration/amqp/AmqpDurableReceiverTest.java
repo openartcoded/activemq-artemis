@@ -41,13 +41,14 @@ import org.apache.qpid.proton.engine.Receiver;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 /**
  * Tests for broker side support of the Durable Subscription mapping for JMS.
  */
 public class AmqpDurableReceiverTest extends AmqpClientTestSupport {
 
-   private static final Logger LOG = LoggerFactory.getLogger(AmqpDurableReceiverTest.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private final String SELECTOR_STRING = "color = red";
 
@@ -341,7 +342,7 @@ public class AmqpDurableReceiverTest extends AmqpClientTestSupport {
          session.lookupSubscription(getSubscriptionName());
          fail("Should throw an exception since there is not subscription");
       } catch (Exception e) {
-         LOG.debug("Error on lookup: {}", e.getMessage());
+         logger.debug("Error on lookup: {}", e.getMessage());
       }
 
       connection.close();

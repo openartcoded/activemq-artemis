@@ -41,13 +41,15 @@ import org.apache.activemq.artemis.utils.ByteUtil;
 import org.apache.activemq.artemis.utils.SizeAwareMetric;
 import org.apache.activemq.artemis.utils.collections.ConcurrentHashSet;
 import org.apache.activemq.artemis.utils.runnables.AtomicRunnable;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 public final class PagingManagerImpl implements PagingManager {
 
    private static final int ARTEMIS_DEBUG_PAGING_INTERVAL = Integer.valueOf(System.getProperty("artemis.debug.paging.interval", "0"));
 
-   private static final Logger logger = Logger.getLogger(PagingManagerImpl.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private volatile boolean started = false;
 
@@ -221,13 +223,15 @@ public final class PagingManagerImpl implements PagingManager {
 
    class LocalMonitor implements FileStoreMonitor.Callback {
 
-      private final Logger logger = Logger.getLogger(LocalMonitor.class);
+      private final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
       @Override
       public void tick(long usableSpace, long totalSpace) {
          diskUsableSpace = usableSpace;
          diskTotalSpace = totalSpace;
-         logger.tracef("Tick:: usable space at %s, total space at %s", ByteUtil.getHumanReadableByteCount(usableSpace), ByteUtil.getHumanReadableByteCount(totalSpace));
+         if (logger.isTraceEnabled()) {
+            logger.trace("Tick:: usable space at {}, total space at {}", ByteUtil.getHumanReadableByteCount(usableSpace), ByteUtil.getHumanReadableByteCount(totalSpace));
+         }
       }
 
       @Override
@@ -249,6 +253,13 @@ public final class PagingManagerImpl implements PagingManager {
             checkMemoryRelease();
          }
       }
+   }
+
+   /*
+    * For tests only!
+    */
+   protected void setDiskFull(boolean diskFull) {
+      this.diskFull = diskFull;
    }
 
    @Override
@@ -412,7 +423,7 @@ public final class PagingManagerImpl implements PagingManager {
    @Override
    public void addTransaction(final PageTransactionInfo pageTransaction) {
       if (logger.isTraceEnabled()) {
-         logger.trace("Adding pageTransaction " + pageTransaction.getTransactionID());
+         logger.trace("Adding pageTransaction {}", pageTransaction.getTransactionID());
       }
       transactions.put(pageTransaction.getTransactionID(), pageTransaction);
    }
@@ -420,7 +431,7 @@ public final class PagingManagerImpl implements PagingManager {
    @Override
    public void removeTransaction(final long id) {
       if (logger.isTraceEnabled()) {
-         logger.trace("Removing pageTransaction " + id);
+         logger.trace("Removing pageTransaction {}", id);
       }
       transactions.remove(id);
    }
@@ -428,7 +439,7 @@ public final class PagingManagerImpl implements PagingManager {
    @Override
    public PageTransactionInfo getTransaction(final long id) {
       if (logger.isTraceEnabled()) {
-         logger.trace("looking up pageTX = " + id);
+         logger.trace("looking up pageTX = {}", id);
       }
       return transactions.get(id);
    }
@@ -474,7 +485,7 @@ public final class PagingManagerImpl implements PagingManager {
    }
 
    public void debug() {
-      logger.info("size = " + globalSizeMetric.getSize() + " bytes, messages = " + globalSizeMetric.getElements());
+      logger.info("size = {} bytes, messages = {}", globalSizeMetric.getSize(), globalSizeMetric.getElements());
    }
 
    @Override

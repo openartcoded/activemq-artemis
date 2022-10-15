@@ -23,11 +23,13 @@ import java.util.Set;
 import io.netty.handler.codec.socksx.SocksVersion;
 import io.netty.util.Version;
 import org.apache.activemq.artemis.api.config.ActiveMQDefaultConfiguration;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 public class TransportConstants {
 
-   private static final Logger logger = Logger.getLogger(TransportConstants.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    public static final String SSL_CONTEXT_PROP_NAME = "sslContext";
 
@@ -96,6 +98,8 @@ public class TransportConstants {
    public static final String KEYSTORE_PATH_PROP_NAME = "keyStorePath";
 
    public static final String KEYSTORE_PASSWORD_PROP_NAME = "keyStorePassword";
+
+   public static final String KEYSTORE_ALIAS_PROP_NAME = "keyStoreAlias";
 
    public static final String TRUSTSTORE_PROVIDER_PROP_NAME = "trustStoreProvider";
 
@@ -258,6 +262,8 @@ public class TransportConstants {
 
    public static final boolean DEFAULT_USE_DEFAULT_SSL_CONTEXT = false;
 
+   public static final String DEFAULT_KEYSTORE_ALIAS = null;
+
    public static final boolean DEFAULT_TCP_NODELAY = true;
 
    public static final int DEFAULT_TCP_SENDBUFFER_SIZE = 1024 * 1024;
@@ -374,7 +380,7 @@ public class TransportConstants {
             return Integer.parseInt(variable);
          }
       } catch (Throwable ignored) {
-         logger.debug(ignored);
+         logger.debug(ignored.getMessage(), ignored);
       }
 
       return defaultValue;
@@ -400,6 +406,7 @@ public class TransportConstants {
       allowableAcceptorKeys.add(TransportConstants.KEYSTORE_TYPE_PROP_NAME);
       allowableAcceptorKeys.add(TransportConstants.KEYSTORE_PATH_PROP_NAME);
       allowableAcceptorKeys.add(TransportConstants.KEYSTORE_PASSWORD_PROP_NAME);
+      allowableAcceptorKeys.add(TransportConstants.KEYSTORE_ALIAS_PROP_NAME);
       allowableAcceptorKeys.add(TransportConstants.TRUSTSTORE_PROVIDER_PROP_NAME);
       allowableAcceptorKeys.add(TransportConstants.TRUSTSTORE_TYPE_PROP_NAME);
       allowableAcceptorKeys.add(TransportConstants.TRUSTSTORE_PATH_PROP_NAME);
@@ -472,6 +479,7 @@ public class TransportConstants {
       allowableConnectorKeys.add(TransportConstants.KEYSTORE_TYPE_PROP_NAME);
       allowableConnectorKeys.add(TransportConstants.KEYSTORE_PATH_PROP_NAME);
       allowableConnectorKeys.add(TransportConstants.KEYSTORE_PASSWORD_PROP_NAME);
+      allowableConnectorKeys.add(TransportConstants.KEYSTORE_ALIAS_PROP_NAME);
       allowableConnectorKeys.add(TransportConstants.TRUSTSTORE_PROVIDER_PROP_NAME);
       allowableConnectorKeys.add(TransportConstants.TRUSTSTORE_TYPE_PROP_NAME);
       allowableConnectorKeys.add(TransportConstants.TRUSTSTORE_PATH_PROP_NAME);

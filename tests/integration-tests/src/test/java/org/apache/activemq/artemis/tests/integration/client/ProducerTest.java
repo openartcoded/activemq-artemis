@@ -16,6 +16,7 @@
  */
 package org.apache.activemq.artemis.tests.integration.client;
 
+import java.lang.invoke.MethodHandles;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -39,8 +40,12 @@ import org.apache.activemq.artemis.tests.util.ActiveMQTestBase;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ProducerTest extends ActiveMQTestBase {
+
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private ActiveMQServer server;
 
@@ -86,15 +91,15 @@ public class ProducerTest extends ActiveMQTestBase {
       final ServerLocator locator = createInVMNonHALocator();
       AddressSettings setting = new AddressSettings().setAddressFullMessagePolicy(AddressFullMessagePolicy.BLOCK).setMaxSizeBytes(10 * 1024);
       server.stop();
-      server.getConfiguration().getAddressesSettings().clear();
-      server.getConfiguration().getAddressesSettings().put(QUEUE.toString(), setting);
+      server.getConfiguration().getAddressSettings().clear();
+      server.getConfiguration().getAddressSettings().put(QUEUE.toString(), setting);
       server.start();
 
       server.createQueue(new QueueConfiguration(QUEUE));
 
       for (int i = 0; i < 100; i++) {
          final CountDownLatch latch = new CountDownLatch(1);
-         instanceLog.debug("Try " + i);
+         logger.debug("Try {}", i);
          ClientSessionFactory cf = locator.createSessionFactory();
          final ClientSession session = cf.createSession(false, true, true);
 

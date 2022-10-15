@@ -425,7 +425,7 @@ public class ElasticQueueTest extends ActiveMQTestBase {
          .setAutoDeleteQueues(false).setAutoDeleteAddresses(false); // so slow consumer can kick in!
 
       Configuration baseConfig = new ConfigurationImpl();
-      baseConfig.getAddressesSettings().put(qName, blockingQueue);
+      baseConfig.getAddressSettings().put(qName, blockingQueue);
 
       ConnectionRouterConfiguration connectionRouterConfiguration = new ConnectionRouterConfiguration();
       connectionRouterConfiguration.setName(roleNameSharder).setKeyType(KeyType.ROLE_NAME).setKeyFilter("(?<=^EQ_).*"); // strip EQ_ prefix
@@ -436,7 +436,7 @@ public class ElasticQueueTest extends ActiveMQTestBase {
          Configuration configuration = baseConfig.copy();
          configuration.setName("Node" + nodeId);
          configuration.setBrokerInstance(new File(getTestDirfile(), configuration.getName()));
-         configuration.addAcceptorConfiguration("tcp", "tcp://localhost:" + (base_port + (nodeId)) + "?router=" + roleNameSharder + ";amqpCredits=1000;amqpMinCredits=300");
+         configuration.addAcceptorConfiguration("tcp", "tcp://localhost:" + (base_port + (nodeId)) + "?router=" + roleNameSharder + ";amqpCredits=1000;amqpLowCredits=300");
          nodes.add(new EmbeddedActiveMQ().setConfiguration(configuration));
          nodes.get(nodeId).setSecurityManager(customSecurityManager);
          nodes.get(nodeId).setMbeanServer(mBeanServer);

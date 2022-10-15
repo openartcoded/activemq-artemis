@@ -21,11 +21,13 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.function.ToIntFunction;
 
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 public class ThresholdActor<T> extends ProcessorBase<Object> {
 
-   private static final Logger logger = Logger.getLogger(ThresholdActor.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private static final AtomicIntegerFieldUpdater<ThresholdActor> SIZE_UPDATER = AtomicIntegerFieldUpdater.newUpdater(ThresholdActor.class, "size");
    private volatile int size = 0;
@@ -68,8 +70,8 @@ public class ThresholdActor<T> extends ProcessorBase<Object> {
       } finally {
          if (estimateSize > 0) {
             SIZE_UPDATER.getAndAdd(this, -estimateSize);
-         } else if (logger.isDebugEnabled()) {
-            logger.debug("element " + theTask + " returned an invalid size over the Actor during release");
+         } else {
+            logger.debug("element {} returned an invalid size over the Actor during release", theTask);
          }
       }
    }
@@ -81,8 +83,8 @@ public class ThresholdActor<T> extends ProcessorBase<Object> {
          if (size > maxSize) {
             flush();
          }
-      } else if (logger.isDebugEnabled()) {
-         logger.debug("element " + message + " returned an invalid size over the Actor");
+      } else {
+         logger.debug("element {} returned an invalid size over the Actor", message);
       }
       task(message);
    }

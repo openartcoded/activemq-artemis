@@ -25,16 +25,19 @@ import io.netty.handler.codec.mqtt.MqttMessageBuilders;
 import io.netty.handler.codec.mqtt.MqttProperties;
 import io.netty.handler.codec.mqtt.MqttPublishMessage;
 import io.netty.handler.codec.mqtt.MqttQoS;
+import org.apache.activemq.artemis.api.core.ActiveMQSecurityException;
 import org.apache.activemq.artemis.core.config.WildcardConfiguration;
 import org.apache.activemq.artemis.core.persistence.CoreMessageObjectPools;
 import org.apache.activemq.artemis.core.server.ActiveMQServer;
 import org.apache.activemq.artemis.core.server.impl.ServerSessionImpl;
 import org.apache.activemq.artemis.spi.core.protocol.SessionCallback;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 public class MQTTSession {
 
-   private static final Logger logger = Logger.getLogger(MQTTSession.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private final String id = UUID.randomUUID().toString();
 
@@ -90,7 +93,7 @@ public class MQTTSession {
 
       state = MQTTSessionState.DEFAULT;
 
-      logger.debugf("MQTT session created: %s", id);
+      logger.debug("MQTT session created: {}", id);
    }
 
    // Called after the client has Connected.
@@ -255,30 +258,30 @@ public class MQTTSession {
    }
 
    public void sendWillMessage() {
-      try {
-         MqttProperties properties;
-         if (state.getWillUserProperties() == null) {
-            properties = MqttProperties.NO_PROPERTIES;
-         } else {
-            properties = new MqttProperties();
-            for (MqttProperties.MqttProperty userProperty : state.getWillUserProperties()) {
-               properties.add(userProperty);
+      if (state.getWillStatus() == MQTTSessionState.WillStatus.NOT_SENT) {
+         try {
+            state.setWillStatus(MQTTSessionState.WillStatus.SENDING);
+            MqttProperties properties;
+            if (state.getWillUserProperties() == null) {
+               properties = MqttProperties.NO_PROPERTIES;
+            } else {
+               properties = new MqttProperties();
+               for (MqttProperties.MqttProperty userProperty : state.getWillUserProperties()) {
+                  properties.add(userProperty);
+               }
             }
+            MqttPublishMessage publishMessage = MqttMessageBuilders.publish().messageId(0).qos(MqttQoS.valueOf(state.getWillQoSLevel())).retained(state.isWillRetain()).topicName(state.getWillTopic()).payload(state.getWillMessage() == null ? new EmptyByteBuf(PooledByteBufAllocator.DEFAULT) : state.getWillMessage()).properties(properties).build();
+            logger.debug("{} sending will message: {}", this, publishMessage);
+            getMqttPublishManager().sendToQueue(publishMessage, true);
+            state.setWillStatus(MQTTSessionState.WillStatus.SENT);
+            state.setWillMessage(null);
+         } catch (ActiveMQSecurityException e) {
+            state.setWillStatus(MQTTSessionState.WillStatus.NOT_SENT);
+            MQTTLogger.LOGGER.authorizationFailureSendingWillMessage(e.getMessage());
+         } catch (Exception e) {
+            state.setWillStatus(MQTTSessionState.WillStatus.NOT_SENT);
+            MQTTLogger.LOGGER.errorSendingWillMessage(e);
          }
-         MqttPublishMessage publishMessage = MqttMessageBuilders.publish()
-            .messageId(0)
-            .qos(MqttQoS.valueOf(state.getWillQoSLevel()))
-            .retained(state.isWillRetain())
-            .topicName(state.getWillTopic())
-            .payload(state.getWillMessage() == null ? new EmptyByteBuf(PooledByteBufAllocator.DEFAULT) : state.getWillMessage())
-            .properties(properties)
-            .build();
-         logger.debugf("%s sending will message: %s", this, publishMessage);
-         getMqttPublishManager().sendToQueue(publishMessage, true);
-         state.setWillSent(true);
-         state.setWillMessage(null);
-      } catch (Exception e) {
-         MQTTLogger.LOGGER.errorSendingWillMessage(e);
       }
    }
 

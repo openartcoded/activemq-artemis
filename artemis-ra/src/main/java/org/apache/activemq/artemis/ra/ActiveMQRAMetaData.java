@@ -19,10 +19,16 @@ package org.apache.activemq.artemis.ra;
 import javax.resource.ResourceException;
 import javax.resource.spi.ManagedConnectionMetaData;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
+
 /**
  * Managed connection meta data
  */
 public class ActiveMQRAMetaData implements ManagedConnectionMetaData {
+
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    /**
     * The managed connection
@@ -35,9 +41,7 @@ public class ActiveMQRAMetaData implements ManagedConnectionMetaData {
     * @param mc The managed connection
     */
    public ActiveMQRAMetaData(final ActiveMQRAManagedConnection mc) {
-      if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-         ActiveMQRALogger.LOGGER.trace("constructor(" + mc + ")");
-      }
+      logger.trace("constructor({})", mc);
 
       this.mc = mc;
    }
@@ -50,9 +54,7 @@ public class ActiveMQRAMetaData implements ManagedConnectionMetaData {
     */
    @Override
    public String getEISProductName() throws ResourceException {
-      if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-         ActiveMQRALogger.LOGGER.trace("getEISProductName()");
-      }
+      logger.trace("getEISProductName()");
 
       return "ActiveMQ Artemis";
    }
@@ -65,9 +67,7 @@ public class ActiveMQRAMetaData implements ManagedConnectionMetaData {
     */
    @Override
    public String getEISProductVersion() throws ResourceException {
-      if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-         ActiveMQRALogger.LOGGER.trace("getEISProductVersion()");
-      }
+      logger.trace("getEISProductVersion()");
 
       return "2.0";
    }
@@ -80,9 +80,7 @@ public class ActiveMQRAMetaData implements ManagedConnectionMetaData {
     */
    @Override
    public String getUserName() throws ResourceException {
-      if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-         ActiveMQRALogger.LOGGER.trace("getUserName()");
-      }
+      logger.trace("getUserName()");
 
       return mc.getUserName();
    }
@@ -95,9 +93,7 @@ public class ActiveMQRAMetaData implements ManagedConnectionMetaData {
     */
    @Override
    public int getMaxConnections() throws ResourceException {
-      if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-         ActiveMQRALogger.LOGGER.trace("getMaxConnections()");
-      }
+      logger.trace("getMaxConnections()");
 
       return 0;
    }

@@ -186,10 +186,6 @@ We highly recommend you use the latest Java JVM for the best performance. We
 test internally using the Sun JVM, so some of these tunings won't apply to JDKs
 from other providers (e.g. IBM or JRockit)
 
-- Garbage collection. For smooth server operation we recommend using a parallel
-  garbage collection algorithm, e.g. using the JVM argument
-  `-XX:+UseParallelOldGC` on Sun JDKs.
-
 - Memory settings. Give as much memory as you can to the server.  Apache
   ActiveMQ Artemis can run in low memory by using paging (described in
   [Paging](paging.md)) but if it can run with all queues in RAM this will improve
@@ -217,13 +213,13 @@ from other providers (e.g. IBM or JRockit)
 
   > **Note:**
   >
-  > Some popular libraries such as the Spring JMS Template are known to use
-  > these anti-patterns. If you're using Spring JMS Template and you're getting
-  > poor performance you know why. Don't blame Apache ActiveMQ Artemis! The
-  > Spring JMS Template can only safely be used in an app server which caches
-  > JMS sessions (e.g. using JCA), and only then for sending messages. It
-  > cannot be safely be used for synchronously consuming messages, even in an
-  > app server.
+  > Spring's `JmsTemplate` is known to use this anti-pattern. It can only
+  > safely be used with a connection pool (e.g. in a Java EE application server
+  > using JCA), and even then it should only be used for sending messages. It
+  > cannot be safely be used for synchronously consuming messages, even with
+  > a connection pool. If you need a connection pool take a look at 
+  > [this](https://github.com/messaginghub/pooled-jms) which was forked from the
+  > ActiveMQ code-base into its own project with full support for JMS 2.
 
 - Avoid fat messages. Verbose formats such as XML take up a lot of space on the
   wire and performance will suffer as result. Avoid XML in message bodies if

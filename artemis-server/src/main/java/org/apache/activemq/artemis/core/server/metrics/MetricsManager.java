@@ -36,11 +36,13 @@ import org.apache.activemq.artemis.api.core.management.ResourceNames;
 import org.apache.activemq.artemis.core.config.MetricsConfiguration;
 import org.apache.activemq.artemis.core.settings.HierarchicalRepository;
 import org.apache.activemq.artemis.core.settings.impl.AddressSettings;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 public class MetricsManager {
 
-   private static final Logger log = Logger.getLogger(MetricsManager.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private final String brokerName;
 
@@ -142,9 +144,7 @@ public class MetricsManager {
          for (Gauge.Builder gaugeBuilder : newMeters) {
             Gauge gauge = gaugeBuilder.register(meterRegistry);
             meters.add(gauge);
-            if (log.isDebugEnabled()) {
-               log.debug("Registered meter: " + gauge.getId());
-            }
+            logger.debug("Registered meter: {}", gauge.getId());
          }
          return meters;
       });
@@ -157,9 +157,7 @@ public class MetricsManager {
          }
          for (Meter meter : meters) {
             Meter removed = meterRegistry.remove(meter);
-            if (log.isDebugEnabled()) {
-               log.debug("Unregistered meter: " + removed.getId());
-            }
+            logger.debug("Unregistered meter: {}", removed.getId());
          }
          return null;
       });

@@ -67,35 +67,39 @@ public interface AddressControl {
    @Attribute(desc = ADDRESS_SIZE_DESCRIPTION)
    long getAddressSize();
 
+   @Operation(desc = "Schedule Page Cleanup on this address")
+   void schedulePageCleanup() throws Exception;
+
    /**
     * Returns the sum of messages on queue(s), including messages in delivery.
     */
-   @Attribute(desc = "the sum of messages on queue(s), including messages in delivery")
-   long getNumberOfMessages() throws Exception;
+   @Deprecated
+   @Attribute(desc = "the sum of messages on queue(s), including messages in delivery; DEPRECATED: use getMessageCount() instead")
+   long getNumberOfMessages();
 
    /**
     * Returns the names of the remote queue(s) bound to this address.
     */
    @Attribute(desc = "names of the remote queue(s) bound to this address")
-   String[] getRemoteQueueNames() throws Exception;
+   String[] getRemoteQueueNames();
 
    /**
     * Returns the names of the local queue(s) bound to this address.
     */
    @Attribute(desc = "names of the local queue(s) bound to this address")
-   String[] getQueueNames() throws Exception;
+   String[] getQueueNames();
 
    /**
     * Returns the names of both the local and remote queue(s) bound to this address.
     */
    @Attribute(desc = "names of both the local & remote queue(s) bound to this address")
-   String[] getAllQueueNames() throws Exception;
+   String[] getAllQueueNames();
 
    /**
     * Returns the number of pages used by this address.
     */
    @Attribute(desc = NUMBER_OF_PAGES_DESCRIPTION)
-   int getNumberOfPages();
+   long getNumberOfPages();
 
    /**
     * Returns whether this address is paging.
@@ -249,11 +253,11 @@ public interface AddressControl {
    @Operation(desc = "Purges the queues bound to this address. Returns the total number of messages purged.", impact = MBeanOperationInfo.ACTION)
    long purge() throws Exception;
 
-   @Operation(desc = "Makes the broker to read messages from the retention folder matching the address and filter.", impact = MBeanOperationInfo.ACTION)
+   @Operation(desc = "Replays messages from all files in the retention folder that match an address and filter.", impact = MBeanOperationInfo.ACTION)
    void replay(@Parameter(name = "target", desc = "Where the replay data should be sent") String target,
                @Parameter(name = "filter", desc = "Filter to apply on message selection. Null means everything matching the address") String filter) throws Exception;
 
-   @Operation(desc = "Makes the broker to read messages from the retention folder matching the address and filter.", impact = MBeanOperationInfo.ACTION)
+   @Operation(desc = "Replays messages from a configurable subset of the files in the retention folder that match an address and filter.", impact = MBeanOperationInfo.ACTION)
    void replay(@Parameter(name = "startScanDate", desc = "Start date where we will start scanning for journals to replay. Format YYYYMMDDHHMMSS") String startScan,
                @Parameter(name = "endScanDate", desc = "Finish date where we will stop scannning for journals to replay. Format YYYYMMDDHHMMSS") String endScan,
                @Parameter(name = "target", desc = "Where the replay data should be sent") String target,

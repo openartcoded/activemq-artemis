@@ -60,11 +60,13 @@ import org.apache.activemq.artemis.logs.AuditLogger;
 import org.apache.activemq.artemis.selector.filter.Filterable;
 import org.apache.activemq.artemis.utils.JsonLoader;
 import org.apache.activemq.artemis.utils.collections.LinkedListIterator;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 public class QueueControlImpl extends AbstractControl implements QueueControl {
 
-   private static final Logger logger = Logger.getLogger(QueueControlImpl.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    public static final int FLUSH_LIMIT = 500;
 
@@ -1962,8 +1964,51 @@ public class QueueControlImpl extends AbstractControl implements QueueControl {
       }
    }
 
+   @Override
+   public void deliverScheduledMessages(String filter) throws Exception {
+      if (AuditLogger.isBaseLoggingEnabled()) {
+         AuditLogger.deliverScheduledMessage(queue, filter);
+      }
+      checkStarted();
 
+      clearIO();
+      try {
+         queue.deliverScheduledMessages(filter);
+      } finally {
+         blockOnIO();
+      }
+   }
 
+   @Override
+   public void deliverScheduledMessage(long messageId) throws Exception {
+      if (AuditLogger.isBaseLoggingEnabled()) {
+         AuditLogger.deliverScheduledMessage(queue, messageId);
+      }
+      checkStarted();
+
+      clearIO();
+      try {
+         queue.deliverScheduledMessage(messageId);
+      } finally {
+         blockOnIO();
+      }
+   }
+
+   @Override
+   public boolean isAutoDelete() {
+
+      if (AuditLogger.isBaseLoggingEnabled()) {
+         AuditLogger.isAutoDelete(queue);
+      }
+      checkStarted();
+
+      clearIO();
+      try {
+         return queue.isAutoDelete();
+      } finally {
+         blockOnIO();
+      }
+   }
 
    private void checkStarted() {
       if (!server.getPostOffice().isStarted()) {

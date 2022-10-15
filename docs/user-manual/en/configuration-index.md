@@ -76,6 +76,43 @@ You can also change the prefix through the `broker.xml` by setting:
 
 This is to help you customize artemis on embedded systems.
 
+### Broker properties
+
+Broker properties extends the use of properties to allow updates and additions to the broker configuration after
+any xml has been parsed. In the absence of any broker.xml, the hard coded defaults can be modified.
+Internally, any xml configuration is applied to a java bean style configuration object. Typically, there are
+setters for each of the xml attributes. However, for properties, the naming convention changes from 'a-b' to 'aB' to
+reflect the camelCase java naming convention.
+
+Collections need some special treatment to allow additions and reference. We utilise the name attribute of configuration
+entities to find existing entries and when populating new entities, we set the name to match the requested key.
+
+For example, a properties file containing:
+
+```
+securityEnabled=false
+acceptorConfigurations.tcp.factoryClassName=org.apache.activemq.artemis.core.remoting.impl.netty.NettyAcceptorFactory
+acceptorConfigurations.tcp.params.HOST=localhost
+acceptorConfigurations.tcp.params.PORT=61616
+```
+would:
+1) disable RBAC security checks
+2) add or modify an acceptor named "tcp" that will use Netty
+3) set the acceptor named "tcp" 'HOST' parameter to localhost
+4) set the acceptor named "tcp" 'PORT' parameter to 61616
+
+The configuration properties are low level, lower level than xml, however it is very powerful; any accessible attribute of the
+internal `org.apache.activemq.artemis.core.config.impl.ConfigurationImpl` objects can be modified.
+
+With great power one must take great care!
+
+The `artemis run` command script supports `--properties <properties file url>`, where a properties file can be configured.
+
+_Note_: one shortcoming of this method of configuration is that any property that does not match is ignored with no fanfare.
+Enable debug logging for `org.apache.activemq.artemis.core.config.impl.ConfigurationImpl` to get more insight.
+
+There are a growing number of examples of what can be explicitly configured in this way in the [unit test](https://github.com/apache/activemq-artemis/blob/065bfe14f532858f2c2a20b0afb1a226b08ce013/artemis-server/src/test/java/org/apache/activemq/artemis/core/config/impl/ConfigurationImplTest.java#L675).
+
 
 ## The core configuration
 
@@ -105,6 +142,7 @@ Name | Description | Default
 [bridges](core-bridges.md) | [a list of core bridges](#bridge-type) | n/a
 [ha-policy](ha.md) | the HA policy of this server | none
 [broadcast-groups](clusters.md#broadcast-groups) | [a list of broadcast-group](#broadcast-group-type) | n/a
+[broker-connections](amqp-broker-connections.md) | [a list of amqp-connection](#amqp-connection-type) | n/a
 [broker-plugins](broker-plugins.md) | [a list of broker-plugins](#broker-plugin-type) | n/a
 [configuration-file-refresh-period](config-reload.md) | The frequency in milliseconds the configuration file is checked for changes | 5000
 [check-for-live-server](ha.md#data-replication)| Used for a live server to verify if there are other nodes with the same ID on the topology | n/a
@@ -220,7 +258,6 @@ Name | Description | Default
 [max-size-bytes](paging.md)| Max size a queue can be before invoking `address-full-policy` | -1
 [max-size-bytes-reject-threshold]() | Used with `BLOCK`, the max size an address can reach before messages are rejected; works in combination with `max-size-bytes` **for AMQP clients only**. | -1
 [page-size-bytes](paging.md) | Size of each file on page | 10485760
-[page-max-cache-size](paging.md) | Maximum number of files cached from paging | 5
 [address-full-policy](address-model.md)| What to do when a queue reaches `max-size-bytes` | `PAGE`
 [message-counter-history-day-limit](address-model.md) | Days to keep message counter data | 0
 [last-value-queue](last-value-queues.md) | **deprecated** Queue is a last value queue; see `default-last-value-queue` instead | `false`
@@ -427,3 +464,15 @@ Name | Description | Default
 [timeout](message-grouping.md#clustered-grouping) | How long to wait for a decision | 5000
 [group-timeout](message-grouping.md#clustered-grouping) | How long a group binding will be used. | -1 (disabled)
 [reaper-period](message-grouping.md#clustered-grouping) | How often the reaper will be run to check for timed out group bindings. Only valid for `LOCAL` handlers. | 30000
+
+
+## amqp-connection type
+
+Name | Description | Default
+---|---|---
+[uri](amqp-broker-connections.md#amqp-server-connections) | AMQP broker connection URI (required) | n/a
+[name](amqp-broker-connections.md#amqp-server-connections) | A unique name | n/a
+[user](amqp-broker-connections.md#amqp-server-connections) | Broker authentication user (optional) | n/a
+[password](amqp-broker-connections.md#amqp-server-connections) | Broker authentication password (optional) | n/a
+[reconnect-attempts](amqp-broker-connections.md#amqp-server-connections) | How many attempts should be made to reconnect after failure. | -1 (infinite)
+[auto-start](amqp-broker-connections.md#amqp-server-connections) | Broker connection starts automatically with broker | true

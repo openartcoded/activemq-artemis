@@ -21,10 +21,16 @@ import javax.jms.Message;
 import javax.jms.Queue;
 import javax.jms.QueueSender;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
+
 /**
  * ActiveMQQueueSender.
  */
 public class ActiveMQRAQueueSender extends ActiveMQRAMessageProducer implements QueueSender {
+
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    /**
     * Create a new wrapper
@@ -35,8 +41,8 @@ public class ActiveMQRAQueueSender extends ActiveMQRAMessageProducer implements 
    public ActiveMQRAQueueSender(final QueueSender producer, final ActiveMQRASession session) {
       super(producer, session);
 
-      if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-         ActiveMQRALogger.LOGGER.trace("constructor(" + producer + ", " + session + ")");
+      if (logger.isTraceEnabled()) {
+         logger.trace("constructor({}, {})", producer, session);
       }
    }
 
@@ -48,9 +54,7 @@ public class ActiveMQRAQueueSender extends ActiveMQRAMessageProducer implements 
     */
    @Override
    public Queue getQueue() throws JMSException {
-      if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-         ActiveMQRALogger.LOGGER.trace("getQueue()");
-      }
+      logger.trace("getQueue()");
 
       return ((QueueSender) producer).getQueue();
    }
@@ -73,26 +77,15 @@ public class ActiveMQRAQueueSender extends ActiveMQRAMessageProducer implements 
                     final long timeToLive) throws JMSException {
       session.lock();
       try {
-         if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-            ActiveMQRALogger.LOGGER.trace("send " + this +
-                                             " destination=" +
-                                             destination +
-                                             " message=" +
-                                             message +
-                                             " deliveryMode=" +
-                                             deliveryMode +
-                                             " priority=" +
-                                             priority +
-                                             " ttl=" +
-                                             timeToLive);
+         if (logger.isTraceEnabled()) {
+            logger.trace("send {} destination={} message={} deliveryMode={} priority={} ttl={}",
+               this, destination, message, deliveryMode, priority, timeToLive);
          }
 
          checkState();
          producer.send(destination, message, deliveryMode, priority, timeToLive);
 
-         if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-            ActiveMQRALogger.LOGGER.trace("sent " + this + " result=" + message);
-         }
+         logger.trace("sent {} result={}", this, message);
       } finally {
          session.unlock();
       }
@@ -109,16 +102,14 @@ public class ActiveMQRAQueueSender extends ActiveMQRAMessageProducer implements 
    public void send(final Queue destination, final Message message) throws JMSException {
       session.lock();
       try {
-         if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-            ActiveMQRALogger.LOGGER.trace("send " + this + " destination=" + destination + " message=" + message);
+         if (logger.isTraceEnabled()) {
+            logger.trace("send {} destination={} message={}", this, destination, message);
          }
 
          checkState();
          producer.send(destination, message);
 
-         if (ActiveMQRALogger.LOGGER.isTraceEnabled()) {
-            ActiveMQRALogger.LOGGER.trace("sent " + this + " result=" + message);
-         }
+         logger.trace("sent {} result={}", this, message);
       } finally {
          session.unlock();
       }

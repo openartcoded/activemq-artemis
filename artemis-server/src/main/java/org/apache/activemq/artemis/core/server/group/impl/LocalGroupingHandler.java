@@ -41,14 +41,16 @@ import org.apache.activemq.artemis.core.server.management.Notification;
 import org.apache.activemq.artemis.utils.ConcurrentUtil;
 import org.apache.activemq.artemis.utils.ExecutorFactory;
 import org.apache.activemq.artemis.utils.collections.TypedProperties;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 /**
  * A Local Grouping handler. All the Remote handlers will talk with us
  */
 public final class LocalGroupingHandler extends GroupHandlingAbstract {
 
-   private static final Logger logger = Logger.getLogger(LocalGroupingHandler.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private final ConcurrentMap<SimpleString, GroupBinding> map = new ConcurrentHashMap<>();
 
@@ -189,7 +191,7 @@ public final class LocalGroupingHandler extends GroupHandlingAbstract {
 
    @Override
    public Response receive(final Proposal proposal, final int distance) throws Exception {
-      logger.trace("received proposal " + proposal);
+      logger.trace("received proposal {}", proposal);
       return propose(proposal);
    }
 
@@ -230,7 +232,7 @@ public final class LocalGroupingHandler extends GroupHandlingAbstract {
             storageManager.commitBindings(tx);
          } catch (Exception e) {
             // nothing we can do being log
-            ActiveMQServerLogger.LOGGER.warn(e.getMessage(), e);
+            logger.warn(e.getMessage(), e);
          }
       }
    }
@@ -259,7 +261,7 @@ public final class LocalGroupingHandler extends GroupHandlingAbstract {
             expectedBindings.removeAll(bindingsAlreadyAdded);
 
             if (expectedBindings.size() > 0) {
-               logger.debug("Waiting remote group bindings to arrive before starting the server. timeout=" + timeout + " milliseconds");
+               logger.debug("Waiting remote group bindings to arrive before starting the server. timeout={} milliseconds", timeout);
                //now we wait here for the rest to be received in onNotification, it will signal once all have been received.
                //if we aren't signaled then bindingsAdded still has some groupids we need to remove.
                if (!ConcurrentUtil.await(awaitCondition, timeout)) {
@@ -290,18 +292,18 @@ public final class LocalGroupingHandler extends GroupHandlingAbstract {
             if (expectedBindings != null) {
                if (waitingForBindings) {
                   if (expectedBindings.remove(clusterName)) {
-                     logger.debug("OnNotification for waitForbindings::Removed clusterName=" + clusterName + " from lis succesffully");
+                     logger.debug("OnNotification for waitForbindings::Removed clusterName={} from list succesffully", clusterName);
                   } else {
-                     logger.debug("OnNotification for waitForbindings::Couldn't remove clusterName=" + clusterName + " as it wasn't on the original list");
+                     logger.debug("OnNotification for waitForbindings::Couldn't remove clusterName={} as it wasn't on the original list", clusterName);
                   }
                } else {
                   expectedBindings.add(clusterName);
-                  logger.debug("Notification for waitForbindings::Adding previously known item clusterName=" + clusterName);
+                  logger.debug("Notification for waitForbindings::Adding previously known item clusterName={}", clusterName);
                }
 
                if (logger.isDebugEnabled()) {
                   for (SimpleString stillWaiting : expectedBindings) {
-                     logger.debug("Notification for waitForbindings::Still waiting for clusterName=" + stillWaiting);
+                     logger.debug("Notification for waitForbindings::Still waiting for clusterName={}", stillWaiting);
                   }
                }
 
@@ -371,7 +373,7 @@ public final class LocalGroupingHandler extends GroupHandlingAbstract {
                         }
                         storageManager.deleteGrouping(txID, val);
                      } catch (Exception e) {
-                        ActiveMQServerLogger.LOGGER.unableToDeleteGroupBindings(e, val.getGroupId());
+                        ActiveMQServerLogger.LOGGER.unableToDeleteGroupBindings(val.getGroupId(), e);
                      }
                   }
                }
@@ -380,7 +382,7 @@ public final class LocalGroupingHandler extends GroupHandlingAbstract {
                   try {
                      storageManager.commitBindings(txID);
                   } catch (Exception e) {
-                     ActiveMQServerLogger.LOGGER.unableToDeleteGroupBindings(e, SimpleString.toSimpleString("TX:" + txID));
+                     ActiveMQServerLogger.LOGGER.unableToDeleteGroupBindings(SimpleString.toSimpleString("TX:" + txID), e);
                   }
                }
             }
@@ -435,7 +437,7 @@ public final class LocalGroupingHandler extends GroupHandlingAbstract {
                         txID = -1;
                      }
                   } catch (Exception e) {
-                     ActiveMQServerLogger.LOGGER.unableToDeleteGroupBindings(e, groupBinding.getGroupId());
+                     ActiveMQServerLogger.LOGGER.unableToDeleteGroupBindings(groupBinding.getGroupId(), e);
                   }
                }
             }
@@ -444,7 +446,7 @@ public final class LocalGroupingHandler extends GroupHandlingAbstract {
                try {
                   storageManager.commitBindings(txID);
                } catch (Exception e) {
-                  ActiveMQServerLogger.LOGGER.unableToDeleteGroupBindings(e, SimpleString.toSimpleString("TX:" + txID));
+                  ActiveMQServerLogger.LOGGER.unableToDeleteGroupBindings(SimpleString.toSimpleString("TX:" + txID), e);
                }
             }
          }

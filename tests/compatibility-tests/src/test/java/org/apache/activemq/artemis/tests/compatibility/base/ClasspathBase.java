@@ -20,13 +20,14 @@ package org.apache.activemq.artemis.tests.compatibility.base;
 import java.io.File;
 import java.lang.reflect.Method;
 import java.net.URL;
-import java.net.URLClassLoader;
+import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 
 import org.apache.activemq.artemis.tests.compatibility.GroovyRun;
-import org.jboss.logging.Logger;
+import org.junit.AfterClass;
+import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.ClassRule;
 import org.junit.Rule;
@@ -34,6 +35,9 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.rules.TestRule;
 import org.junit.rules.TestWatcher;
 import org.junit.runner.Description;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 import static org.apache.activemq.artemis.tests.compatibility.GroovyRun.SNAPSHOT;
 
@@ -41,32 +45,62 @@ import static org.apache.activemq.artemis.tests.compatibility.GroovyRun.SNAPSHOT
 
 public class ClasspathBase {
 
-
-   private final Logger instanceLog = Logger.getLogger(this.getClass());
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    @Rule
    public TestRule watcher = new TestWatcher() {
 
       @Override
       protected void starting(Description description) {
-         instanceLog.info(String.format("**** start #test %s() ***", ClasspathBase.this.getClass().getName() + "::" + description.getMethodName()));
+         logger.info("**** start #test {}::{}() ***", ClasspathBase.this.getClass().getName(), description.getMethodName());
       }
 
       @Override
       protected void finished(Description description) {
-         instanceLog.info(String.format("**** end #test %s() ***", ClasspathBase.this.getClass().getName() + "::" + description.getMethodName()));
+         logger.info("**** end #test {}::{}() ***", ClasspathBase.this.getClass().getName(), description.getMethodName());
       }
    };
+
+   @AfterClass
+   public static void cleanup() {
+      loaderMap.values().forEach((cl -> clearClassLoader(cl)));
+      clearClassLoader(VersionedBase.class.getClassLoader());
+   }
+
+   public static void clearClassLoader(ClassLoader loader) {
+      try {
+         execute(loader, "org.apache.activemq.artemis.api.core.client.ActiveMQClient.clearThreadPools()");
+      } catch (Throwable e) {
+         logger.debug(e.getMessage(), e);
+      }
+
+      try {
+         execute(loader, "org.hornetq.core.client.impl.ServerLocatorImpl.clearThreadPools()");
+      } catch (Throwable e) {
+         logger.debug(e.getMessage(), e);
+      }
+
+      clearGroovy(loader);
+   }
 
 
    @ClassRule
    public static TemporaryFolder serverFolder;
    private static int javaVersion;
 
+   public static final int getJavaVersion() {
+      return javaVersion;
+   }
+
+   // definining server folder
    static {
       File parent = new File("./target/tmp");
       parent.mkdirs();
       serverFolder = new TemporaryFolder(parent);
+   }
+
+   // defining java version
+   static {
       String version = System.getProperty("java.version");
       if (version.startsWith("1.")) {
          version = version.substring(2, 3);
@@ -89,11 +123,9 @@ public class ClasspathBase {
       for (int i = 0; i < classPathArray.length; i++) {
          elements[i] = new File(classPathArray[i]).toPath().toUri().toURL();
       }
-      if (javaVersion > 8) {
-         ClassLoader parent = (ClassLoader) ClassLoader.class.getDeclaredMethod("getPlatformClassLoader").invoke(null);
-         return new URLClassLoader(elements, parent);
-      }
-      return new URLClassLoader(elements, null);
+
+      ClassLoader parent = ClassLoader.getPlatformClassLoader();
+      return new TestClassLoader(elements, parent);
    }
 
    protected static void startServer(File folder,
@@ -119,6 +151,10 @@ public class ClasspathBase {
 
    protected ClassLoader getClasspath(String name, boolean forceNew) throws Exception {
 
+      if (name.equals(GroovyRun.ONE_FIVE) || name.equals(GroovyRun.TWO_ZERO)) {
+         Assume.assumeTrue("This version of artemis cannot be ran against JDK16+", getJavaVersion() < 16);
+      }
+
       if (!forceNew) {
          if (name.equals(SNAPSHOT)) {
             GroovyRun.clear();
@@ -132,23 +168,17 @@ public class ClasspathBase {
          }
       }
 
-      String value = System.getProperty(name);
-
-      if (!printed.contains(name)) {
-         boolean ok = value != null && !value.trim().isEmpty();
-         if (!ok) {
-            System.out.println("Add \"-D" + name + "=\'CLASSPATH\'\" into your VM settings");
-            System.out.println("You will see it in the output from mvn install at the compatibility-tests");
-            System.out.println("... look for output from dependency-scan");
-
-            // our dependency scan used at the pom under compatibility-tests/pom.xml will generate these, example:
-            // [INFO] dependency-scan setting: -DARTEMIS-140="/Users/someuser/....."
-            // copy that into your IDE setting and you should be able to debug it
-         }
-         Assume.assumeTrue("Cannot run these tests, no classpath found", ok);
+      String classPathValue = null;
+      File file = new File("./target/" + name + ".cp");
+      if (file.exists()) {
+         StringBuffer buffer = new StringBuffer();
+         Files.lines(file.toPath()).forEach((str) -> buffer.append(str));
+         classPathValue = buffer.toString();
       }
 
-      ClassLoader loader = defineClassLoader(value);
+      Assert.assertTrue("Cannot run compatibility tests, no classpath found on ./target/" + name + ".cp", classPathValue != null && !classPathValue.trim().equals(""));
+
+      ClassLoader loader = defineClassLoader(classPathValue);
       if (!forceNew) {
          // if we are forcing a new one, there's no point in caching it
          loaderMap.put(name, loader);
@@ -174,13 +204,17 @@ public class ClasspathBase {
       });
    }
 
-   protected static void clearGroovy(ClassLoader loader) throws Exception {
-      tclCall(loader, () -> {
-         Class clazz = loader.loadClass(GroovyRun.class.getName());
-         Method method = clazz.getMethod("clear");
-         method.invoke(null);
-         return null;
-      });
+   protected static void clearGroovy(ClassLoader loader) {
+      try {
+         tclCall(loader, () -> {
+            Class clazz = loader.loadClass(GroovyRun.class.getName());
+            Method method = clazz.getMethod("clear");
+            method.invoke(null);
+            return null;
+         });
+      } catch (Throwable e) {
+         logger.warn(e.getMessage(), e);
+      }
    }
 
    protected static Object setVariable(ClassLoader loader, String name) throws Exception {

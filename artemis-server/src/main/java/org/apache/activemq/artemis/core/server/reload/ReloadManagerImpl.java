@@ -29,11 +29,13 @@ import java.util.concurrent.TimeUnit;
 
 import org.apache.activemq.artemis.core.server.ActiveMQScheduledComponent;
 import org.apache.activemq.artemis.core.server.ActiveMQServerLogger;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 public class ReloadManagerImpl extends ActiveMQScheduledComponent implements ReloadManager {
 
-   private static final Logger logger = Logger.getLogger(ReloadManagerImpl.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    private volatile Runnable tick;
 
@@ -114,10 +116,12 @@ public class ReloadManagerImpl extends ActiveMQScheduledComponent implements Rel
          long fileModified = file.lastModified();
 
          if (logger.isDebugEnabled()) {
-            logger.debug("Validating lastModified " + lastModified + " modified = " + fileModified + " on " + uri);
+            logger.debug("Validating lastModified {} modified = {} on {}", lastModified, fileModified, uri);
          }
 
-         if (lastModified > 0 && fileModified > lastModified) {
+         if ((lastModified > 0 && fileModified > lastModified) ||
+            // newly created file, first valid modified time
+            (fileModified > 0 && lastModified == 0)) {
 
             for (ReloadCallback callback : callbacks) {
                try {

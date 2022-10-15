@@ -16,10 +16,6 @@
  */
 package org.apache.activemq.artemis.core.management.impl;
 
-import org.apache.activemq.artemis.json.JsonArray;
-import org.apache.activemq.artemis.json.JsonArrayBuilder;
-import org.apache.activemq.artemis.json.JsonObject;
-import org.apache.activemq.artemis.json.JsonObjectBuilder;
 import javax.management.ListenerNotFoundException;
 import javax.management.MBeanAttributeInfo;
 import javax.management.MBeanNotificationInfo;
@@ -45,12 +41,16 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import org.apache.activemq.artemis.api.config.ActiveMQDefaultConfiguration;
 import org.apache.activemq.artemis.api.core.ActiveMQAddressDoesNotExistException;
 import org.apache.activemq.artemis.api.core.ActiveMQException;
+import org.apache.activemq.artemis.api.core.ActiveMQIllegalStateException;
 import org.apache.activemq.artemis.api.core.JsonUtil;
 import org.apache.activemq.artemis.api.core.QueueConfiguration;
 import org.apache.activemq.artemis.api.core.RoutingType;
@@ -93,6 +93,7 @@ import org.apache.activemq.artemis.core.remoting.server.RemotingService;
 import org.apache.activemq.artemis.core.security.CheckType;
 import org.apache.activemq.artemis.core.security.Role;
 import org.apache.activemq.artemis.core.security.impl.SecurityStoreImpl;
+import org.apache.activemq.artemis.core.server.ActiveMQComponent;
 import org.apache.activemq.artemis.core.server.ActiveMQMessageBundle;
 import org.apache.activemq.artemis.core.server.ActiveMQServer;
 import org.apache.activemq.artemis.core.server.ActiveMQServerLogger;
@@ -106,6 +107,7 @@ import org.apache.activemq.artemis.core.server.Queue;
 import org.apache.activemq.artemis.core.server.ServerConsumer;
 import org.apache.activemq.artemis.core.server.ServerProducer;
 import org.apache.activemq.artemis.core.server.ServerSession;
+import org.apache.activemq.artemis.core.server.ServiceComponent;
 import org.apache.activemq.artemis.core.server.cluster.ClusterConnection;
 import org.apache.activemq.artemis.core.server.cluster.ClusterManager;
 import org.apache.activemq.artemis.core.server.cluster.ha.HAPolicy;
@@ -127,7 +129,12 @@ import org.apache.activemq.artemis.core.transaction.TransactionDetail;
 import org.apache.activemq.artemis.core.transaction.TransactionDetailFactory;
 import org.apache.activemq.artemis.core.transaction.impl.CoreTransactionDetail;
 import org.apache.activemq.artemis.core.transaction.impl.XidImpl;
+import org.apache.activemq.artemis.json.JsonArray;
+import org.apache.activemq.artemis.json.JsonArrayBuilder;
+import org.apache.activemq.artemis.json.JsonObject;
+import org.apache.activemq.artemis.json.JsonObjectBuilder;
 import org.apache.activemq.artemis.logs.AuditLogger;
+import org.apache.activemq.artemis.marker.WebServerComponentMarker;
 import org.apache.activemq.artemis.spi.core.protocol.RemotingConnection;
 import org.apache.activemq.artemis.spi.core.security.ActiveMQBasicSecurityManager;
 import org.apache.activemq.artemis.spi.core.security.jaas.PropertiesLoginModuleConfigurator;
@@ -136,11 +143,13 @@ import org.apache.activemq.artemis.utils.ListUtil;
 import org.apache.activemq.artemis.utils.PasswordMaskingUtil;
 import org.apache.activemq.artemis.utils.SecurityFormatter;
 import org.apache.activemq.artemis.utils.collections.TypedProperties;
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 public class ActiveMQServerControlImpl extends AbstractControl implements ActiveMQServerControl, NotificationEmitter, org.apache.activemq.artemis.core.server.management.NotificationListener {
 
-   private static final Logger logger = Logger.getLogger(ActiveMQServerControlImpl.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
 
    private final PostOffice postOffice;
@@ -160,6 +169,8 @@ public class ActiveMQServerControlImpl extends AbstractControl implements Active
    private final AtomicLong notifSeq = new AtomicLong(0);
 
    private final Object userLock = new Object();
+
+   private final Object embeddedWebServerLock = new Object();
 
    public ActiveMQServerControlImpl(final PostOffice postOffice,
                                     final Configuration configuration,
@@ -190,6 +201,21 @@ public class ActiveMQServerControlImpl extends AbstractControl implements Active
       clearIO();
       try {
          return server.isStarted();
+      } finally {
+         blockOnIO();
+      }
+   }
+
+   @Override
+   public String getName() {
+      if (AuditLogger.isBaseLoggingEnabled()) {
+         AuditLogger.getName(this.server);
+      }
+      checkStarted();
+
+      clearIO();
+      try {
+         return server.getConfiguration().getName();
       } finally {
          blockOnIO();
       }
@@ -2900,7 +2926,19 @@ public class ActiveMQServerControlImpl extends AbstractControl implements Active
 
          int i = 0;
          for (Role role : roles) {
-            objRoles[i++] = new Object[]{role.getName(), CheckType.SEND.hasRole(role), CheckType.CONSUME.hasRole(role), CheckType.CREATE_DURABLE_QUEUE.hasRole(role), CheckType.DELETE_DURABLE_QUEUE.hasRole(role), CheckType.CREATE_NON_DURABLE_QUEUE.hasRole(role), CheckType.DELETE_NON_DURABLE_QUEUE.hasRole(role), CheckType.MANAGE.hasRole(role)};
+            objRoles[i++] = new Object[]{
+               role.getName(),
+               CheckType.SEND.hasRole(role),
+               CheckType.CONSUME.hasRole(role),
+               CheckType.CREATE_DURABLE_QUEUE.hasRole(role),
+               CheckType.DELETE_DURABLE_QUEUE.hasRole(role),
+               CheckType.CREATE_NON_DURABLE_QUEUE.hasRole(role),
+               CheckType.DELETE_NON_DURABLE_QUEUE.hasRole(role),
+               CheckType.MANAGE.hasRole(role),
+               CheckType.BROWSE.hasRole(role),
+               CheckType.CREATE_ADDRESS.hasRole(role),
+               CheckType.DELETE_ADDRESS.hasRole(role)
+            };
          }
          return objRoles;
       } finally {
@@ -3888,6 +3926,38 @@ public class ActiveMQServerControlImpl extends AbstractControl implements Active
    }
 
    @Override
+   public void addConnector(String name, String url) throws Exception {
+      if (AuditLogger.isBaseLoggingEnabled()) {
+         AuditLogger.addConnector(this.server, name, url);
+      }
+      checkStarted();
+
+      clearIO();
+
+      try {
+         server.getConfiguration().addConnectorConfiguration(name, url);
+      } finally {
+         blockOnIO();
+      }
+   }
+
+   @Override
+   public void removeConnector(String name) throws Exception {
+      if (AuditLogger.isBaseLoggingEnabled()) {
+         AuditLogger.removeConnector(this.server, name);
+      }
+      checkStarted();
+
+      clearIO();
+
+      try {
+         server.getConfiguration().getConnectorConfigurations().remove(name);
+      } finally {
+         blockOnIO();
+      }
+   }
+
+   @Override
    public String listBrokerConnections() {
       if (AuditLogger.isBaseLoggingEnabled()) {
          AuditLogger.listBrokerConnections();
@@ -4423,6 +4493,16 @@ public class ActiveMQServerControlImpl extends AbstractControl implements Active
    }
 
    @Override
+   public String getStatus() {
+      if (AuditLogger.isBaseLoggingEnabled()) {
+         AuditLogger.getStatus(this.server);
+      }
+      checkStarted();
+
+      return server.getStatus();
+   }
+
+   @Override
    public void resetUser(String username, String password, String roles, boolean plaintext) throws Exception {
       if (AuditLogger.isBaseLoggingEnabled()) {
          AuditLogger.resetUser(this.server, username, "****", roles, plaintext);
@@ -4478,6 +4558,72 @@ public class ActiveMQServerControlImpl extends AbstractControl implements Active
       Date endScanDate = format.parse(endScan);
 
       server.replay(startScanDate, endScanDate, address, target, filter);
+   }
+
+   @Override
+   public void stopEmbeddedWebServer() throws Exception {
+      synchronized (embeddedWebServerLock) {
+         getEmbeddedWebServerComponent().stop(true);
+      }
+   }
+
+   @Override
+   public void startEmbeddedWebServer() throws Exception {
+      synchronized (embeddedWebServerLock) {
+         getEmbeddedWebServerComponent().start();
+      }
+   }
+
+   @Override
+   public void restartEmbeddedWebServer() throws Exception {
+      restartEmbeddedWebServer(ActiveMQDefaultConfiguration.getDefaultEmbeddedWebServerRestartTimeout());
+   }
+
+   @Override
+   public void restartEmbeddedWebServer(long timeout) throws Exception {
+      final CountDownLatch latch = new CountDownLatch(1);
+      final AtomicReference<Exception> exception = new AtomicReference<>();
+      /*
+       * This needs to be run in its own thread managed by the broker because if it is run on a thread managed by Jetty
+       * (e.g. if it is invoked from the web console) then the thread will die before Jetty can be restarted.
+       */
+      server.getThreadPool().execute(() -> {
+         try {
+            synchronized (embeddedWebServerLock) {
+               stopEmbeddedWebServer();
+               startEmbeddedWebServer();
+            }
+         } catch (Exception e) {
+            exception.set(e);
+         } finally {
+            latch.countDown();
+         }
+      });
+      if (!latch.await(timeout, TimeUnit.MILLISECONDS)) {
+         throw ActiveMQMessageBundle.BUNDLE.embeddedWebServerRestartTimeout(timeout);
+      }
+      if (exception.get() != null) {
+         throw ActiveMQMessageBundle.BUNDLE.embeddedWebServerRestartFailed(exception.get());
+      }
+   }
+
+   @Override
+   public boolean isEmbeddedWebServerStarted() {
+      try {
+         return getEmbeddedWebServerComponent().isStarted();
+      } catch (Exception e) {
+         logger.trace(e.getMessage());
+         return false;
+      }
+   }
+
+   private ServiceComponent getEmbeddedWebServerComponent() throws ActiveMQIllegalStateException {
+      for (ActiveMQComponent component : server.getExternalComponents()) {
+         if (component instanceof WebServerComponentMarker) {
+            return (ServiceComponent) component;
+         }
+      }
+      throw ActiveMQMessageBundle.BUNDLE.embeddedWebServerNotFound();
    }
 }
 

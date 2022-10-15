@@ -23,15 +23,19 @@ import javax.crypto.spec.SecretKeySpec;
 
 import java.math.BigInteger;
 import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
 
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 /**
  * A DefaultSensitiveDataCodec
@@ -47,7 +51,7 @@ import org.jboss.logging.Logger;
  */
 public class DefaultSensitiveStringCodec implements SensitiveDataCodec<String> {
 
-   private static final Logger logger = Logger.getLogger(DefaultSensitiveStringCodec.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    public static final String ALGORITHM = "algorithm";
    public static final String BLOWFISH_KEY = "key";
@@ -111,7 +115,7 @@ public class DefaultSensitiveStringCodec implements SensitiveDataCodec<String> {
       return algorithm.verify(inputValue, storedValue);
    }
 
-   private abstract class CodecAlgorithm {
+   private abstract static class CodecAlgorithm {
 
       protected Map<String, String> params;
 
@@ -140,8 +144,16 @@ public class DefaultSensitiveStringCodec implements SensitiveDataCodec<String> {
          } else {
             key = System.getProperty(KEY_SYSTEM_PROPERTY);
             if (key != null && key.trim().length() > 0) {
-               logger.trace("Set key from system property " + KEY_SYSTEM_PROPERTY);
+               logger.trace("Set key from system property {}", KEY_SYSTEM_PROPERTY);
                updateKey(key);
+            }
+            if (key == null) {
+               final String matchingEnvVarName = envVarNameFromSystemPropertyName(KEY_SYSTEM_PROPERTY);
+               key = getFromEnv(matchingEnvVarName);
+               if (key != null) {
+                  logger.trace("Set key from env var {}", matchingEnvVarName);
+                  updateKey(key);
+               }
             }
          }
       }
@@ -196,13 +208,21 @@ public class DefaultSensitiveStringCodec implements SensitiveDataCodec<String> {
          try {
             return Objects.equals(storedValue, encode(String.valueOf(inputValue)));
          } catch (Exception e) {
-            logger.debug("Exception on verifying: " + e);
+            logger.debug("Exception on verifying:", e);
             return false;
          }
       }
    }
 
-   private class PBKDF2Algorithm extends CodecAlgorithm {
+   protected String getFromEnv(final String envVarName) {
+      return System.getenv(envVarName);
+   }
+
+   public static String envVarNameFromSystemPropertyName(final String systemPropertyName) {
+      return systemPropertyName.replace(".","_").toUpperCase(Locale.getDefault());
+   }
+
+   private static class PBKDF2Algorithm extends CodecAlgorithm {
       private static final String SEPARATOR = ":";
       private String sceretKeyAlgorithm = "PBKDF2WithHmacSHA1";
       private String randomScheme = "SHA1PRNG";
@@ -210,10 +230,14 @@ public class DefaultSensitiveStringCodec implements SensitiveDataCodec<String> {
       private int saltLength = 32;
       private int iterations = 1024;
       private SecretKeyFactory skf;
+      private static SecureRandom sr;
 
       PBKDF2Algorithm(Map<String, String> params) throws NoSuchAlgorithmException {
          super(params);
          skf = SecretKeyFactory.getInstance(sceretKeyAlgorithm);
+         if (sr == null) {
+            sr = SecureRandom.getInstance(randomScheme);
+         }
       }
 
       @Override
@@ -221,8 +245,9 @@ public class DefaultSensitiveStringCodec implements SensitiveDataCodec<String> {
          throw new IllegalArgumentException("Algorithm doesn't support decoding");
       }
 
-      public byte[] getSalt() throws NoSuchAlgorithmException {
-         byte[] salt = RandomUtil.randomBytes(this.saltLength);
+      public byte[] getSalt() {
+         byte[] salt = new byte[this.saltLength];
+         sr.nextBytes(salt);
          return salt;
       }
 

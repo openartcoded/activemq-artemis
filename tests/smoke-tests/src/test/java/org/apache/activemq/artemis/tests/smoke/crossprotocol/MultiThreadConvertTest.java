@@ -45,12 +45,13 @@ import org.junit.Before;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import java.lang.invoke.MethodHandles;
 
 public class MultiThreadConvertTest extends SmokeTestBase {
 
    private static final String SERVER_NAME_0 = "standard";
 
-   private static final Logger LOG = LoggerFactory.getLogger(MultiThreadConvertTest.class);
+   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
    @Before
    public void before() throws Exception {
@@ -129,7 +130,7 @@ public class MultiThreadConvertTest extends SmokeTestBase {
                   }
 
                } catch (Throwable t) {
-                  LOG.error("Error during message consumption: ", t);
+                  logger.error("Error during message consumption: ", t);
                   error.set(true);
                } finally {
                   try {
