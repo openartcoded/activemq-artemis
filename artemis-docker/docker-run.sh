@@ -44,6 +44,6 @@ else
     echo "broker already created, ignoring creation"
 fi
 
-exec ./bin/artemis "$@"
+#exec ./bin/artemis "$@" COMMENTED BECAUSE WE WANT TO OVERRIDE CONFIG FFS
 
 
