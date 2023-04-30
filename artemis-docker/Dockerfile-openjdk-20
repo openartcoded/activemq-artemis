@@ -82,7 +82,6 @@ USER artemis
 # VOLUME ["/var/lib/artemis-instance"]
 WORKDIR /var/lib/artemis-instance
 COPY --from=downloader /var/lib/** /var/lib/artemis-instance/lib/
-
 RUN bash /docker-run.sh
 
 CMD ["/var/lib/artemis-instance/bin/artemis","run"]

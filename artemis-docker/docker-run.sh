@@ -24,10 +24,10 @@
 
 set -e
 
-BROKER_HOME=/var/lib/
+BROKER_HOME=/var/lib/artemis-instance
 CONFIG_PATH=$BROKER_HOME/etc
-export BROKER_HOME OVERRIDE_PATH CONFIG_PATH
 
+KEYCLOAK_CONF="--java-options  -Dhawtio.keycloakClientConfig=file:$CONFIG_PATH/keycloak.json -Dhawtio.keycloakEnabled=true"
 if [[ ${ANONYMOUS_LOGIN,,} == "true" ]]; then
   LOGIN_OPTION="--allow-anonymous"
 else
