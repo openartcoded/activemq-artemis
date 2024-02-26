@@ -11,7 +11,6 @@ jobs:
     env:
       ARTEMIS_VERSION: 2.32.0
       KEYCLOAK_VERSION: 23.0.5
-      ARTCODED_VERSION: latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -29,6 +28,6 @@ jobs:
           cd artemis-docker
           bash prepare-docker.sh --from-release --artemis-version $ARTEMIS_VERSION
           cd ./_TMP_/artemis/$ARTEMIS_VERSION                                                            
-          docker buildx build --platform linux/amd64,linux/arm64 --build-arg KEYCLOAK_VERSION=${KEYCLOAK_VERSION} -f ./docker/Dockerfile-openjdk-21 -t nbittich/artemis:v$ARTCODED_VERSION .
-          docker tag nbittich/artemis:v$ARTCODED_VERSION nbittich/artemis:v$ARTCODED_VERSION                                                                         
-          docker push nbittich/artemis:v$ARTCODED_VERSION
+          docker buildx build --platform linux/amd64,linux/arm64 --build-arg KEYCLOAK_VERSION=${KEYCLOAK_VERSION} -f ./docker/Dockerfile-openjdk-21 -t nbittich/artemis:${ARTEMIS_VERSION} .
+          docker tag nbittich/artemis:${ARTEMIS_VERSION} nbittich/artemis:${ARTEMIS_VERSION}                                                                         
+          docker push nbittich/artemis:${ARTEMIS_VERSION}
