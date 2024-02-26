@@ -1,0 +1,32 @@
+name: ci
+
+on:
+  push:
+    branches:
+      - "main"
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    env:
+      ARTEMIS_VERSION: 2.32.0
+      KEYCLOAK_VERSION: 23.0.5
+      ARTCODED_VERSION: latest
+    steps:
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+    - name: Build and push Docker image
+      run: |
+        cd artemis-docker
+        bash prepare-docker.sh --from-release --artemis-version $ARTEMIS_VERSION
+        cd ./_TMP_/artemis/$ARTEMIS_VERSION                                                            
+        docker buildx build --platform linux/amd64,linux/arm64 --build-arg KEYCLOAK_VERSION=${KEYCLOAK_VERSION} -f ./docker/Dockerfile-openjdk-21 -t nbittich/artemis:v$ARTCODED_VERSION .          docker push username/repository:tag
+        docker tag nbittich/artemis:v$ARTCODED_VERSION nbittich/artemis:v$ARTCODED_VERSION                                                                         
+        docker push nbittich/artemis:v$ARTCODED_VERSION  
