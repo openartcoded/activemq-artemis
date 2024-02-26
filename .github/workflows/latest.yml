@@ -29,5 +29,4 @@ jobs:
           bash prepare-docker.sh --from-release --artemis-version $ARTEMIS_VERSION
           cd ./_TMP_/artemis/$ARTEMIS_VERSION                                                            
           docker buildx build --platform linux/amd64,linux/arm64 --build-arg KEYCLOAK_VERSION=${KEYCLOAK_VERSION} -f ./docker/Dockerfile-openjdk-21 -t nbittich/artemis:${ARTEMIS_VERSION} .
-          docker tag nbittich/artemis:${ARTEMIS_VERSION} nbittich/artemis:${ARTEMIS_VERSION}                                                                         
           docker push nbittich/artemis:${ARTEMIS_VERSION}
