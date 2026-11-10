@@ -11,7 +11,7 @@ jobs:
         env:
             ARTEMIS_VERSION: 2.57.0
             ARTCODED_VERSION: 2027.0.0
-            KEYCLOAK_VERSION: 26.8.2
+            KEYCLOAK_VERSION: 25.0.3
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
